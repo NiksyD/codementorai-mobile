@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import '../data/auth_repository.dart';
+import '../data/supabase_auth_repository.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({
+    super.key,
+    this.authRepository = const SupabaseAuthRepository(),
+  });
+
+  final AuthRepository authRepository;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -20,20 +28,42 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isLoading = true;
-      });
+  Future<void> _handleLogin() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-      // TODO: Connect to authentication service/repository
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Logging in...')));
+    setState(() {
+      _isLoading = true;
+    });
 
-      setState(() {
-        _isLoading = false;
-      });
+    try {
+      final user = await widget.authRepository.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Welcome back, ${user.email}!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login Error: ${error.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -42,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Sign In')),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
@@ -50,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                const SizedBox(height: 32.0),
                 Text(
                   'Welcome Back',
                   style: Theme.of(context).textTheme.headlineMedium,
@@ -102,6 +133,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: _isLoading
                       ? const CircularProgressIndicator.adaptive()
                       : const Text('Sign In'),
+                ),
+                const SizedBox(height: 16.0),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (BuildContext context) =>
+                            const RegisterScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text("Don't have an account? Register"),
                 ),
               ],
             ),

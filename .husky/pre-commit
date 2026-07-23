@@ -6,7 +6,7 @@ RED='\033[1;31m'
 RESET='\033[0m'
 
 printf "\n%b🔍 [1/2] Checking Dart code formatting...%b\n" "$CYAN" "$RESET"
-dart format --output=none --set-exit-if-changed lib test || {
+dart format --set-exit-if-changed lib test || {
   printf "%b❌ Formatting issues detected. Files auto-formatted! Run 'git add .' and try again.%b\n" "$RED" "$RESET"
   exit 1
 }
