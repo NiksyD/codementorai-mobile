@@ -1,0 +1,16 @@
+#!/bin/sh
+
+CYAN='\033[1;36m'
+GREEN='\033[1;32m'
+RED='\033[1;31m'
+RESET='\033[0m'
+
+printf "\n%b🧪 [1/1] Running Flutter unit & widget tests...%b\n" "$CYAN" "$RESET"
+flutter test || {
+  printf "%b❌ Unit tests failed! Push aborted.%b\n" "$RED" "$RESET"
+  exit 1
+}
+
+printf "\n==================================================\n"
+printf "%b🎉 All tests passed! Push approved.%b\n" "$GREEN" "$RESET"
+printf "==================================================\n\n"
