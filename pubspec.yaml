@@ -2,7 +2,7 @@ name: codementorai_mobile
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -36,6 +36,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.16.0
   flutter_dotenv: ^6.0.1
+  go_router: ^17.3.0
+  google_fonts: ^8.2.0
+  lottie: ^3.5.1
+  font_awesome_flutter: ^11.0.0
+  shared_preferences: ^2.5.2
 
 dev_dependencies:
   flutter_test:
@@ -53,7 +58,6 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
@@ -61,7 +65,7 @@ flutter:
 
   assets:
     - .env
-
+    - assets/images/app_logo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

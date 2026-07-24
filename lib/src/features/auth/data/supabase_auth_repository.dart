@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../domain/user_model.dart';
 import 'auth_repository.dart';
@@ -62,6 +63,62 @@ class SupabaseAuthRepository implements AuthRepository {
       id: user.id,
       email: user.email ?? '',
       name: user.userMetadata?['full_name'] as String?,
+    );
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    await _supabase.auth.signInWithOAuth(
+      supabase.OAuthProvider.google,
+      redirectTo: kIsWeb ? null : 'codementorai://login-callback',
+      authScreenLaunchMode: supabase.LaunchMode.externalApplication,
+    );
+  }
+
+  @override
+  Future<void> signInWithGithub() async {
+    await _supabase.auth.signInWithOAuth(
+      supabase.OAuthProvider.github,
+      redirectTo: kIsWeb ? null : 'codementorai://login-callback',
+      authScreenLaunchMode: supabase.LaunchMode.externalApplication,
+    );
+  }
+
+  @override
+  Future<void> resetPasswordForEmail({required String email}) async {
+    await _supabase.auth.resetPasswordForEmail(email);
+  }
+
+  @override
+  Future<void> sendPasswordResetOtp({required String email}) async {
+    await _supabase.auth.resetPasswordForEmail(email);
+  }
+
+  @override
+  Future<void> verifyPasswordResetOtp({
+    required String email,
+    required String token,
+  }) async {
+    final supabase.AuthResponse response = await _supabase.auth.verifyOTP(
+      email: email,
+      token: token,
+      type: supabase.OtpType.recovery,
+    );
+
+    if (response.session == null) {
+      // Fallback for general OTP verification
+      await _supabase.auth.verifyOTP(
+        email: email,
+        token: token,
+        type: supabase.OtpType.email,
+      );
+    }
+  }
+
+  @override
+  Future<void> updatePassword({required String newPassword}) async {
+    await _supabase.auth.updateUser(
+      supabase.UserAttributes(password: newPassword),
     );
   }
 

@@ -4,6 +4,21 @@ This document specifies mandatory rules, coding standards, and architectural gui
 
 ---
 
+## 0. Application Overview & Domain Context (CodeMentor AI)
+
+**CodeMentor AI** is an AI-powered adaptive programming mentorship, code evaluation, and developer career preparation platform.
+
+### Core Product Modules & Features:
+
+1. **🤖 AI Mentor (`features/mentor`)**: Interactive real-time AI code review, debugging assistant, inline feedback, and pair programming chat.
+2. **⚡ Practice & Sandbox (`features/practice`)**: Interactive coding challenges with real-time multi-language code execution via Judge0 backend, test case evaluations, and submission history.
+3. **📊 Dashboard & Analytics (`features/dashboard`, `features/analytics`)**: User progress overview, daily streaks, skill radar charts (algorithms, backend, clean code), and growth metrics.
+4. **🎓 Learning Paths (`features/learn`)**: Structured curriculum, interactive coding tutorials, and step-by-step career tracks.
+5. **🛍️ Marketplace (`features/marketplace`)**: Community AI mentor personas, challenge packs, and prompt templates.
+6. **👤 Profile & Settings (`features/profile`, `features/auth`)**: User authentication via Supabase Auth, user profile, badges, certifications, and settings.
+
+---
+
 ## 1. Architectural Standards (Feature-First)
 
 - **Architecture**: Follow **Feature-First Architecture** (`lib/src/features/<feature_name>/`).
@@ -46,3 +61,24 @@ This document specifies mandatory rules, coding standards, and architectural gui
 
 - **Supabase Backend**: All backend API calls, database queries, and authentication MUST use the initialized Supabase client (`Supabase.instance.client`).
 - **Environment Secrets**: Never hardcode API keys or secrets in Dart code. Always load from `.env` via `flutter_dotenv`.
+
+---
+
+## 5. UI Design & Aesthetic Guidelines (`flutter-minimal-ui` Skill)
+
+- **Minimal Modern Aesthetics**: Create clean, modern, high-contrast UIs using dynamic Material 3 color tokens (`ColorScheme.fromSeed`), Bento grid cards, glassmorphism, and responsive `LayoutBuilder` layouts.
+- **Motion & Micro-Animations**: Use implicit animations (`AnimatedContainer`, `AnimatedSwitcher`, `AnimatedCrossFade`) for fluid UI state transitions.
+- **Component Decomposition**: Keep `build()` methods small (under 80 lines) by breaking screens down into focused, reusable components.
+- **Design Tokens**: Always use `AppColors`, `AppSizes`, and `Theme.of(context)` instead of hardcoded raw pixels or inline colors.
+
+---
+
+## 6. Workspace Agent Skills (`.agents/skills/`)
+
+Agents MUST load and follow the corresponding skill blueprint when performing specialized tasks:
+
+1. **`flutter-minimal-ui`**: Minimal modern UI design system, Material 3, animations, and design tokens.
+2. **`flutter-build-responsive-layout`**: Constraint-based responsive layouts using `LayoutBuilder` across mobile/tablet/web.
+3. **`flutter-fix-layout-issues`**: Troubleshooting and fixing RenderFlex overflows and viewport constraint errors.
+4. **`flutter-apply-architecture-best-practices`**: Layered Feature-First UI/Logic/Data decoupling and repository patterns.
+5. **`flutter-lottie-animations`**: Vector Lottie JSON micro-animations for splash, onboarding, loading, and interactive UI states.
