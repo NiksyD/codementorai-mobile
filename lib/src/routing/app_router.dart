@@ -60,5 +60,10 @@ final GoRouter appRouter = GoRouter(
       builder: (BuildContext context, GoRouterState state) =>
           const MainShellScreen(),
     ),
+    GoRoute(
+      path: '/learn',
+      builder: (BuildContext context, GoRouterState state) =>
+          const MainShellScreen(),
+    ),
   ],
 );

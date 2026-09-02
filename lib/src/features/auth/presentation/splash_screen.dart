@@ -9,6 +9,9 @@ import '../data/password_reset_storage.dart';
 import '../data/supabase_auth_repository.dart';
 import '../../profile/data/supabase_profile_repository.dart';
 
+import '../../learn/data/supabase_pathway_repository.dart';
+import '../../profile/domain/profile_model.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
@@ -24,44 +27,82 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _entranceController;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late Animation<double> _logoScale;
+  late Animation<double> _logoFade;
+  late Animation<Offset> _titleSlide;
+  late Animation<double> _titleFade;
+  late Animation<Offset> _taglineSlide;
+  late Animation<double> _taglineFade;
 
-  late AnimationController _cursorController;
-  late Animation<double> _cursorFade;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
 
-    // Entrance Animation (Logo and Typography)
+    // 1. Staggered Entrance Animation (Apple / Linear style)
     _entranceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1200),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: Curves.easeOutCubic,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeOutCubic),
       ),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.88, end: 1.0).animate(
+    _logoScale = Tween<double>(begin: 0.82, end: 1.0).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: Curves.easeOutCubic,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
       ),
     );
 
-    // Blinking Cursor Animation for Developer Terminal feel
-    _cursorController = AnimationController(
+    _titleFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.3, 0.75, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _titleSlide = Tween<Offset>(
+      begin: const Offset(0.0, 0.3),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.3, 0.8, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _taglineFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _taglineSlide = Tween<Offset>(
+      begin: const Offset(0.0, 0.4),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 2. Ambient Breathing Aura
+    _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 550),
+      duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
 
-    _cursorFade = Tween<double>(begin: 0.2, end: 1.0).animate(
-      CurvedAnimation(parent: _cursorController, curve: Curves.easeInOut),
+    _pulseAnimation = Tween<double>(begin: 0.7, end: 1.15).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
     _entranceController.forward();
@@ -69,8 +110,8 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    // Elegant dwell time for branded reveal
-    await Future<void>.delayed(const Duration(milliseconds: 1800));
+    // Elegant branded dwell time
+    await Future<void>.delayed(const Duration(milliseconds: 1900));
 
     try {
       final bool isResetPending = await PasswordResetStorage.isResetPending();
@@ -97,10 +138,19 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (user != null) {
         final profileRepo = const SupabaseProfileRepository();
-        final bool hasCompleted = await profileRepo.hasCompletedProfile(
-          user.id,
-        );
+        final pathwayRepo = const SupabasePathwayRepository();
+
+        // Concurrently fetch profile & dashboard data during splash animation
+        final results = await Future.wait([
+          profileRepo.getProfile(user.id),
+          pathwayRepo.getLearnDashboardData(user.id),
+        ]);
+
         if (!mounted) return;
+
+        final ProfileModel? profile = results[0] as ProfileModel?;
+        final bool hasCompleted = (profile?.firstName?.isNotEmpty ?? false) &&
+            (profile?.lastName?.isNotEmpty ?? false);
 
         if (!hasCompleted) {
           context.go('/onboarding');
@@ -119,7 +169,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _entranceController.dispose();
-    _cursorController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -127,120 +177,114 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
-      body: SafeArea(
-        child: Stack(
-          children: <Widget>[
-            // Center Stage: Logo, Brand Typography, and Terminal Prompt
-            Center(
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      // Clean Standalone Brand Logo
-                      Image.asset(
+      body: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          // 1. Ambient Background Glow (Subtle Breathing Aura)
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (BuildContext context, Widget? child) {
+              return Container(
+                width: 280.0 * _pulseAnimation.value,
+                height: 280.0 * _pulseAnimation.value,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: <Color>[
+                      AppColors.primary.withValues(
+                        alpha: 0.12 * _pulseAnimation.value,
+                      ),
+                      AppColors.primary.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // 2. Center Brand Presentation
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // Logo with Spring Animation
+                FadeTransition(
+                  opacity: _logoFade,
+                  child: ScaleTransition(
+                    scale: _logoScale,
+                    child: Container(
+                      width: 72.0,
+                      height: 72.0,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            blurRadius: 32.0,
+                            spreadRadius: 2.0,
+                          ),
+                        ],
+                      ),
+                      child: Image.asset(
                         'assets/images/app_logo.png',
-                        width: 64.0,
-                        height: 64.0,
                         fit: BoxFit.contain,
                       ),
-                      const SizedBox(height: 20.0),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22.0),
 
-                      // Brand Name Typography
-                      RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 26.0,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.darkTextPrimary,
-                            letterSpacing: -0.5,
-                          ),
-                          children: const <TextSpan>[
-                            TextSpan(text: 'CodeMentor'),
-                            TextSpan(
-                              text: 'AI',
-                              style: TextStyle(color: AppColors.primary),
-                            ),
-                          ],
+                // Brand Name Typography
+                FadeTransition(
+                  opacity: _titleFade,
+                  child: SlideTransition(
+                    position: _titleSlide,
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 27.0,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.darkTextPrimary,
+                          letterSpacing: -0.6,
                         ),
-                      ),
-                      const SizedBox(height: 10.0),
-
-                      // High-Tech Terminal Command Line Prompt
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            '> ai_workspace.boot()',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 12.0,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.darkTextSecondary.withValues(alpha: 0.75),
-                            ),
-                          ),
-                          FadeTransition(
-                            opacity: _cursorFade,
-                            child: Text(
-                              '_',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 13.0,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
-                              ),
+                        children: const <TextSpan>[
+                          TextSpan(text: 'CodeMentor'),
+                          TextSpan(
+                            text: 'AI',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+                const SizedBox(height: 8.0),
 
-            // Bottom Status: Minimalist 2px Progress Bar & Monospace Indicator
-            Positioned(
-              left: 48.0,
-              right: 48.0,
-              bottom: 36.0,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    // 2px Sleek Linear Progress Line
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2.0),
-                      child: SizedBox(
-                        height: 2.0,
-                        child: LinearProgressIndicator(
-                          backgroundColor: AppColors.darkBorder.withValues(alpha: 0.5),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.primary,
-                          ),
-                        ),
+                // Clean Modern Tagline
+                FadeTransition(
+                  opacity: _taglineFade,
+                  child: SlideTransition(
+                    position: _taglineSlide,
+                    child: Text(
+                      'Master code with AI mentorship',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.darkTextSecondary.withValues(alpha: 0.8),
+                        letterSpacing: -0.1,
                       ),
                     ),
-                    const SizedBox(height: 12.0),
-
-                    // Heartbeat Status Text
-                    Text(
-                      'INITIALIZING WORKSPACE',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10.0,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.4,
-                        color: AppColors.darkTextSecondary.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

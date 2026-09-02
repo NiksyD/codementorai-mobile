@@ -6,6 +6,7 @@ class SupabaseProfileRepository implements ProfileRepository {
   const SupabaseProfileRepository({this.client});
 
   final supabase.SupabaseClient? client;
+  static ProfileModel? cachedProfile;
 
   supabase.SupabaseClient get _supabase =>
       client ?? supabase.Supabase.instance.client;
@@ -20,9 +21,11 @@ class SupabaseProfileRepository implements ProfileRepository {
           .limit(1);
 
       if (response.isEmpty) return null;
-      return ProfileModel.fromJson(response.first);
+      final ProfileModel p = ProfileModel.fromJson(response.first);
+      cachedProfile = p;
+      return p;
     } catch (_) {
-      return null;
+      return cachedProfile;
     }
   }
 
