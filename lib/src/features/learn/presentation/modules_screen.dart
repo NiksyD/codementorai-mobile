@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
 import '../../../constants/app_colors.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/pathway_model.dart';
+import 'widgets/module_preview_sheet.dart';
 
 class ModulesScreen extends StatefulWidget {
   const ModulesScreen({
@@ -47,22 +51,28 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   Future<void> _loadModules() async {
-    final data = await widget.pathwayRepository.getLearnDashboardData('');
+    final user = Supabase.instance.client.auth.currentUser;
+    final String userId = user?.id ?? '';
+    final List<PathwayModel> data =
+        await widget.pathwayRepository.getAllModules(userId);
     if (mounted) {
       setState(() {
-        _modules = data.enrolledPathways;
+        _modules = data;
         _isLoading = false;
       });
     }
   }
 
   List<PathwayModel> get _filteredModules {
-    return _modules.filter((PathwayModel p) {
+    return _modules.where((PathwayModel p) {
       final bool matchesCategory = _selectedCategory == 'all' ||
           (_selectedCategory == 'in-progress' &&
-              p.status == 'In Progress') ||
-          (_selectedCategory == 'completed' && p.status == 'Mastered') ||
-          (_selectedCategory == 'bookmarked' && p.completion > 0);
+              p.isEnrolled &&
+              p.completion < 100) ||
+          (_selectedCategory == 'completed' &&
+              p.isEnrolled &&
+              p.completion >= 100) ||
+          (_selectedCategory == 'bookmarked' && p.isBookmarked);
 
       final bool matchesSearch = _searchQuery.isEmpty ||
           p.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -317,7 +327,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
                       (BuildContext context, int index) {
                         final PathwayModel module = filtered[index];
                         return _buildModuleCard(
-                          context: context,
                           module: module,
                           isDark: isDark,
                           textPrimary: textPrimary,
@@ -336,15 +345,88 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   Widget _buildModuleCard({
-    required BuildContext context,
     required PathwayModel module,
     required bool isDark,
     required Color textPrimary,
     required Color textSecondary,
   }) {
+    final bool isEnrolled = module.isEnrolled;
+    final bool isCompleted = isEnrolled && module.completion >= 100;
+    final String actionText = !isEnrolled
+        ? 'Start'
+        : (isCompleted
+            ? 'Review'
+            : (module.completion > 0 ? 'Continue' : 'Start'));
+
+    Future<void> handleCardAction() async {
+      HapticFeedback.lightImpact();
+      if (isEnrolled) {
+        context.push('/modules/${module.id}');
+      } else {
+        await ModulePreviewSheet.show(
+          context,
+          module: module,
+          onEnroll: (String tier) async {
+            final user = Supabase.instance.client.auth.currentUser;
+            if (user != null) {
+              final bool ok = await widget.pathwayRepository.enrollModule(
+                user.id,
+                module.id,
+              );
+              if (ok) {
+                await _loadModules();
+                if (mounted) {
+                  AppToast.showSuccess(context, 'Enrolled successfully!');
+                  context.push('/modules/${module.id}');
+                }
+              } else {
+                if (mounted) {
+                  AppToast.showError(context, 'Failed to enroll');
+                }
+              }
+            }
+          },
+        );
+      }
+    }
+
+    Future<void> handleToggleBookmark() async {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        AppToast.showError(context, 'Please log in to save bookmarks');
+        return;
+      }
+      HapticFeedback.lightImpact();
+      final bool nextState = !module.isBookmarked;
+      setState(() {
+        _modules = _modules
+            .map((PathwayModel p) =>
+                p.id == module.id ? p.copyWith(isBookmarked: nextState) : p)
+            .toList();
+      });
+      final bool ok = await widget.pathwayRepository.toggleBookmark(
+        user.id,
+        module.id,
+        nextState,
+      );
+      if (!ok && mounted) {
+        setState(() {
+          _modules = _modules
+              .map((PathwayModel p) =>
+                  p.id == module.id ? p.copyWith(isBookmarked: !nextState) : p)
+              .toList();
+        });
+        AppToast.showError(context, 'Failed to update bookmark');
+      } else if (mounted) {
+        AppToast.showSuccess(
+          context,
+          nextState ? 'Module saved to bookmarks' : 'Removed from bookmarks',
+        );
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14.0),
-      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
         borderRadius: BorderRadius.circular(20.0),
@@ -352,112 +434,181 @@ class _ModulesScreenState extends State<ModulesScreen> {
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          // Header: Stack + Status
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: InkWell(
+        onTap: handleCardAction,
+        borderRadius: BorderRadius.circular(20.0),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              LanguageAvatarStack(
-                languages: module.stack.isNotEmpty
-                    ? module.stack
-                    : <String>[module.language],
-                size: 26.0,
+              // Header: Stack + Status + Bookmark
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  LanguageAvatarStack(
+                    languages: module.stack.isNotEmpty
+                        ? module.stack
+                        : <String>[module.language],
+                    size: 26.0,
+                  ),
+                  Row(
+                    children: <Widget>[
+                      if (isEnrolled)
+                        Text(
+                          '${module.completion}% Complete',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: module.completion > 0
+                                ? AppColors.primary
+                                : textSecondary,
+                          ),
+                        )
+                      else
+                        Text(
+                          'Not Enrolled',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.0,
+                            fontWeight: FontWeight.w600,
+                            color: textSecondary.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      const SizedBox(width: 8.0),
+                      GestureDetector(
+                        onTap: handleToggleBookmark,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.all(3.0),
+                          child: Icon(
+                            module.isBookmarked
+                                ? Icons.bookmark_rounded
+                                : Icons.bookmark_border_rounded,
+                            size: 19.0,
+                            color: module.isBookmarked
+                                ? AppColors.primary
+                                : textSecondary.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
+              const SizedBox(height: 12.0),
+
+              // Title & Description
               Text(
-                '${module.completion}% Complete',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: module.completion > 0
-                      ? AppColors.primary
-                      : textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12.0),
-
-          // Title & Description
-          Text(
-            module.title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15.0,
-              fontWeight: FontWeight.w800,
-              color: textPrimary,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const SizedBox(height: 4.0),
-          Text(
-            module.description,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              color: textSecondary,
-              height: 1.4,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 14.0),
-
-          // Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4.0),
-            child: LinearProgressIndicator(
-              value: (module.completion / 100.0).clamp(0.0, 1.0),
-              minHeight: 5.0,
-              backgroundColor:
-                  isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.primary),
-            ),
-          ),
-          const SizedBox(height: 14.0),
-
-          // Footer: Coach info + Action
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(
-                '${module.totalModules} Topics · ${module.coachName ?? 'CodeMentor AI'}',
+                module.title,
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.0,
-                  fontWeight: FontWeight.w500,
-                  color: textSecondary,
+                  fontSize: 15.0,
+                  fontWeight: FontWeight.w800,
+                  color: textPrimary,
+                  letterSpacing: -0.2,
                 ),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor:
-                      isDark ? AppColors.onPrimaryDark : Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14.0,
-                    vertical: 8.0,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
-                  elevation: 0,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              const SizedBox(height: 4.0),
+              Text(
+                module.description,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  color: textSecondary,
+                  height: 1.4,
                 ),
-                child: Text(
-                  module.completion > 0 ? 'Continue' : 'Start',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.0,
-                    fontWeight: FontWeight.w700,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 14.0),
+
+              // Progress Bar (Shown when enrolled)
+              if (isEnrolled) ...<Widget>[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4.0),
+                  child: LinearProgressIndicator(
+                    value: (module.completion / 100.0).clamp(0.0, 1.0),
+                    minHeight: 5.0,
+                    backgroundColor:
+                        isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(AppColors.primary),
                   ),
                 ),
+                const SizedBox(height: 14.0),
+              ] else ...<Widget>[
+                Divider(
+                  height: 1.0,
+                  color: (isDark ? AppColors.darkBorder : AppColors.lightBorder)
+                      .withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 14.0),
+              ],
+
+              // Footer: Coach info + Action
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    '${module.totalModules} Topics · ${module.coachName ?? 'CodeMentor AI'}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w500,
+                      color: textSecondary,
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: handleCardAction,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isCompleted
+                          ? (isDark
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFF1F5F9))
+                          : AppColors.primary,
+                      foregroundColor: isCompleted
+                          ? (isDark
+                              ? AppColors.darkTextPrimary
+                              : AppColors.lightTextPrimary)
+                          : (isDark ? AppColors.onPrimaryDark : Colors.white),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14.0,
+                        vertical: 8.0,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10.0),
+                        side: isCompleted
+                            ? BorderSide(
+                                color: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder,
+                              )
+                            : BorderSide.none,
+                      ),
+                      elevation: 0,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          actionText,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 4.0),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 13.0,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

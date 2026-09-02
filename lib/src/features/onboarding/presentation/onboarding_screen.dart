@@ -218,12 +218,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
 
     try {
+      final String userRole = (user.userMetadata?['role'] as String?) ?? 'student';
       final ProfileModel profile = ProfileModel(
         userId: user.id,
         email: user.email ?? '',
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
-        role: 'student',
+        role: userRole,
         primaryLanguage: _selectedLanguage,
         skillLevel: _selectedSkillLevel,
         avatarUrl: _customAvatarUrl ??

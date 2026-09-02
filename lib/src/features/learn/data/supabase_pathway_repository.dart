@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../../../core/network/api_client.dart';
 import '../domain/learn_dashboard_data.dart';
+import '../domain/module_detail_model.dart';
 import '../domain/pathway_model.dart';
 import 'pathway_repository.dart';
 
@@ -145,6 +146,7 @@ class SupabasePathwayRepository implements PathwayRepository {
           moduleData: m,
           topics: topics,
           isEnrolled: isEnrolled,
+          isBookmarked: isEnrolled,
           userProgress: realProgress,
         ),
       );
@@ -239,5 +241,226 @@ class SupabasePathwayRepository implements PathwayRepository {
 
     cachedData = result;
     return result;
+  }
+
+  @override
+  Future<bool> enrollModule(String userId, String moduleId) async {
+    try {
+      // 1. Insert into user_practice_saves
+      await _supabase.from('user_practice_saves').upsert(<String, dynamic>{
+        'user_id': userId,
+        'track_id': moduleId,
+        'ups_created_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'user_id,track_id');
+
+      // 2. Initialize progress if not existing
+      try {
+        await _supabase.from('user_practice_progress').upsert(<String, dynamic>{
+          'user_id': userId,
+          'track_id': moduleId,
+          'upp_completion': 0,
+        }, onConflict: 'user_id,track_id');
+      } catch (_) {}
+
+      // 3. Update cachedData in memory
+      if (cachedData != null) {
+        final List<PathwayModel> updated = cachedData!.enrolledPathways.map((PathwayModel p) {
+          if (p.id == moduleId) {
+            return PathwayModel(
+              id: p.id,
+              title: p.title,
+              description: p.description,
+              language: p.language,
+              stack: p.stack,
+              status: 'In Progress',
+              completion: p.completion,
+              totalModules: p.totalModules,
+              currentModule: p.currentModule,
+              isEnrolled: true,
+              coachName: p.coachName,
+              coachAvatar: p.coachAvatar,
+            );
+          }
+          return p;
+        }).toList();
+
+        cachedData = LearnDashboardData(
+          activePathway: cachedData!.activePathway ?? (updated.isNotEmpty ? updated.first : null),
+          enrolledPathways: updated,
+          currentStreak: cachedData!.currentStreak,
+          totalActiveDays: cachedData!.totalActiveDays,
+          easySolved: cachedData!.easySolved,
+          mediumSolved: cachedData!.mediumSolved,
+          hardSolved: cachedData!.hardSolved,
+          recommendedChallenges: cachedData!.recommendedChallenges,
+        );
+      }
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<ModuleDetailModel?> getModuleDetails(String moduleId, String userId) async {
+    try {
+      // 1. Fetch module row
+      final List<Map<String, dynamic>> modRows = await _supabase
+          .from('modules')
+          .select('*, profiles:mentor_id(user_first_name, user_last_name, user_avatar_url)')
+          .eq('mod_id', moduleId)
+          .limit(1);
+
+      if (modRows.isEmpty) return null;
+      final Map<String, dynamic> mod = modRows.first;
+
+      // 2. Check enrollment & progress
+      bool isEnrolled = false;
+      int completion = 0;
+      if (userId.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> saveRows = await _supabase
+              .from('user_practice_saves')
+              .select('track_id')
+              .eq('user_id', userId)
+              .eq('track_id', moduleId)
+              .limit(1);
+          isEnrolled = saveRows.isNotEmpty;
+
+          final List<Map<String, dynamic>> progRows = await _supabase
+              .from('user_practice_progress')
+              .select('upp_completion')
+              .eq('user_id', userId)
+              .eq('track_id', moduleId)
+              .limit(1);
+          if (progRows.isNotEmpty) {
+            completion = (progRows.first['upp_completion'] as num?)?.toInt() ?? 0;
+            isEnrolled = true;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fetch topics and deduplicate defensively
+      final List<Map<String, dynamic>> topicRows = await _supabase
+          .from('topics')
+          .select()
+          .eq('track_id', moduleId)
+          .order('topic_order_index', ascending: true);
+
+      final Set<String> seenTopicKeys = <String>{};
+      final List<Map<String, dynamic>> uniqueTopicRows = <Map<String, dynamic>>[];
+      for (final Map<String, dynamic> t in topicRows) {
+        final String titleKey = (t['topic_title'] as String? ?? '').trim().toLowerCase();
+        final int orderKey = (t['topic_order_index'] as num?)?.toInt() ?? 0;
+        final String compoundKey = '$orderKey-$titleKey';
+        if (!seenTopicKeys.contains(compoundKey)) {
+          seenTopicKeys.add(compoundKey);
+          uniqueTopicRows.add(t);
+        }
+      }
+
+      // 4. Fetch activities
+      final List<String> topicIds = uniqueTopicRows
+          .map((Map<String, dynamic> t) => t['topic_id'] as String? ?? '')
+          .where((String s) => s.isNotEmpty)
+          .toList();
+
+      final Map<String, List<ModuleActivityModel>> activitiesByTopic =
+          <String, List<ModuleActivityModel>>{};
+
+      if (topicIds.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> actRows = await _supabase
+              .from('activities')
+              .select()
+              .filter('topic_id', 'in', topicIds)
+              .order('act_order_index', ascending: true);
+
+          for (final Map<String, dynamic> a in actRows) {
+            final String tId = a['topic_id'] as String? ?? '';
+            final ModuleActivityModel act = ModuleActivityModel.fromJson(a);
+            activitiesByTopic.putIfAbsent(tId, () => <ModuleActivityModel>[]).add(act);
+          }
+        } catch (_) {}
+      }
+
+      final List<ModuleTopicModel> mappedTopics = uniqueTopicRows.map((Map<String, dynamic> t) {
+        final String tId = t['topic_id'] as String? ?? '';
+        final List<ModuleActivityModel> acts = activitiesByTopic[tId] ?? <ModuleActivityModel>[];
+        return ModuleTopicModel.fromJson(t, activities: acts);
+      }).toList();
+
+      List<String> stackList = <String>[];
+      final dynamic rawStack = mod['mod_stack'];
+      if (rawStack is List) {
+        stackList = rawStack.map((dynamic e) => e.toString().toLowerCase()).toList();
+      } else if (rawStack is String && rawStack.isNotEmpty) {
+        stackList = rawStack.split(',').map((String s) => s.trim().toLowerCase()).toList();
+      }
+
+      final dynamic mentorObj = mod['profiles'];
+      String coachName = 'CodeMentor AI';
+      String? coachAvatar;
+      if (mentorObj is Map<String, dynamic>) {
+        final String f = mentorObj['user_first_name'] as String? ?? '';
+        final String l = mentorObj['user_last_name'] as String? ?? '';
+        if (f.isNotEmpty || l.isNotEmpty) {
+          coachName = '$f $l'.trim();
+        }
+        coachAvatar = mentorObj['user_avatar_url'] as String?;
+      }
+
+      return ModuleDetailModel(
+        id: moduleId,
+        title: mod['mod_title'] as String? ?? 'Engineering Module',
+        description: mod['mod_description'] as String? ?? '',
+        stack: stackList,
+        price: (mod['mod_price'] as num?)?.toDouble() ?? 0.0,
+        coachName: coachName,
+        coachAvatar: coachAvatar,
+        rating: 5.0,
+        completion: completion,
+        isEnrolled: isEnrolled,
+        isBookmarked: isEnrolled,
+        topics: mappedTopics,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<List<PathwayModel>> getAllModules(String userId) async {
+    final LearnDashboardData data = await getLearnDashboardData(userId);
+    return data.enrolledPathways;
+  }
+
+  @override
+  Future<bool> toggleBookmark(
+    String userId,
+    String moduleId,
+    bool isBookmarked,
+  ) async {
+    if (userId.isEmpty || moduleId.isEmpty) return false;
+    try {
+      if (isBookmarked) {
+        await _supabase.from('user_practice_saves').upsert(<String, dynamic>{
+          'user_id': userId,
+          'track_id': moduleId,
+          'ups_saved_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } else {
+        await _supabase
+            .from('user_practice_saves')
+            .delete()
+            .eq('user_id', userId)
+            .eq('track_id', moduleId);
+      }
+      cachedData = null;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }

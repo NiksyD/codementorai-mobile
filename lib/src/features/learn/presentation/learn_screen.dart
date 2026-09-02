@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
@@ -402,10 +403,11 @@ class _LearnScreenState extends State<LearnScreen> {
           // Action Button: Continue Learning
           SizedBox(
             width: double.infinity,
-            height: 42.0,
+            height: 48.0,
             child: ElevatedButton(
               onPressed: () {
                 HapticFeedback.lightImpact();
+                context.push('/modules/${pathway.id}');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -626,7 +628,6 @@ class _LearnScreenState extends State<LearnScreen> {
               final PathwayModel p = pathways[index];
               return Container(
                 width: 240.0,
-                padding: const EdgeInsets.all(14.0),
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
                   borderRadius: BorderRadius.circular(18.0),
@@ -634,58 +635,70 @@ class _LearnScreenState extends State<LearnScreen> {
                     color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Row(
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/modules/${p.id}');
+                  },
+                  borderRadius: BorderRadius.circular(18.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: <Widget>[
-                        LanguageAvatarStack(
-                          languages: p.stack.isNotEmpty
-                              ? p.stack
-                              : <String>[p.language],
-                          size: 22.0,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            LanguageAvatarStack(
+                              languages: p.stack.isNotEmpty
+                                  ? p.stack
+                                  : <String>[p.language],
+                              size: 22.0,
+                            ),
+                            Text(
+                              '${p.completion}%',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: p.completion > 0
+                                    ? AppColors.primary
+                                    : textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                         Text(
-                          '${p.completion}%',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.5,
+                          p.title,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.0,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
+                            color: textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4.0),
+                          child: LinearProgressIndicator(
+                            value: (p.completion / 100.0).clamp(0.0, 1.0),
+                            minHeight: 4.0,
+                            backgroundColor: isDark
+                                ? AppColors.darkBorder
+                                : AppColors.lightBorder,
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          ),
+                        ),
+                        Text(
+                          '${p.totalModules} Topics',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: textSecondary,
                           ),
                         ),
                       ],
                     ),
-                    Text(
-                      p.title,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.0,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4.0),
-                      child: LinearProgressIndicator(
-                        value: (p.completion / 100.0).clamp(0.05, 1.0),
-                        minHeight: 4.0,
-                        backgroundColor: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.lightBorder,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                      ),
-                    ),
-                    Text(
-                      '${p.totalModules} modules total',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        color: textSecondary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               );
             },
