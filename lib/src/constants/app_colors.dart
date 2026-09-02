@@ -5,14 +5,16 @@ abstract class AppColors {
   static const Color primary = Color(0xFF3ECF8E);
   static const Color primaryVariant = Color(0xFF059669);
   static const Color accent = Color(0xFF10B981);
+  static const Color onPrimaryDark = Color(0xFF121316);
+  static const Color onPrimaryLight = Color(0xFFFFFFFF);
 
-  // Dark Theme Tokens (Deep Space Slate & Emerald Mint Accent)
-  static const Color darkBackground = Color(0xFF0E1118);
-  static const Color darkSurface = Color(0xFF151922);
-  static const Color darkSurfaceCard = Color(0xFF1A1F2C);
-  static const Color darkBorder = Color(0xFF222733);
+  // Dark Theme Tokens (Warm Slate / Charcoal Theme matching Web globals.css)
+  static const Color darkBackground = Color(0xFF121316);
+  static const Color darkSurface = Color(0xFF1A1D24);
+  static const Color darkSurfaceCard = Color(0xFF20242D);
+  static const Color darkBorder = Color(0xFF2E333F);
   static const Color darkTextPrimary = Color(0xFFF4F5F7);
-  static const Color darkTextSecondary = Color(0xFFC4C7C5);
+  static const Color darkTextSecondary = Color(0xFF9BA1B0);
 
   // Light Theme Tokens (Google Material Light & Emerald Accent)
   static const Color lightBackground = Color(0xFFF8F9FA);
@@ -35,7 +37,7 @@ abstract class AppColors {
   );
 
   static const LinearGradient darkCardGradient = LinearGradient(
-    colors: <Color>[Color(0xFF1A1F2C), Color(0xFF151922)],
+    colors: <Color>[Color(0xFF20242D), Color(0xFF1A1D24)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

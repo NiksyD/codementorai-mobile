@@ -32,6 +32,20 @@ class SupabaseProfileRepository implements ProfileRepository {
     data['user_created_at'] ??= DateTime.now().toIso8601String();
 
     await _supabase.from('profiles').upsert(data, onConflict: 'user_id');
+
+    // Also persist language and skill level in Auth user metadata
+    try {
+      await _supabase.auth.updateUser(
+        supabase.UserAttributes(
+          data: <String, dynamic>{
+            'primary_language': profile.primaryLanguage,
+            'skill_level': profile.skillLevel,
+          },
+        ),
+      );
+    } catch (_) {
+      // Non-blocking metadata sync
+    }
   }
 
   @override
@@ -39,7 +53,6 @@ class SupabaseProfileRepository implements ProfileRepository {
     final ProfileModel? profile = await getProfile(userId);
     if (profile == null) return false;
     return (profile.firstName?.isNotEmpty ?? false) &&
-        (profile.lastName?.isNotEmpty ?? false) &&
-        (profile.primaryLanguage?.isNotEmpty ?? false);
+        (profile.lastName?.isNotEmpty ?? false);
   }
 }
