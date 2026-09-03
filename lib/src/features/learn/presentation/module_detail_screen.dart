@@ -11,6 +11,7 @@ import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/module_detail_model.dart';
 import '../domain/pathway_model.dart';
+import 'widgets/module_detail_skeleton.dart';
 import 'widgets/module_preview_sheet.dart';
 
 class ModuleDetailScreen extends StatefulWidget {
@@ -37,6 +38,15 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
   @override
   void initState() {
     super.initState();
+    final ModuleDetailModel? cached =
+        widget.pathwayRepository.getCachedModuleDetails(widget.moduleId);
+    if (cached != null) {
+      _module = cached;
+      _isLoading = false;
+      if (cached.topics.isNotEmpty) {
+        _expandedTopicIds.add(cached.topics.first.id);
+      }
+    }
     _loadModuleData();
   }
 
@@ -51,7 +61,9 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
       setState(() {
         _module = data;
         _isLoading = false;
-        if (data != null && data.topics.isNotEmpty) {
+        if (data != null &&
+            _expandedTopicIds.isEmpty &&
+            data.topics.isNotEmpty) {
           _expandedTopicIds.add(data.topics.first.id);
         }
       });
@@ -112,7 +124,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
     if (_module == null) return;
 
-    HapticFeedback.lightImpact();
+    HapticFeedback.selectionClick();
     final bool nextState = !_module!.isBookmarked;
     setState(() {
       _module = _module!.copyWith(isBookmarked: nextState);
@@ -129,11 +141,6 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
         _module = _module!.copyWith(isBookmarked: !nextState);
       });
       AppToast.showError(context, 'Failed to update bookmark');
-    } else if (mounted) {
-      AppToast.showSuccess(
-        context,
-        nextState ? 'Module saved to bookmarks' : 'Removed from bookmarks',
-      );
     }
   }
 
@@ -183,21 +190,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
-          backgroundColor: backgroundColor,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: textPrimary,
-            onPressed: () => context.pop(),
-          ),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
-        ),
-      );
+      return const ModuleDetailSkeleton();
     }
 
     if (_module == null) {
@@ -756,63 +749,79 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                               itemBuilder: (BuildContext context, int i) {
                                 final ModuleActivityModel act =
                                     topic.practiceActivities[i];
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14.0,
-                                    vertical: 11.0,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? const Color(0xFF161E2E)
-                                        : AppColors.lightSurfaceCard,
-                                    borderRadius: BorderRadius.circular(12.0),
-                                    border: Border.all(color: borderColor),
-                                  ),
-                                  child: Row(
-                                    children: <Widget>[
-                                      Icon(
-                                        act.isCompleted
-                                            ? Icons.check_circle_rounded
-                                            : Icons.radio_button_unchecked_rounded,
-                                        size: 16.0,
-                                        color: act.isCompleted
-                                            ? const Color(0xFF3ECF8E)
-                                            : textSecondary.withValues(alpha: 0.4),
-                                      ),
-                                      const SizedBox(width: 12.0),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: <Widget>[
-                                            Text(
-                                              act.title,
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 13.0,
-                                                fontWeight: FontWeight.w700,
-                                                color: textPrimary,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 2.0),
-                                            Text(
-                                              'GUIDED PRACTICE · CODE SANDBOX',
-                                              style: GoogleFonts.jetBrainsMono(
-                                                fontSize: 9.0,
-                                                fontWeight: FontWeight.w600,
-                                                color: textSecondary,
-                                              ),
-                                            ),
-                                          ],
+                                return InkWell(
+                                  onTap: () async {
+                                    HapticFeedback.lightImpact();
+                                    await context.push(
+                                      '/modules/${widget.moduleId}/practice/${act.id}',
+                                    );
+                                    if (mounted) {
+                                      _loadModuleData();
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(12.0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14.0,
+                                      vertical: 11.0,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? const Color(0xFF161E2E)
+                                          : AppColors.lightSurfaceCard,
+                                      borderRadius: BorderRadius.circular(12.0),
+                                      border: Border.all(color: borderColor),
+                                    ),
+                                    child: Row(
+                                      children: <Widget>[
+                                        Icon(
+                                          act.isCompleted
+                                              ? Icons.check_circle_rounded
+                                              : Icons.radio_button_unchecked_rounded,
+                                          size: 16.0,
+                                          color: act.isCompleted
+                                              ? const Color(0xFF3ECF8E)
+                                              : textSecondary
+                                                  .withValues(alpha: 0.4),
                                         ),
-                                      ),
-                                      Icon(
-                                        Icons.arrow_forward_ios_rounded,
-                                        size: 12.0,
-                                        color: textSecondary.withValues(alpha: 0.5),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 12.0),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: <Widget>[
+                                              Text(
+                                                act.title,
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                  fontSize: 13.0,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: textPrimary,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2.0),
+                                              Text(
+                                                'GUIDED PRACTICE · CODE SANDBOX',
+                                                style:
+                                                    GoogleFonts.jetBrainsMono(
+                                                  fontSize: 9.0,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: textSecondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_forward_ios_rounded,
+                                          size: 12.0,
+                                          color: textSecondary
+                                              .withValues(alpha: 0.5),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               },
@@ -963,12 +972,14 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                       width: double.infinity,
                       height: 42.0,
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           HapticFeedback.lightImpact();
-                          AppToast.showSuccess(
-                            context,
-                            'Launching Challenge IDE...',
+                          await context.push(
+                            '/modules/${widget.moduleId}/challenges/${ch.id}',
                           );
+                          if (mounted) {
+                            _loadModuleData();
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark

@@ -7,7 +7,9 @@ import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/verify_otp_screen.dart';
 import '../features/dashboard/presentation/main_shell_screen.dart';
+import '../features/learn/presentation/challenge_screen.dart';
 import '../features/learn/presentation/module_detail_screen.dart';
+import '../features/learn/presentation/practice_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/profile/presentation/profile_setup_screen.dart';
 
@@ -71,6 +73,28 @@ final GoRouter appRouter = GoRouter(
       builder: (BuildContext context, GoRouterState state) {
         final String moduleId = state.pathParameters['id'] ?? '';
         return ModuleDetailScreen(moduleId: moduleId);
+      },
+    ),
+    GoRoute(
+      path: '/modules/:id/practice/:exerciseId',
+      builder: (BuildContext context, GoRouterState state) {
+        final String moduleId = state.pathParameters['id'] ?? '';
+        final String exerciseId = state.pathParameters['exerciseId'] ?? '';
+        return PracticeScreen(
+          moduleId: moduleId,
+          exerciseId: exerciseId,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/modules/:id/challenges/:challengeId',
+      builder: (BuildContext context, GoRouterState state) {
+        final String moduleId = state.pathParameters['id'] ?? '';
+        final String challengeId = state.pathParameters['challengeId'] ?? '';
+        return ChallengeScreen(
+          moduleId: moduleId,
+          challengeId: challengeId,
+        );
       },
     ),
   ],

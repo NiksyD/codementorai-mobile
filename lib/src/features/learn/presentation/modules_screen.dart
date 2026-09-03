@@ -41,13 +41,30 @@ class _ModulesScreenState extends State<ModulesScreen> {
   @override
   void initState() {
     super.initState();
+    SupabasePathwayRepository.bookmarkedIdsNotifier
+        .addListener(_onBookmarksChanged);
     _loadModules();
   }
 
   @override
   void dispose() {
+    SupabasePathwayRepository.bookmarkedIdsNotifier
+        .removeListener(_onBookmarksChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onBookmarksChanged() {
+    final Set<String> bookmarkedIds =
+        SupabasePathwayRepository.bookmarkedIdsNotifier.value;
+    if (mounted) {
+      setState(() {
+        _modules = _modules
+            .map((PathwayModel p) =>
+                p.copyWith(isBookmarked: bookmarkedIds.contains(p.id)))
+            .toList();
+      });
+    }
   }
 
   Future<void> _loadModules() async {
@@ -361,7 +378,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
     Future<void> handleCardAction() async {
       HapticFeedback.lightImpact();
       if (isEnrolled) {
-        context.push('/modules/${module.id}');
+        await context.push('/modules/${module.id}');
+        if (mounted) {
+          _loadModules();
+        }
       } else {
         await ModulePreviewSheet.show(
           context,
@@ -377,7 +397,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
                 await _loadModules();
                 if (mounted) {
                   AppToast.showSuccess(context, 'Enrolled successfully!');
-                  context.push('/modules/${module.id}');
+                  await context.push('/modules/${module.id}');
+                  if (mounted) {
+                    _loadModules();
+                  }
                 }
               } else {
                 if (mounted) {
@@ -396,7 +419,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
         AppToast.showError(context, 'Please log in to save bookmarks');
         return;
       }
-      HapticFeedback.lightImpact();
+      HapticFeedback.selectionClick();
       final bool nextState = !module.isBookmarked;
       setState(() {
         _modules = _modules
@@ -417,11 +440,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
               .toList();
         });
         AppToast.showError(context, 'Failed to update bookmark');
-      } else if (mounted) {
-        AppToast.showSuccess(
-          context,
-          nextState ? 'Module saved to bookmarks' : 'Removed from bookmarks',
-        );
       }
     }
 
