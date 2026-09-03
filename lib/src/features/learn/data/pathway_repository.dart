@@ -2,6 +2,8 @@ import '../domain/learn_dashboard_data.dart';
 import '../domain/module_detail_model.dart';
 import '../domain/pathway_model.dart';
 import '../domain/practice_exercise_model.dart';
+import '../domain/module_review_model.dart';
+import '../domain/submission_history_model.dart';
 
 abstract class PathwayRepository {
   Future<LearnDashboardData> getLearnDashboardData(String userId);
@@ -34,4 +36,16 @@ abstract class PathwayRepository {
     String code,
     String language,
   );
+  Future<List<SubmissionHistoryModel>> getExerciseSubmissions({
+    required String userId,
+    required String moduleId,
+    required String exerciseId,
+  });
+  Future<List<ModuleReviewModel>> getModuleReviews(String moduleId);
+  Future<bool> submitModuleReview({
+    required String moduleId,
+    required String userId,
+    required int rating,
+    required String comment,
+  });
 }

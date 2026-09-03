@@ -4,7 +4,9 @@ import '../../../core/network/api_client.dart';
 import '../domain/learn_dashboard_data.dart';
 import '../domain/module_detail_model.dart';
 import '../domain/pathway_model.dart';
+import '../domain/module_review_model.dart';
 import '../domain/practice_exercise_model.dart';
+import '../domain/submission_history_model.dart';
 import 'pathway_repository.dart';
 
 class SupabasePathwayRepository implements PathwayRepository {
@@ -583,22 +585,123 @@ class SupabasePathwayRepository implements PathwayRepository {
         });
       }
 
-      // Default fallback starter codes if none in DB
-      starterCodes.putIfAbsent(
-        'java',
-        () =>
-            'public class Solution {\n    public static void main(String[] args) {\n        // Guided Practice: $title\n        System.out.println("Hello, CodeMentor!");\n    }\n}',
-      );
-      starterCodes.putIfAbsent(
-        'python',
-        () =>
-            '# Guided Practice: $title\ndef solution():\n    print("Hello, CodeMentor!")\n\nif __name__ == "__main__":\n    solution()\n',
-      );
-      starterCodes.putIfAbsent(
-        'javascript',
-        () =>
-            '// Guided Practice: $title\nfunction solution() {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();\n',
-      );
+      bool isPlaceholder(String val) {
+        final String lower = val.trim().toLowerCase();
+        return lower.isEmpty ||
+            lower == '// write solution here' ||
+            lower == '# write solution here' ||
+            lower.startsWith('// write solution here') ||
+            lower.startsWith('# write solution here');
+      }
+
+      // Purge placeholder values from starterCodes map
+      starterCodes.removeWhere((String k, String v) => isPlaceholder(v));
+
+      // Determine declared languages strictly from DB code_details.languages column
+      final List<String> declaredLanguages = <String>[];
+      final dynamic rawLangs = codeData?['languages'];
+      if (rawLangs is List) {
+        for (final dynamic l in rawLangs) {
+          if (l != null && l.toString().trim().isNotEmpty) {
+            declaredLanguages.add(l.toString().toLowerCase());
+          }
+        }
+      }
+
+      // Fallback 1: derive from starterCodes keys that have meaningful content
+      if (declaredLanguages.isEmpty && starterCodes.isNotEmpty) {
+        for (final MapEntry<String, String> entry in starterCodes.entries) {
+          if (!isPlaceholder(entry.value)) {
+            declaredLanguages.add(entry.key);
+          }
+        }
+      }
+
+      // Fallback 2: inherit from the parent module's stack if available
+      if (declaredLanguages.isEmpty && moduleId.isNotEmpty) {
+        final ModuleDetailModel? cachedMod = _moduleDetailsCache[moduleId];
+        if (cachedMod != null && cachedMod.stack.isNotEmpty) {
+          declaredLanguages.addAll(cachedMod.stack);
+        } else {
+          try {
+            final List<Map<String, dynamic>> modRows = await _supabase
+                .from('modules')
+                .select('mod_stack')
+                .eq('mod_id', moduleId)
+                .limit(1);
+            if (modRows.isNotEmpty) {
+              final dynamic modStack = modRows.first['mod_stack'];
+              if (modStack is List) {
+                for (final dynamic s in modStack) {
+                  if (s != null && s.toString().trim().isNotEmpty) {
+                    declaredLanguages.add(s.toString().trim().toLowerCase());
+                  }
+                }
+              } else if (modStack is String && modStack.trim().isNotEmpty) {
+                declaredLanguages.addAll(
+                  modStack.split(',').map((String s) => s.trim().toLowerCase()).where((String s) => s.isNotEmpty),
+                );
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Final fallback if no languages found anywhere
+      if (declaredLanguages.isEmpty) {
+        declaredLanguages.add('javascript');
+      }
+
+      // Fallback starter code strictly for declared languages
+      if (declaredLanguages.contains('java')) {
+        starterCodes.putIfAbsent(
+          'java',
+          () =>
+              'public class Solution {\n    public static void main(String[] args) {\n        // Guided Practice: $title\n        System.out.println("Hello, CodeMentor!");\n    }\n}',
+        );
+      }
+      if (declaredLanguages.contains('python')) {
+        starterCodes.putIfAbsent(
+          'python',
+          () =>
+              '# Guided Practice: $title\ndef solution():\n    print("Hello, CodeMentor!")\n\nif __name__ == "__main__":\n    solution()\n',
+        );
+      }
+      if (declaredLanguages.contains('javascript')) {
+        starterCodes.putIfAbsent(
+          'javascript',
+          () =>
+              '// Guided Practice: $title\nfunction solution() {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();\n',
+        );
+      }
+      if (declaredLanguages.contains('typescript')) {
+        starterCodes.putIfAbsent(
+          'typescript',
+          () =>
+              '// Guided Practice: $title\nfunction solution(): void {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();\n',
+        );
+      }
+      if (declaredLanguages.contains('c')) {
+        starterCodes.putIfAbsent(
+          'c',
+          () =>
+              '#include <stdio.h>\n\nint main() {\n    // Guided Practice: $title\n    printf("Hello, CodeMentor!\\n");\n    return 0;\n}\n',
+        );
+      }
+      if (declaredLanguages.contains('cpp')) {
+        starterCodes.putIfAbsent(
+          'cpp',
+          () =>
+              '#include <iostream>\n\nint main() {\n    // Guided Practice: $title\n    std::cout << "Hello, CodeMentor!" << std::endl;\n    return 0;\n}\n',
+        );
+      }
+      if (declaredLanguages.contains('csharp')) {
+        starterCodes.putIfAbsent(
+          'csharp',
+          () =>
+              'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // Guided Practice: $title\n        Console.WriteLine("Hello, CodeMentor!");\n    }\n}\n',
+        );
+      }
 
       final Map<String, String> modelSolutions = <String, String>{
         'java':
@@ -607,6 +710,8 @@ class SupabasePathwayRepository implements PathwayRepository {
             'def solution():\n    print("Hello, CodeMentor!")\n\nif __name__ == "__main__":\n    solution()',
         'javascript':
             'function solution() {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();',
+        'typescript':
+            'function solution(): void {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();',
       };
 
       // Mapped test cases
@@ -663,7 +768,7 @@ Hello, CodeMentor!
         category: 'Programming Practice',
         targetTime: targetTime,
         targetSpace: targetSpace,
-        languages: const <String>['java', 'python', 'javascript'],
+        languages: declaredLanguages,
         starterCodes: starterCodes,
         modelSolutions: modelSolutions,
         testCases: testCases,
@@ -833,22 +938,123 @@ Hello, CodeMentor!
         });
       }
 
-      // Default fallback starter codes matching Web challenge template
-      starterCodes.putIfAbsent(
-        'java',
-        () =>
-            'public class Solution {\n    public static void main(String[] args) {\n        // Skill Challenge: $title\n        int value = 42;\n        System.out.println(value);\n    }\n}',
-      );
-      starterCodes.putIfAbsent(
-        'python',
-        () =>
-            '# Skill Challenge: $title\ndef solution():\n    target_val = 42\n    print(target_val)\n\nif __name__ == "__main__":\n    solution()\n',
-      );
-      starterCodes.putIfAbsent(
-        'javascript',
-        () =>
-            '// Skill Challenge: $title\nfunction solution() {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();\n',
-      );
+      bool isPlaceholder(String val) {
+        final String lower = val.trim().toLowerCase();
+        return lower.isEmpty ||
+            lower == '// write solution here' ||
+            lower == '# write solution here' ||
+            lower.startsWith('// write solution here') ||
+            lower.startsWith('# write solution here');
+      }
+
+      // Purge placeholder values from starterCodes map
+      starterCodes.removeWhere((String k, String v) => isPlaceholder(v));
+
+      // Determine declared languages strictly from DB code_details.languages column
+      final List<String> declaredLanguages = <String>[];
+      final dynamic rawLangs = codeData?['languages'];
+      if (rawLangs is List) {
+        for (final dynamic l in rawLangs) {
+          if (l != null && l.toString().trim().isNotEmpty) {
+            declaredLanguages.add(l.toString().toLowerCase());
+          }
+        }
+      }
+
+      // Fallback 1: derive from starterCodes keys that have meaningful content
+      if (declaredLanguages.isEmpty && starterCodes.isNotEmpty) {
+        for (final MapEntry<String, String> entry in starterCodes.entries) {
+          if (!isPlaceholder(entry.value)) {
+            declaredLanguages.add(entry.key);
+          }
+        }
+      }
+
+      // Fallback 2: inherit from the parent module's stack if available
+      if (declaredLanguages.isEmpty && moduleId.isNotEmpty) {
+        final ModuleDetailModel? cachedMod = _moduleDetailsCache[moduleId];
+        if (cachedMod != null && cachedMod.stack.isNotEmpty) {
+          declaredLanguages.addAll(cachedMod.stack);
+        } else {
+          try {
+            final List<Map<String, dynamic>> modRows = await _supabase
+                .from('modules')
+                .select('mod_stack')
+                .eq('mod_id', moduleId)
+                .limit(1);
+            if (modRows.isNotEmpty) {
+              final dynamic modStack = modRows.first['mod_stack'];
+              if (modStack is List) {
+                for (final dynamic s in modStack) {
+                  if (s != null && s.toString().trim().isNotEmpty) {
+                    declaredLanguages.add(s.toString().trim().toLowerCase());
+                  }
+                }
+              } else if (modStack is String && modStack.trim().isNotEmpty) {
+                declaredLanguages.addAll(
+                  modStack.split(',').map((String s) => s.trim().toLowerCase()).where((String s) => s.isNotEmpty),
+                );
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Final fallback if no languages found anywhere
+      if (declaredLanguages.isEmpty) {
+        declaredLanguages.add('javascript');
+      }
+
+      // Default fallback starter codes matching Web challenge template strictly for declared languages
+      if (declaredLanguages.contains('java')) {
+        starterCodes.putIfAbsent(
+          'java',
+          () =>
+              'public class Solution {\n    public static void main(String[] args) {\n        // Skill Challenge: $title\n        int value = 42;\n        System.out.println(value);\n    }\n}',
+        );
+      }
+      if (declaredLanguages.contains('python')) {
+        starterCodes.putIfAbsent(
+          'python',
+          () =>
+              '# Skill Challenge: $title\ndef solution():\n    target_val = 42\n    print(target_val)\n\nif __name__ == "__main__":\n    solution()\n',
+        );
+      }
+      if (declaredLanguages.contains('javascript')) {
+        starterCodes.putIfAbsent(
+          'javascript',
+          () =>
+              '// Skill Challenge: $title\nfunction solution() {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();\n',
+        );
+      }
+      if (declaredLanguages.contains('typescript')) {
+        starterCodes.putIfAbsent(
+          'typescript',
+          () =>
+              '// Skill Challenge: $title\nfunction solution(): void {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();\n',
+        );
+      }
+      if (declaredLanguages.contains('c')) {
+        starterCodes.putIfAbsent(
+          'c',
+          () =>
+              '#include <stdio.h>\n\nint main() {\n    // Skill Challenge: $title\n    int value = 42;\n    printf("%d\\n", value);\n    return 0;\n}\n',
+        );
+      }
+      if (declaredLanguages.contains('cpp')) {
+        starterCodes.putIfAbsent(
+          'cpp',
+          () =>
+              '#include <iostream>\n\nint main() {\n    // Skill Challenge: $title\n    int value = 42;\n    std::cout << value << std::endl;\n    return 0;\n}\n',
+        );
+      }
+      if (declaredLanguages.contains('csharp')) {
+        starterCodes.putIfAbsent(
+          'csharp',
+          () =>
+              'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // Skill Challenge: $title\n        int value = 42;\n        Console.WriteLine(value);\n    }\n}\n',
+        );
+      }
 
       final Map<String, String> modelSolutions = <String, String>{
         'java':
@@ -857,6 +1063,8 @@ Hello, CodeMentor!
             'def solution():\n    target_val = 42\n    print(target_val)\n\nif __name__ == "__main__":\n    solution()',
         'javascript':
             'function solution() {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();',
+        'typescript':
+            'function solution(): void {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();',
       };
 
       // Mapped test cases
@@ -912,7 +1120,7 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
         category: 'Algorithmic Challenge',
         targetTime: targetTime,
         targetSpace: targetSpace,
-        languages: const <String>['java', 'python', 'javascript'],
+        languages: declaredLanguages,
         starterCodes: starterCodes,
         modelSolutions: modelSolutions,
         testCases: testCases,
@@ -1001,6 +1209,94 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
 
       return true;
     } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<List<SubmissionHistoryModel>> getExerciseSubmissions({
+    required String userId,
+    required String moduleId,
+    required String exerciseId,
+  }) async {
+    try {
+      if (userId.isEmpty || exerciseId.isEmpty) return <SubmissionHistoryModel>[];
+
+      final List<Map<String, dynamic>> rows = await _supabase
+          .from('submissions')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('act_id', exerciseId)
+          .order('sub_submitted_at', ascending: false);
+
+      return rows
+          .map((Map<String, dynamic> r) => SubmissionHistoryModel.fromJson(r))
+          .toList();
+    } catch (_) {
+      return <SubmissionHistoryModel>[];
+    }
+  }
+
+  @override
+  Future<List<ModuleReviewModel>> getModuleReviews(String moduleId) async {
+    try {
+      if (moduleId.isEmpty) return <ModuleReviewModel>[];
+
+      final List<Map<String, dynamic>> rows = await _supabase
+          .from('module_reviews')
+          .select('*, profiles:user_id(user_first_name, user_last_name, user_avatar_url)')
+          .eq('track_id', moduleId)
+          .order('review_created_at', ascending: false);
+
+      return rows
+          .map((Map<String, dynamic> r) => ModuleReviewModel.fromJson(r))
+          .toList();
+    } catch (_) {
+      return <ModuleReviewModel>[];
+    }
+  }
+
+  @override
+  Future<bool> submitModuleReview({
+    required String moduleId,
+    required String userId,
+    required int rating,
+    required String comment,
+  }) async {
+    try {
+      if (moduleId.isEmpty || userId.isEmpty || rating < 1 || rating > 5) {
+        return false;
+      }
+
+      // Check if user already submitted a review for this track
+      final List<Map<String, dynamic>> existing = await _supabase
+          .from('module_reviews')
+          .select('review_id')
+          .eq('track_id', moduleId)
+          .eq('user_id', userId)
+          .limit(1);
+
+      if (existing.isNotEmpty) {
+        final String reviewId = existing.first['review_id'] as String;
+        await _supabase.from('module_reviews').update(<String, dynamic>{
+          'rating': rating,
+          'comment': comment.trim(),
+          'review_updated_at': DateTime.now().toIso8601String(),
+        }).eq('review_id', reviewId);
+      } else {
+        await _supabase.from('module_reviews').insert(<String, dynamic>{
+          'track_id': moduleId,
+          'user_id': userId,
+          'rating': rating,
+          'comment': comment.trim(),
+          'review_created_at': DateTime.now().toIso8601String(),
+          'review_updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+
+      return true;
+    } catch (e, st) {
+      debugPrint('submitModuleReview error: $e\n$st');
       return false;
     }
   }

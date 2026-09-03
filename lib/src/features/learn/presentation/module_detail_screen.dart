@@ -10,9 +10,11 @@ import '../../../constants/app_colors.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/module_detail_model.dart';
+import '../domain/module_review_model.dart';
 import '../domain/pathway_model.dart';
 import 'widgets/module_detail_skeleton.dart';
 import 'widgets/module_preview_sheet.dart';
+import 'widgets/module_review_modal.dart';
 
 class ModuleDetailScreen extends StatefulWidget {
   const ModuleDetailScreen({
@@ -34,6 +36,8 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
   String _selectedTab = 'practice'; // 'practice' or 'challenges'
   String _challengeFilter = 'all'; // 'all', 'easy', 'medium', 'hard'
   final Set<String> _expandedTopicIds = <String>{};
+  List<ModuleReviewModel> _reviews = <ModuleReviewModel>[];
+  bool _isLoadingReviews = false;
 
   @override
   void initState() {
@@ -48,6 +52,19 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
       }
     }
     _loadModuleData();
+    _loadReviews();
+  }
+
+  Future<void> _loadReviews() async {
+    setState(() => _isLoadingReviews = true);
+    final List<ModuleReviewModel> revs =
+        await widget.pathwayRepository.getModuleReviews(widget.moduleId);
+    if (mounted) {
+      setState(() {
+        _reviews = revs;
+        _isLoadingReviews = false;
+      });
+    }
   }
 
   Future<void> _loadModuleData() async {
@@ -839,6 +856,14 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
               );
             },
           ),
+        _buildReviewsSection(
+          mod: mod,
+          isDark: isDark,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          cardBg: cardBg,
+          borderColor: borderColor,
+        ),
       ],
     );
   }
@@ -1064,6 +1089,259 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildReviewsSection({
+    required ModuleDetailModel mod,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color cardBg,
+    required Color borderColor,
+  }) {
+    final double avgRating = _reviews.isNotEmpty
+        ? _reviews.map((ModuleReviewModel r) => r.rating).reduce((int a, int b) => a + b) / _reviews.length
+        : mod.rating;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const SizedBox(height: 24.0),
+        Divider(color: borderColor, height: 1.0),
+        const SizedBox(height: 20.0),
+
+        // Reviews Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Text(
+                  'Learner Reviews',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15.0,
+                    fontWeight: FontWeight.w800,
+                    color: textPrimary,
+                  ),
+                ),
+                if (_reviews.isNotEmpty) ...<Widget>[
+                  const SizedBox(width: 8.0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFBBF24).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(Icons.star_rounded, size: 13.0, color: Color(0xFFFBBF24)),
+                        const SizedBox(width: 3.0),
+                        Text(
+                          avgRating.toStringAsFixed(1),
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.0,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFFBBF24),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            TextButton.icon(
+              onPressed: () async {
+                HapticFeedback.lightImpact();
+                final user = Supabase.instance.client.auth.currentUser;
+                if (user == null) {
+                  AppToast.showError(context, 'Please log in to write a review');
+                  return;
+                }
+                final bool? submitted = await ModuleReviewModal.show(
+                  context,
+                  moduleTitle: mod.title,
+                  onSubmitReview: (int rating, String comment) async {
+                    return await widget.pathwayRepository.submitModuleReview(
+                      moduleId: widget.moduleId,
+                      userId: user.id,
+                      rating: rating,
+                      comment: comment,
+                    );
+                  },
+                );
+                if (submitted == true && mounted) {
+                  AppToast.showSuccess(context, 'Review posted!');
+                  _loadReviews();
+                }
+              },
+              icon: const Icon(Icons.rate_review_outlined, size: 15.0, color: AppColors.primary),
+              label: Text(
+                'Write a Review',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14.0),
+
+        if (_isLoadingReviews)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20.0),
+            child: Center(
+              child: SizedBox(
+                width: 20.0,
+                height: 20.0,
+                child: CircularProgressIndicator(strokeWidth: 2.0),
+              ),
+            ),
+          )
+        else if (_reviews.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20.0),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(16.0),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              children: <Widget>[
+                Icon(
+                  Icons.star_outline_rounded,
+                  size: 28.0,
+                  color: textSecondary.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 8.0),
+                Text(
+                  'No reviews yet',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 3.0),
+                Text(
+                  'Be the first learner to complete this module and leave feedback!',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    color: textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _reviews.length,
+            separatorBuilder: (BuildContext context, int i) => const SizedBox(height: 10.0),
+            itemBuilder: (BuildContext context, int i) {
+              final ModuleReviewModel rev = _reviews[i];
+              final String initials = rev.userName
+                  .split(' ')
+                  .where((String p) => p.isNotEmpty)
+                  .map((String p) => p[0])
+                  .take(2)
+                  .join('')
+                  .toUpperCase();
+
+              return Container(
+                padding: const EdgeInsets.all(14.0),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(16.0),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Container(
+                              width: 28.0,
+                              height: 28.0,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8.0),
+                                border: Border.all(
+                                  color: AppColors.primary.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                initials.isEmpty ? 'U' : initials,
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 11.0,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10.0),
+                            Text(
+                              rev.userName,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.0,
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: <Widget>[
+                            for (int s = 1; s <= 5; s++)
+                              Icon(
+                                s <= rev.rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                                size: 14.0,
+                                color: s <= rev.rating ? const Color(0xFFFBBF24) : borderColor,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8.0),
+                    Text(
+                      '“${rev.comment}”',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        color: textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6.0),
+                    Text(
+                      rev.createdAt,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 10.0,
+                        color: textSecondary.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }

@@ -10,12 +10,14 @@ class ChallengeCompletionModal extends StatelessWidget {
     required this.targetTime,
     required this.targetSpace,
     required this.onBackToModule,
+    this.onRateModule,
   });
 
   final String challengeTitle;
   final String targetTime;
   final String targetSpace;
   final VoidCallback onBackToModule;
+  final VoidCallback? onRateModule;
 
   static Future<void> show(
     BuildContext context, {
@@ -23,6 +25,7 @@ class ChallengeCompletionModal extends StatelessWidget {
     required String targetTime,
     required String targetSpace,
     required VoidCallback onBackToModule,
+    VoidCallback? onRateModule,
   }) {
     HapticFeedback.heavyImpact();
     return showModalBottomSheet<void>(
@@ -35,6 +38,7 @@ class ChallengeCompletionModal extends StatelessWidget {
         targetTime: targetTime,
         targetSpace: targetSpace,
         onBackToModule: onBackToModule,
+        onRateModule: onRateModule,
       ),
     );
   }
@@ -233,6 +237,26 @@ class ChallengeCompletionModal extends StatelessWidget {
                 ),
               ),
             ),
+
+            if (onRateModule != null) ...<Widget>[
+              const SizedBox(height: 10.0),
+              TextButton.icon(
+                onPressed: onRateModule,
+                icon: const Icon(
+                  Icons.star_outline_rounded,
+                  size: 16.0,
+                  color: Color(0xFFFBBF24),
+                ),
+                label: Text(
+                  'Rate & Review this Module',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w600,
+                    color: textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

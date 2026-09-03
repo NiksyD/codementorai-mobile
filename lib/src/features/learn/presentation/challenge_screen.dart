@@ -4,14 +4,19 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/practice_exercise_model.dart';
+import '../domain/submission_history_model.dart';
 import 'widgets/challenge_completion_modal.dart';
+import 'widgets/markdown_content_view.dart';
+import 'widgets/module_review_modal.dart';
 import 'widgets/practice_code_editor.dart';
 import 'widgets/practice_console_sheet.dart';
+import 'widgets/submissions_history_view.dart';
 
 class ChallengeScreen extends StatefulWidget {
   const ChallengeScreen({
@@ -33,8 +38,11 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
   PracticeExerciseModel? _challenge;
   bool _isLoading = true;
   String _selectedLanguage = 'java';
-  String _activeTab = 'description'; // 'description' or 'editor'
+  String _activeTab = 'description'; // 'description', 'editor', or 'submissions'
   bool _isExecuting = false;
+
+  List<SubmissionHistoryModel> _submissions = <SubmissionHistoryModel>[];
+  bool _isLoadingSubmissions = false;
 
   final TextEditingController _codeController = TextEditingController();
   final Map<String, String> _userCodeByLanguage = <String, String>{};
@@ -44,12 +52,34 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
   void initState() {
     super.initState();
     _loadChallenge();
+    _loadSubmissions();
   }
 
   @override
   void dispose() {
     _codeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSubmissions() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    final String userId = user?.id ?? '';
+    if (userId.isEmpty) return;
+
+    setState(() => _isLoadingSubmissions = true);
+    final List<SubmissionHistoryModel> list =
+        await widget.pathwayRepository.getExerciseSubmissions(
+      userId: userId,
+      moduleId: widget.moduleId,
+      exerciseId: widget.challengeId,
+    );
+
+    if (mounted) {
+      setState(() {
+        _submissions = list;
+        _isLoadingSubmissions = false;
+      });
+    }
   }
 
   Future<void> _loadChallenge() async {
@@ -74,6 +104,25 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         }
       });
     }
+  }
+
+  void _restoreHistoricalCode(String code, String language) {
+    setState(() {
+      _selectedLanguage = language.toLowerCase();
+      _codeController.text = code;
+      _userCodeByLanguage[_selectedLanguage] = code;
+      _activeTab = 'editor';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Restored code from attempt into editor.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 12.5),
+        ),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _switchLanguage(String newLang) {
@@ -195,9 +244,22 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     final String starter = _challenge?.starterCodes[lang] ?? '';
     final bool isUnmodified = trimmed.isEmpty || trimmed == starter.trim();
 
-    final String fileName = lang == 'java'
-        ? 'Solution.java'
-        : (lang == 'python' ? 'solution.py' : 'solution.js');
+    final String fileExt = lang == 'javascript'
+        ? 'js'
+        : lang == 'typescript'
+            ? 'ts'
+            : lang == 'python'
+                ? 'py'
+                : lang == 'java'
+                    ? 'java'
+                    : lang == 'csharp'
+                        ? 'cs'
+                        : lang == 'cpp'
+                            ? 'cpp'
+                            : (lang == 'c' ? 'c' : 'txt');
+    final String fileName = (lang == 'java' || lang == 'csharp')
+        ? 'Solution.$fileExt'
+        : 'solution.$fileExt';
 
     logs.add('> compile --target $lang $fileName');
 
@@ -349,6 +411,9 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       _selectedLanguage,
     );
 
+    // Refresh submissions list in background
+    _loadSubmissions();
+
     if (mounted) {
       ChallengeCompletionModal.show(
         context,
@@ -358,6 +423,27 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         onBackToModule: () {
           Navigator.of(context).pop();
           context.pop();
+        },
+        onRateModule: () async {
+          Navigator.of(context).pop();
+          final user = Supabase.instance.client.auth.currentUser;
+          if (user == null) return;
+          final bool? submitted = await ModuleReviewModal.show(
+            context,
+            moduleTitle: _challenge?.title ?? 'Module Challenge',
+            onSubmitReview: (int rating, String comment) async {
+              return await widget.pathwayRepository.submitModuleReview(
+                moduleId: widget.moduleId,
+                userId: user.id,
+                rating: rating,
+                comment: comment,
+              );
+            },
+          );
+          if (submitted == true && mounted) {
+            AppToast.showSuccess(context, 'Review posted!');
+            context.pop();
+          }
         },
       );
     }
@@ -471,58 +557,81 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: <Widget>[
-          // Language selector dropdown pill
-          PopupMenuButton<String>(
-            initialValue: _selectedLanguage,
-            onSelected: _switchLanguage,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            color: cardBg,
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 12.0),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+          // Language selector: static badge if 1 language, dropdown if multi-language
+          if (ch.languages.length <= 1)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
               decoration: BoxDecoration(
                 color: cardBg,
                 borderRadius: BorderRadius.circular(8.0),
                 border: Border.all(color: borderColor),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    _selectedLanguage.toUpperCase(),
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
+              child: Text(
+                _selectedLanguage.toUpperCase(),
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            )
+          else
+            PopupMenuButton<String>(
+              initialValue: _selectedLanguage,
+              onSelected: _switchLanguage,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.0),
+              ),
+              color: cardBg,
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 12.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      _selectedLanguage.toUpperCase(),
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4.0),
-                  Icon(
-                    Icons.expand_more_rounded,
-                    size: 16.0,
-                    color: textSecondary,
-                  ),
-                ],
+                    const SizedBox(width: 4.0),
+                    Icon(
+                      Icons.expand_more_rounded,
+                      size: 16.0,
+                      color: textSecondary,
+                    ),
+                  ],
+                ),
               ),
+              itemBuilder: (BuildContext ctx) => ch.languages.map((String lang) {
+                final String display = lang == 'javascript'
+                    ? 'JavaScript'
+                    : lang == 'typescript'
+                        ? 'TypeScript'
+                        : lang == 'cpp'
+                            ? 'C++'
+                            : lang == 'csharp'
+                                ? 'C#'
+                                : lang.length <= 2
+                                    ? lang.toUpperCase()
+                                    : lang[0].toUpperCase() + lang.substring(1);
+                return PopupMenuItem<String>(
+                  value: lang,
+                  child: Text(display,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                );
+              }).toList(),
             ),
-            itemBuilder: (BuildContext ctx) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'java',
-                child: Text('Java', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-              const PopupMenuItem<String>(
-                value: 'python',
-                child: Text('Python', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-              const PopupMenuItem<String>(
-                value: 'javascript',
-                child: Text('JavaScript', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
 
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -534,7 +643,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       ),
       body: Column(
         children: <Widget>[
-          // Segmented Sub-Nav: [ Description ] <-> [ Code Editor ]
+          // Segmented Sub-Nav: [ Description ] <-> [ Code Editor ] <-> [ Submissions ]
           Container(
             decoration: BoxDecoration(
               color: cardBg,
@@ -564,6 +673,18 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                     textSecondary: textSecondary,
                   ),
                 ),
+                Expanded(
+                  child: _buildSubNavTab(
+                    id: 'submissions',
+                    label: _submissions.isNotEmpty
+                        ? 'Submissions (${_submissions.length})'
+                        : 'Submissions',
+                    icon: Icons.history_rounded,
+                    isSelected: _activeTab == 'submissions',
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -579,10 +700,17 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                     cardBg,
                     borderColor,
                   )
-                : PracticeCodeEditor(
-                    controller: _codeController,
-                    language: _selectedLanguage,
-                  ),
+                : (_activeTab == 'editor'
+                    ? PracticeCodeEditor(
+                        controller: _codeController,
+                        language: _selectedLanguage,
+                      )
+                    : SubmissionsHistoryView(
+                        submissions: _submissions,
+                        isLoading: _isLoadingSubmissions,
+                        onRefresh: _loadSubmissions,
+                        onRestoreCode: _restoreHistoricalCode,
+                      )),
           ),
 
           // Floating Bottom Action Dock
@@ -776,89 +904,16 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
           const SizedBox(height: 16.0),
 
           // Problem Description Blocks
-          _buildFormattedDescription(
-            ch.description,
-            isDark,
-            textPrimary,
-            textSecondary,
-            cardBg,
-            borderColor,
+          MarkdownContentView(
+            markdown: ch.description,
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            cardBg: cardBg,
+            borderColor: borderColor,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFormattedDescription(
-    String markdown,
-    bool isDark,
-    Color textPrimary,
-    Color textSecondary,
-    Color cardBg,
-    Color borderColor,
-  ) {
-    final List<String> paragraphs = markdown.split('\n\n');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: paragraphs.map((String p) {
-        final String trimmed = p.trim();
-        if (trimmed.startsWith('### ')) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 16.0, bottom: 6.0),
-            child: Text(
-              trimmed.replaceFirst('### ', ''),
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                color: textPrimary,
-                letterSpacing: 0.3,
-              ),
-            ),
-          );
-        }
-
-        if (trimmed == '---') {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12.0),
-            child: Divider(color: borderColor, height: 1.0),
-          );
-        }
-
-        if (trimmed.startsWith('```')) {
-          final String code =
-              trimmed.replaceAll(RegExp(r'^```[a-z]*\n?|```$'), '');
-          return Container(
-            width: double.infinity,
-            margin: const EdgeInsets.symmetric(vertical: 6.0),
-            padding: const EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10.0),
-              border: Border.all(color: borderColor),
-            ),
-            child: SelectableText(
-              code,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 12.0,
-                color: textPrimary,
-              ),
-            ),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 6.0),
-          child: Text(
-            trimmed,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13.0,
-              height: 1.5,
-              color: textSecondary,
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }
