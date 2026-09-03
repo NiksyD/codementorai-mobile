@@ -168,53 +168,13 @@ class SupabasePathwayRepository implements PathwayRepository {
       );
     }
 
-    // If no pathways exist yet in database, provide standard default tracks with 0% progress
-    if (mappedPathways.isEmpty) {
-      final user = _supabase.auth.currentUser;
-      final String userLang = (user?.userMetadata?['primary_language'] as String?)?.toLowerCase() ?? 'python';
-
-      mappedPathways.addAll(<PathwayModel>[
-        PathwayModel(
-          id: 'py-foundations',
-          title: 'Python Core & Data Systems',
-          description: 'Master Python fundamentals, OOP, generators, and data pipelines.',
-          language: userLang == 'python' ? 'python' : userLang,
-          stack: <String>[userLang],
-          status: 'Not Started',
-          completion: 0,
-          totalModules: 12,
-          currentModule: 'Module 1: Getting Started & Syntax',
-        ),
-        const PathwayModel(
-          id: 'js-modern',
-          title: 'JavaScript Modern Architectures',
-          description: 'Asynchronous event loops, V8 memory internals, and DOM rendering.',
-          language: 'javascript',
-          stack: <String>['javascript', 'typescript'],
-          status: 'Not Started',
-          completion: 0,
-          totalModules: 10,
-          currentModule: 'Module 1: Event Loop & Task Queues',
-        ),
-        const PathwayModel(
-          id: 'java-enterprise',
-          title: 'Java Enterprise Patterns',
-          description: 'JVM concurrency, memory model, garbage collection, and Spring Boot.',
-          language: 'java',
-          stack: <String>['java'],
-          status: 'Not Started',
-          completion: 0,
-          totalModules: 14,
-          currentModule: 'Module 1: Concurrency & Synchronization',
-        ),
-      ]);
-    }
-
-    // Select Active Track: In-progress track or first pathway
-    final PathwayModel activePathway = mappedPathways.firstWhere(
-      (PathwayModel p) => p.status == 'In Progress' || p.completion > 0,
-      orElse: () => mappedPathways.first,
-    );
+    // Select Active Track: In-progress track or first pathway (null if no pathways exist)
+    final PathwayModel? activePathway = mappedPathways.isEmpty
+        ? null
+        : mappedPathways.firstWhere(
+            (PathwayModel p) => p.status == 'In Progress' || p.completion > 0,
+            orElse: () => mappedPathways.first,
+          );
 
     // Default recommended challenges
     const List<LearnChallengeModel> recommended = <LearnChallengeModel>[
@@ -337,54 +297,78 @@ class SupabasePathwayRepository implements PathwayRepository {
         } catch (_) {}
       }
 
-      // 3. Fetch topics and deduplicate defensively
+      // 3. Fetch all topics for this module
       final List<Map<String, dynamic>> topicRows = await _supabase
           .from('topics')
           .select()
           .eq('track_id', moduleId)
           .order('topic_order_index', ascending: true);
 
-      final Set<String> seenTopicKeys = <String>{};
-      final List<Map<String, dynamic>> uniqueTopicRows = <Map<String, dynamic>>[];
-      for (final Map<String, dynamic> t in topicRows) {
-        final String titleKey = (t['topic_title'] as String? ?? '').trim().toLowerCase();
-        final int orderKey = (t['topic_order_index'] as num?)?.toInt() ?? 0;
-        final String compoundKey = '$orderKey-$titleKey';
-        if (!seenTopicKeys.contains(compoundKey)) {
-          seenTopicKeys.add(compoundKey);
-          uniqueTopicRows.add(t);
-        }
-      }
-
-      // 4. Fetch activities
-      final List<String> topicIds = uniqueTopicRows
+      final List<String> allTopicIds = topicRows
           .map((Map<String, dynamic> t) => t['topic_id'] as String? ?? '')
           .where((String s) => s.isNotEmpty)
           .toList();
 
-      final Map<String, List<ModuleActivityModel>> activitiesByTopic =
+      final Map<String, List<ModuleActivityModel>> activitiesByTopicId =
           <String, List<ModuleActivityModel>>{};
 
-      if (topicIds.isNotEmpty) {
+      if (allTopicIds.isNotEmpty) {
         try {
           final List<Map<String, dynamic>> actRows = await _supabase
               .from('activities')
               .select()
-              .filter('topic_id', 'in', topicIds)
+              .filter('topic_id', 'in', allTopicIds)
               .order('act_order_index', ascending: true);
 
           for (final Map<String, dynamic> a in actRows) {
+            final String actStatus =
+                (a['act_status'] as String? ?? 'published').toLowerCase();
+            if (actStatus == 'hidden') continue;
             final String tId = a['topic_id'] as String? ?? '';
             final ModuleActivityModel act = ModuleActivityModel.fromJson(a);
-            activitiesByTopic.putIfAbsent(tId, () => <ModuleActivityModel>[]).add(act);
+            activitiesByTopicId.putIfAbsent(tId, () => <ModuleActivityModel>[]).add(act);
           }
         } catch (_) {}
       }
 
-      final List<ModuleTopicModel> mappedTopics = uniqueTopicRows.map((Map<String, dynamic> t) {
+      // Deduplicate topics by compound key (order + title) and merge activities
+      final Map<String, Map<String, dynamic>> uniqueTopicMap =
+          <String, Map<String, dynamic>>{};
+      final Map<String, List<ModuleActivityModel>> mergedActsByCompoundKey =
+          <String, List<ModuleActivityModel>>{};
+
+      for (final Map<String, dynamic> t in topicRows) {
+        final String titleKey = (t['topic_title'] as String? ?? '').trim().toLowerCase();
+        final int orderKey = (t['topic_order_index'] as num?)?.toInt() ?? 0;
+        final String compoundKey = '$orderKey-$titleKey';
         final String tId = t['topic_id'] as String? ?? '';
-        final List<ModuleActivityModel> acts = activitiesByTopic[tId] ?? <ModuleActivityModel>[];
-        return ModuleTopicModel.fromJson(t, activities: acts);
+        final List<ModuleActivityModel> acts =
+            activitiesByTopicId[tId] ?? <ModuleActivityModel>[];
+
+        mergedActsByCompoundKey
+            .putIfAbsent(compoundKey, () => <ModuleActivityModel>[])
+            .addAll(acts);
+
+        if (!uniqueTopicMap.containsKey(compoundKey)) {
+          uniqueTopicMap[compoundKey] = t;
+        } else if (acts.isNotEmpty) {
+          uniqueTopicMap[compoundKey] = t;
+        }
+      }
+
+      final List<ModuleTopicModel> mappedTopics = uniqueTopicMap.entries.map((MapEntry<String, Map<String, dynamic>> e) {
+        final Map<String, dynamic> t = e.value;
+        final List<ModuleActivityModel> acts =
+            mergedActsByCompoundKey[e.key] ?? <ModuleActivityModel>[];
+        final Set<String> seenActIds = <String>{};
+        final List<ModuleActivityModel> uniqueActs = <ModuleActivityModel>[];
+        for (final ModuleActivityModel a in acts) {
+          if (!seenActIds.contains(a.id)) {
+            seenActIds.add(a.id);
+            uniqueActs.add(a);
+          }
+        }
+        return ModuleTopicModel.fromJson(t, activities: uniqueActs);
       }).toList();
 
       List<String> stackList = <String>[];
@@ -526,6 +510,9 @@ class SupabasePathwayRepository implements PathwayRepository {
             .limit(1);
 
         if (actRows.isNotEmpty) {
+          final String status =
+              (actRows.first['act_status'] as String? ?? 'published').toLowerCase();
+          if (status == 'hidden') return null;
           actData = actRows.first;
           final dynamic cd = actData['code_details'];
           if (cd is List && cd.isNotEmpty) {
@@ -879,6 +866,9 @@ Hello, CodeMentor!
             .limit(1);
 
         if (actRows.isNotEmpty) {
+          final String status =
+              (actRows.first['act_status'] as String? ?? 'published').toLowerCase();
+          if (status == 'hidden') return null;
           actData = actRows.first;
           final dynamic cd = actData['code_details'];
           if (cd is List && cd.isNotEmpty) {
@@ -1297,6 +1287,78 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
       return true;
     } catch (e, st) {
       debugPrint('submitModuleReview error: $e\n$st');
+      return false;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getActiveModuleReport({
+    required String moduleId,
+    required String userId,
+  }) async {
+    try {
+      if (moduleId.isEmpty || userId.isEmpty) return null;
+
+      final List<Map<String, dynamic>> rows = await _supabase
+          .from('module_reports')
+          .select('report_id, report_reason, report_details')
+          .eq('mod_id', moduleId)
+          .eq('user_id', userId)
+          .inFilter('report_status', <String>['pending', 'investigating'])
+          .limit(1);
+
+      if (rows.isNotEmpty) {
+        return rows.first;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('getActiveModuleReport error: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> submitModuleReport({
+    required String moduleId,
+    required String userId,
+    required String reason,
+    required String details,
+  }) async {
+    try {
+      if (moduleId.isEmpty || userId.isEmpty || details.trim().isEmpty) {
+        return false;
+      }
+
+      // Check if an active report already exists (idempotency / deduplication)
+      final List<Map<String, dynamic>> existing = await _supabase
+          .from('module_reports')
+          .select('report_id')
+          .eq('mod_id', moduleId)
+          .eq('user_id', userId)
+          .inFilter('report_status', <String>['pending', 'investigating'])
+          .limit(1);
+
+      if (existing.isNotEmpty) {
+        final String reportId = existing.first['report_id'] as String;
+        await _supabase.from('module_reports').update(<String, dynamic>{
+          'report_reason': reason,
+          'report_details': details.trim(),
+          'report_created_at': DateTime.now().toIso8601String(),
+        }).eq('report_id', reportId);
+      } else {
+        await _supabase.from('module_reports').insert(<String, dynamic>{
+          'mod_id': moduleId,
+          'user_id': userId,
+          'report_reason': reason,
+          'report_details': details.trim(),
+          'report_status': 'pending',
+          'report_created_at': DateTime.now().toIso8601String(),
+        });
+      }
+
+      return true;
+    } catch (e, st) {
+      debugPrint('submitModuleReport error: $e\n$st');
       return false;
     }
   }

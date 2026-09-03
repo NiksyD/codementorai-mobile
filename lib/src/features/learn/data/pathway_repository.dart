@@ -48,4 +48,14 @@ abstract class PathwayRepository {
     required int rating,
     required String comment,
   });
+  Future<Map<String, dynamic>?> getActiveModuleReport({
+    required String moduleId,
+    required String userId,
+  });
+  Future<bool> submitModuleReport({
+    required String moduleId,
+    required String userId,
+    required String reason,
+    required String details,
+  });
 }

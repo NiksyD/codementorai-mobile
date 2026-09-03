@@ -6,6 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
 import '../../../common_widgets/language_icon.dart';
 import '../../../constants/app_colors.dart';
+import '../../notifications/data/notification_repository.dart';
+import '../../notifications/data/supabase_notification_repository.dart';
+import '../../notifications/domain/notification_model.dart';
+import '../../notifications/presentation/widgets/notification_sheet.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/data/supabase_profile_repository.dart';
 import '../../profile/domain/profile_model.dart';
@@ -20,10 +24,12 @@ class LearnScreen extends StatefulWidget {
     super.key,
     this.profileRepository = const SupabaseProfileRepository(),
     this.pathwayRepository = const SupabasePathwayRepository(),
+    this.notificationRepository = const SupabaseNotificationRepository(),
   });
 
   final ProfileRepository profileRepository;
   final PathwayRepository pathwayRepository;
+  final NotificationRepository notificationRepository;
 
   @override
   State<LearnScreen> createState() => _LearnScreenState();
@@ -32,6 +38,7 @@ class LearnScreen extends StatefulWidget {
 class _LearnScreenState extends State<LearnScreen> {
   ProfileModel? _profile;
   LearnDashboardData? _dashboardData;
+  List<NotificationModel> _notifications = <NotificationModel>[];
   bool _isLoading = true;
 
   @override
@@ -50,12 +57,14 @@ class _LearnScreenState extends State<LearnScreen> {
         final results = await Future.wait([
           widget.profileRepository.getProfile(user.id),
           widget.pathwayRepository.getLearnDashboardData(user.id),
+          widget.notificationRepository.getNotifications(user.id),
         ]);
 
         if (mounted) {
           setState(() {
             _profile = results[0] as ProfileModel?;
             _dashboardData = results[1] as LearnDashboardData?;
+            _notifications = results[2] as List<NotificationModel>;
             _isLoading = false;
           });
         }
@@ -296,9 +305,86 @@ class _LearnScreenState extends State<LearnScreen> {
                 ],
               ),
             ),
+            const SizedBox(width: 8.0),
+            _buildNotificationBell(isDark, textPrimary, textSecondary),
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildNotificationBell(
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final int unreadCount =
+        _notifications.where((NotificationModel n) => !n.isRead).length;
+
+    return InkWell(
+      onTap: _handleOpenNotifications,
+      borderRadius: BorderRadius.circular(14.0),
+      child: Container(
+        width: 38.0,
+        height: 38.0,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+          borderRadius: BorderRadius.circular(14.0),
+          border: Border.all(
+            color: unreadCount > 0
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          ),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            Icon(
+              unreadCount > 0
+                  ? Icons.notifications_rounded
+                  : Icons.notifications_none_rounded,
+              size: 20.0,
+              color: unreadCount > 0 ? textPrimary : textSecondary,
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                top: 8.0,
+                right: 8.0,
+                child: Container(
+                  width: 8.0,
+                  height: 8.0,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.6),
+                        blurRadius: 4.0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleOpenNotifications() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    NotificationSheet.show(
+      context,
+      userId: user.id,
+      repository: widget.notificationRepository,
+      initialNotifications: _notifications,
+      onChanged: () {
+        widget.notificationRepository.getNotifications(user.id).then((list) {
+          if (mounted) setState(() => _notifications = list);
+        });
+      },
     );
   }
 

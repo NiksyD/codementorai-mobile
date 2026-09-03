@@ -15,6 +15,7 @@ import '../domain/pathway_model.dart';
 import 'widgets/module_detail_skeleton.dart';
 import 'widgets/module_preview_sheet.dart';
 import 'widgets/module_review_modal.dart';
+import 'widgets/report_module_sheet.dart';
 
 class ModuleDetailScreen extends StatefulWidget {
   const ModuleDetailScreen({
@@ -161,6 +162,23 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
   }
 
+  Future<void> _handleOpenReportSheet() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      AppToast.showError(context, 'Please log in to report this module');
+      return;
+    }
+
+    if (_module == null) return;
+
+    await ReportModuleSheet.show(
+      context,
+      moduleId: _module!.id,
+      moduleTitle: _module!.title,
+      pathwayRepository: widget.pathwayRepository,
+    );
+  }
+
   Color _getDifficultyColor(String diff) {
     switch (diff.toLowerCase()) {
       case 'easy':
@@ -276,6 +294,15 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
               color: mod.isBookmarked ? AppColors.primary : textSecondary,
             ),
             onPressed: _handleToggleBookmark,
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.flag_outlined,
+              color: textSecondary,
+              size: 20.0,
+            ),
+            tooltip: 'Report Module',
+            onPressed: _handleOpenReportSheet,
           ),
         ],
       ),
