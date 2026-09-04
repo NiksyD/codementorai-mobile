@@ -1,0 +1,17 @@
+# Linguist language override
+# Mark native platform runner boilerplate and scripts as vendored/generated
+# so GitHub language statistics accurately display Dart as the primary codebase language.
+
+ios/** linguist-vendored
+android/** linguist-vendored
+macos/** linguist-vendored
+windows/** linguist-vendored
+linux/** linguist-vendored
+web/** linguist-vendored
+
+*.sh linguist-vendored
+*.bat linguist-vendored
+*.gradle linguist-vendored
+*.plist linguist-vendored
+*.xcworkspace/** linguist-vendored
+*.xcodeproj/** linguist-vendored
