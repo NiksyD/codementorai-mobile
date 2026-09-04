@@ -7,6 +7,8 @@ import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/verify_otp_screen.dart';
 import '../features/dashboard/presentation/main_shell_screen.dart';
+import '../features/learn/presentation/assessment_attempt_screen.dart';
+import '../features/learn/presentation/assessments_screen.dart';
 import '../features/learn/presentation/challenge_screen.dart';
 import '../features/learn/presentation/module_detail_screen.dart';
 import '../features/learn/presentation/practice_screen.dart';
@@ -67,6 +69,18 @@ final GoRouter appRouter = GoRouter(
       path: '/learn',
       builder: (BuildContext context, GoRouterState state) =>
           const MainShellScreen(),
+    ),
+    GoRoute(
+      path: '/assessments',
+      builder: (BuildContext context, GoRouterState state) =>
+          const AssessmentsScreen(),
+    ),
+    GoRoute(
+      path: '/assessments/:id/take',
+      builder: (BuildContext context, GoRouterState state) {
+        final String assessmentId = state.pathParameters['id'] ?? '';
+        return AssessmentAttemptScreen(assessmentId: assessmentId);
+      },
     ),
     GoRoute(
       path: '/modules/:id',

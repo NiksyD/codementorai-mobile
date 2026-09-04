@@ -179,7 +179,15 @@ class _LearnScreenState extends State<LearnScreen> {
                       ),
                       const SizedBox(height: 24.0),
 
-                      // 5. ENROLLED & RECOMMENDED PATHWAYS (LIVE DATA)
+                      // 5. COMPETITION ASSESSMENTS DISCOVERY CARD
+                      _buildAssessmentsDiscoveryCard(
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                      ),
+                      const SizedBox(height: 24.0),
+
+                      // 6. ENROLLED & RECOMMENDED PATHWAYS (LIVE DATA)
                       if (enrolledPathways.isNotEmpty) ...<Widget>[
                         _buildPathwaysSection(
                           isDark: isDark,
@@ -190,7 +198,7 @@ class _LearnScreenState extends State<LearnScreen> {
                         const SizedBox(height: 24.0),
                       ],
 
-                      // 6. RECOMMENDED NEXT CHALLENGES
+                      // 7. RECOMMENDED NEXT CHALLENGES
                       _buildRecommendedChallenges(
                         isDark: isDark,
                         textPrimary: textPrimary,
@@ -892,6 +900,113 @@ class _LearnScreenState extends State<LearnScreen> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  // ===========================================================================
+  // COMPETITION ASSESSMENTS DISCOVERY CARD
+  // ===========================================================================
+  Widget _buildAssessmentsDiscoveryCard({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(20.0),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/assessments');
+          },
+          borderRadius: BorderRadius.circular(20.0),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 44.0,
+                  height: 44.0,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14.0),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.emoji_events_rounded,
+                    color: AppColors.primary,
+                    size: 22.0,
+                  ),
+                ),
+                const SizedBox(width: 14.0),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Text(
+                            'Assessments',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6.0),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6.0,
+                              vertical: 2.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6.0),
+                            ),
+                            child: Text(
+                              'BENCHMARK',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 9.0,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3.0),
+                      Text(
+                        'Take timed evaluations curated by expert mentors.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14.0,
+                  color: textSecondary.withValues(alpha: 0.6),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
