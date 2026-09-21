@@ -37,13 +37,8 @@ class JoinRoomSheet extends StatefulWidget {
 
 class _JoinRoomSheetState extends State<JoinRoomSheet> {
   static const int _codeLength = 6;
-  final List<TextEditingController> _controllers =
-      List<TextEditingController>.generate(
-    _codeLength,
-    (_) => TextEditingController(),
-  );
-  final List<FocusNode> _focusNodes =
-      List<FocusNode>.generate(_codeLength, (_) => FocusNode());
+  final TextEditingController _codeController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -56,8 +51,8 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
       _admissionPendingData = widget.initialAdmissionData;
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _focusNodes.isNotEmpty) {
-          _focusNodes[0].requestFocus();
+        if (mounted) {
+          _focusNode.requestFocus();
         }
       });
     }
@@ -65,17 +60,12 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
 
   @override
   void dispose() {
-    for (final TextEditingController c in _controllers) {
-      c.dispose();
-    }
-    for (final FocusNode f in _focusNodes) {
-      f.dispose();
-    }
+    _codeController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
-  String get _fullCode =>
-      _controllers.map((TextEditingController c) => c.text).join();
+  String get _fullCode => _codeController.text.trim().toUpperCase();
 
   Future<void> _submit(String code) async {
     final String clean = code.trim().toUpperCase();
@@ -118,38 +108,11 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
     }
   }
 
-  void _onDigitChanged(int index, String value) {
+  void _onCodeChanged(String value) {
     setState(() => _errorMessage = null);
 
-    final String upper = value.toUpperCase();
-    if (upper.length > 1) {
-      // Paste / multiple input handling
-      final String sanitized = upper.replaceAll(RegExp(r'[^A-Z0-9]'), '');
-      for (int i = 0; i < _codeLength; i++) {
-        if (i < sanitized.length) {
-          _controllers[i].text = sanitized[i];
-        }
-      }
-      final int nextFocus = sanitized.length < _codeLength ? sanitized.length : _codeLength - 1;
-      _focusNodes[nextFocus].requestFocus();
-
-      if (sanitized.length >= _codeLength) {
-        _submit(sanitized.substring(0, _codeLength));
-      }
-      return;
-    }
-
-    _controllers[index].text = upper;
-
-    if (upper.isNotEmpty) {
-      if (index < _codeLength - 1) {
-        _focusNodes[index + 1].requestFocus();
-      } else {
-        _focusNodes[index].unfocus();
-        if (_fullCode.length == _codeLength) {
-          _submit(_fullCode);
-        }
-      }
+    if (value.length == _codeLength) {
+      _submit(value);
     }
   }
 
@@ -257,52 +220,84 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
         ),
         const SizedBox(height: 24.0),
 
-        // 6-digit segmented inputs
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List<Widget>.generate(_codeLength, (int i) {
-            final bool hasVal = _controllers[i].text.isNotEmpty;
-            return SizedBox(
-              width: 46.0,
-              height: 54.0,
-              child: TextField(
-                controller: _controllers[i],
-                focusNode: _focusNodes[i],
-                textAlign: TextAlign.center,
-                maxLength: 1,
-                textCapitalization: TextCapitalization.characters,
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 20.0,
-                  fontWeight: FontWeight.w800,
-                  color: hasVal ? AppColors.primary : textPrimary,
-                ),
-                decoration: InputDecoration(
-                  counterText: '',
-                  filled: true,
-                  fillColor: isDark
-                      ? AppColors.darkSurface
-                      : AppColors.lightSurface,
-                  contentPadding: EdgeInsets.zero,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14.0),
-                    borderSide: BorderSide(
-                      color: hasVal
-                          ? AppColors.primary.withValues(alpha: 0.5)
-                          : borderColor,
+        // 6-digit segmented inputs with unified backspace & focus handling
+        GestureDetector(
+          onTap: () => _focusNode.requestFocus(),
+          behavior: HitTestBehavior.opaque,
+          child: Stack(
+            alignment: Alignment.center,
+            children: <Widget>[
+              // Invisible real TextField capturing keyboard input, IME, and backspacing natively
+              Opacity(
+                opacity: 0.0,
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 54.0,
+                  child: TextField(
+                    controller: _codeController,
+                    focusNode: _focusNode,
+                    autofocus: true,
+                    maxLength: _codeLength,
+                    keyboardType: TextInputType.text,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                      _UpperCaseTextFormatter(),
+                    ],
+                    showCursor: false,
+                    enableInteractiveSelection: false,
+                    decoration: const InputDecoration(
+                      counterText: '',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
                     ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14.0),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
-                      width: 1.8,
-                    ),
+                    onChanged: _onCodeChanged,
                   ),
                 ),
-                onChanged: (String v) => _onDigitChanged(i, v),
               ),
-            );
-          }),
+
+              // Segmented visual digit boxes
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List<Widget>.generate(_codeLength, (int i) {
+                  final String code = _fullCode;
+                  final String char = i < code.length ? code[i] : '';
+                  final bool hasVal = char.isNotEmpty;
+                  final bool isCurrentFocus = _focusNode.hasFocus &&
+                      (i == code.length ||
+                          (i == _codeLength - 1 && code.length == _codeLength));
+
+                  return Container(
+                    width: 46.0,
+                    height: 54.0,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.darkSurface
+                          : AppColors.lightSurface,
+                      borderRadius: BorderRadius.circular(14.0),
+                      border: Border.all(
+                        color: isCurrentFocus
+                            ? AppColors.primary
+                            : (hasVal
+                                ? AppColors.primary.withValues(alpha: 0.5)
+                                : borderColor),
+                        width: isCurrentFocus ? 1.8 : 1.0,
+                      ),
+                    ),
+                    child: Text(
+                      char,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 20.0,
+                        fontWeight: FontWeight.w800,
+                        color: hasVal ? AppColors.primary : textPrimary,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
         ),
 
         if (_errorMessage != null) ...<Widget>[
@@ -568,3 +563,17 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
     );
   }
 }
+
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
+
