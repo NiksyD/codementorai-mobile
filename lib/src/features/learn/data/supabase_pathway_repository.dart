@@ -168,12 +168,19 @@ class SupabasePathwayRepository implements PathwayRepository {
       );
     }
 
-    // Select Active Track: In-progress track or first pathway (null if no pathways exist)
-    final PathwayModel? activePathway = mappedPathways.isEmpty
+    // Enrolled / Active Pathways (Marketplace Tracks - matching Web 1:1)
+    final List<PathwayModel> purchased = mappedPathways
+        .where((PathwayModel p) => p.isEnrolled || p.completion > 0)
+        .toList();
+    final List<PathwayModel> enrolledPathways =
+        purchased.isNotEmpty ? purchased : mappedPathways.take(3).toList();
+
+    // Primary active track (Hero): Prioritize in-progress track (completion > 0 && completion < 100)
+    final PathwayModel? activePathway = enrolledPathways.isEmpty
         ? null
-        : mappedPathways.firstWhere(
-            (PathwayModel p) => p.status == 'In Progress' || p.completion > 0,
-            orElse: () => mappedPathways.first,
+        : enrolledPathways.firstWhere(
+            (PathwayModel p) => p.completion > 0 && p.completion < 100,
+            orElse: () => enrolledPathways.first,
           );
 
     // Default recommended challenges
@@ -206,7 +213,7 @@ class SupabasePathwayRepository implements PathwayRepository {
 
     final LearnDashboardData result = LearnDashboardData(
       activePathway: activePathway,
-      enrolledPathways: mappedPathways,
+      enrolledPathways: enrolledPathways,
       currentStreak: currentStreak > 0 ? currentStreak : 3,
       totalActiveDays: currentStreak > 0 ? currentStreak * 5 : 28,
       easySolved: easySolved > 0 ? easySolved : 18,

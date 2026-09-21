@@ -8,13 +8,14 @@ abstract class AppColors {
   static const Color onPrimaryDark = Color(0xFF121316);
   static const Color onPrimaryLight = Color(0xFFFFFFFF);
 
-  // Dark Theme Tokens (Warm Slate / Charcoal Theme matching Web globals.css)
-  static const Color darkBackground = Color(0xFF121316);
-  static const Color darkSurface = Color(0xFF1A1D24);
-  static const Color darkSurfaceCard = Color(0xFF20242D);
-  static const Color darkBorder = Color(0xFF2E333F);
-  static const Color darkTextPrimary = Color(0xFFF4F5F7);
-  static const Color darkTextSecondary = Color(0xFF9BA1B0);
+  // Dark Theme Tokens (Charcoal & Zinc Palette matching Web globals.css #252526 / #1E1E1E)
+  static const Color darkBackground = Color(0xFF1E1E1E); // Web --surface (outer canvas background)
+  static const Color darkSurface = Color(0xFF252526);    // Web --background / canvas primary surface
+  static const Color darkSurfaceCard = Color(0xFF2D2D2D);// Web --surface-container (cards & elevated surfaces)
+  static const Color darkBorder = Color(0xFF3C3C3C);     // Web --outline (clean neutral borders)
+  static const Color darkBorderVariant = Color(0xFF454545); // Web --outline-variant
+  static const Color darkTextPrimary = Color(0xFFF4F5F7); // Web --foreground / text primary
+  static const Color darkTextSecondary = Color(0xFFCCCCCC); // Web --on-surface-variant
 
   // Light Theme Tokens (Google Material Light & Emerald Accent)
   static const Color lightBackground = Color(0xFFF8F9FA);
@@ -37,7 +38,7 @@ abstract class AppColors {
   );
 
   static const LinearGradient darkCardGradient = LinearGradient(
-    colors: <Color>[Color(0xFF20242D), Color(0xFF1A1D24)],
+    colors: <Color>[Color(0xFF2D2D2D), Color(0xFF252526)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

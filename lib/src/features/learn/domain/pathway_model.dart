@@ -94,7 +94,7 @@ class PathwayModel {
 
     final String status = userProgress >= 100
         ? 'Mastered'
-        : (userProgress > 0 || isEnrolled ? 'In Progress' : 'Not Started');
+        : (userProgress > 0 ? 'In Progress' : 'Not Started');
 
     return PathwayModel(
       id: id,

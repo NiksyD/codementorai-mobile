@@ -117,6 +117,9 @@ class _LearnScreenState extends State<LearnScreen> {
 
     final PathwayModel? activePathway = _dashboardData?.activePathway;
     final List<PathwayModel> enrolledPathways = _dashboardData?.enrolledPathways ?? const <PathwayModel>[];
+    final List<PathwayModel> otherEnrolledPathways = activePathway != null
+        ? enrolledPathways.where((PathwayModel p) => p.id != activePathway.id).toList()
+        : enrolledPathways;
     final List<LearnChallengeModel> challenges = _dashboardData?.recommendedChallenges ?? const <LearnChallengeModel>[];
 
     return Scaffold(
@@ -161,49 +164,38 @@ class _LearnScreenState extends State<LearnScreen> {
                         const SizedBox(height: 20.0),
                       ],
 
-                      // 3. 12-WEEK ACTIVITY HEATMAP
-                      ActivityHeatmap(
-                        totalActiveDays: _dashboardData?.totalActiveDays ?? 28,
-                        currentStreak: _dashboardData?.currentStreak ?? 3,
-                      ),
-                      const SizedBox(height: 20.0),
-
-                      // 4. PROBLEM SOLVING METRICS
-                      _buildProblemSolvingStats(
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        easy: _dashboardData?.easySolved ?? 18,
-                        medium: _dashboardData?.mediumSolved ?? 9,
-                        hard: _dashboardData?.hardSolved ?? 2,
-                      ),
-                      const SizedBox(height: 24.0),
-
-                      // 5. COMPETITION ASSESSMENTS DISCOVERY CARD
-                      _buildAssessmentsDiscoveryCard(
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                      ),
-                      const SizedBox(height: 24.0),
-
-                      // 6. ENROLLED & RECOMMENDED PATHWAYS (LIVE DATA)
-                      if (enrolledPathways.isNotEmpty) ...<Widget>[
+                      // 3. ENROLLED MODULES (LIVE DATA - Exclude active hero track to avoid duplication)
+                      if (otherEnrolledPathways.isNotEmpty) ...<Widget>[
                         _buildPathwaysSection(
                           isDark: isDark,
                           textPrimary: textPrimary,
                           textSecondary: textSecondary,
-                          pathways: enrolledPathways,
+                          pathways: otherEnrolledPathways,
                         ),
-                        const SizedBox(height: 24.0),
+                        const SizedBox(height: 20.0),
                       ],
 
-                      // 7. RECOMMENDED NEXT CHALLENGES
+                      // 4. COLLABORATIVE ROOMS CALLOUT CARD (Matching Web 1:1)
+                      _buildCollaborativeRoomsCard(
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                      ),
+                      const SizedBox(height: 24.0),
+
+                      // 5. RECOMMENDED NEXT CHALLENGES
                       _buildRecommendedChallenges(
                         isDark: isDark,
                         textPrimary: textPrimary,
                         textSecondary: textSecondary,
                         challenges: challenges,
+                      ),
+                      const SizedBox(height: 24.0),
+
+                      // 6. FULL-WIDTH PRACTICE ACTIVITY & ANNUAL HEATMAP (Matching Web 1:1)
+                      ActivityHeatmap(
+                        totalActiveDays: _dashboardData?.totalActiveDays ?? 28,
+                        currentStreak: _dashboardData?.currentStreak ?? 3,
                       ),
                       const SizedBox(height: 32.0),
                     ],
@@ -413,8 +405,8 @@ class _LearnScreenState extends State<LearnScreen> {
           end: Alignment.bottomRight,
           colors: isDark
               ? <Color>[
-                  const Color(0xFF1E2638),
                   AppColors.darkSurfaceCard,
+                  AppColors.darkSurface,
                 ]
               : <Color>[
                   Colors.white,
@@ -459,7 +451,7 @@ class _LearnScreenState extends State<LearnScreen> {
           ),
           const SizedBox(height: 14.0),
 
-          // Title & Current Module
+          // Title & Description (Matching Web 1:1)
           Text(
             pathway.title,
             style: GoogleFonts.plusJakartaSans(
@@ -471,7 +463,11 @@ class _LearnScreenState extends State<LearnScreen> {
           ),
           const SizedBox(height: 4.0),
           Text(
-            pathway.currentModule,
+            pathway.description.isNotEmpty
+                ? pathway.description
+                : 'Continue practicing structured lessons and algorithmic problems.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12.0,
               fontWeight: FontWeight.w500,
@@ -543,139 +539,7 @@ class _LearnScreenState extends State<LearnScreen> {
 
   // ===========================================================================
   // 3. PROBLEM SOLVING METRICS
-  // ===========================================================================
-  Widget _buildProblemSolvingStats({
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    required int easy,
-    required int medium,
-    required int hard,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          'Problem Solving Stats',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14.0,
-            fontWeight: FontWeight.w700,
-            color: textPrimary,
-          ),
-        ),
-        const SizedBox(height: 10.0),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: _buildDifficultyStatCard(
-                label: 'Easy',
-                count: '$easy',
-                total: '/ 40',
-                color: const Color(0xFF3ECF8E),
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-            const SizedBox(width: 10.0),
-            Expanded(
-              child: _buildDifficultyStatCard(
-                label: 'Medium',
-                count: '$medium',
-                total: '/ 35',
-                color: const Color(0xFFF59E0B),
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-            const SizedBox(width: 10.0),
-            Expanded(
-              child: _buildDifficultyStatCard(
-                label: 'Hard',
-                count: '$hard',
-                total: '/ 15',
-                color: const Color(0xFFEF4444),
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
-  Widget _buildDifficultyStatCard({
-    required String label,
-    required String count,
-    required String total,
-    required Color color,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-        borderRadius: BorderRadius.circular(16.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 7.0,
-                height: 7.0,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color,
-                ),
-              ),
-              const SizedBox(width: 6.0),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8.0),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: <Widget>[
-              Text(
-                count,
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 17.0,
-                  fontWeight: FontWeight.w800,
-                  color: textPrimary,
-                ),
-              ),
-              const SizedBox(width: 4.0),
-              Text(
-                total,
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 10.5,
-                  color: textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   // ===========================================================================
   // 4. ENROLLED & RECOMMENDED PATHWAYS
@@ -691,21 +555,53 @@ class _LearnScreenState extends State<LearnScreen> {
       children: <Widget>[
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
-            Text(
-              'Enrolled Modules',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14.0,
-                fontWeight: FontWeight.w700,
-                color: textPrimary,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Enrolled Modules',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2.0),
+                Text(
+                  'Your active learning curriculum and progress',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.0,
+                    color: textSecondary,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              '${pathways.length} activities total',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11.0,
-                color: textSecondary,
-                fontWeight: FontWeight.w600,
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                context.push('/modules');
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Explore Modules',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 4.0),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 13.0,
+                    color: AppColors.primary,
+                  ),
+                ],
               ),
             ),
           ],
@@ -814,13 +710,58 @@ class _LearnScreenState extends State<LearnScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          'Recommended Challenges',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14.0,
-            fontWeight: FontWeight.w700,
-            color: textPrimary,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Recommended Challenges',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2.0),
+                Text(
+                  'Hand-picked problems to build algorithmic mastery',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.0,
+                    color: textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                context.push('/modules');
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Browse All',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 4.0),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 13.0,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12.0),
         Column(
@@ -904,9 +845,9 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 
   // ===========================================================================
-  // COMPETITION ASSESSMENTS DISCOVERY CARD
+  // COLLABORATIVE ROOMS CALLOUT CARD (Matching Web 1:1)
   // ===========================================================================
-  Widget _buildAssessmentsDiscoveryCard({
+  Widget _buildCollaborativeRoomsCard({
     required bool isDark,
     required Color textPrimary,
     required Color textSecondary,
@@ -924,83 +865,61 @@ class _LearnScreenState extends State<LearnScreen> {
         child: InkWell(
           onTap: () {
             HapticFeedback.lightImpact();
-            context.push('/assessments');
+            // User can explore collaborative rooms
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Collaborative Rooms are available on web.'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
           },
           borderRadius: BorderRadius.circular(20.0),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Container(
-                  width: 44.0,
-                  height: 44.0,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14.0),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.25),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      'Collaborative Rooms',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
                     ),
-                  ),
-                  child: const Icon(
-                    Icons.emoji_events_rounded,
-                    color: AppColors.primary,
-                    size: 22.0,
-                  ),
-                ),
-                const SizedBox(width: 14.0),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Text(
-                            'Assessments',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
-                              color: textPrimary,
-                            ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          'My Rooms',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
                           ),
-                          const SizedBox(width: 6.0),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6.0,
-                              vertical: 2.0,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6.0),
-                            ),
-                            child: Text(
-                              'BENCHMARK',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 9.0,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 3.0),
-                      Text(
-                        'Take timed evaluations curated by expert mentors.',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          color: textSecondary,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 4.0),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 13.0,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8.0),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 14.0,
-                  color: textSecondary.withValues(alpha: 0.6),
+                const SizedBox(height: 6.0),
+                Text(
+                  'Collaborate with mentors, practice room modules, and track progress with peers.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    height: 1.45,
+                    color: textSecondary,
+                  ),
                 ),
               ],
             ),

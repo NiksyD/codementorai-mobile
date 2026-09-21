@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../constants/app_colors.dart';
 
@@ -9,12 +10,14 @@ class HeatmapDayData {
     required this.formattedDate,
     required this.count,
     required this.level, // 0 to 3
+    required this.month,
   });
 
   final String date;
   final String formattedDate;
   final int count;
   final int level;
+  final String month;
 }
 
 class ActivityHeatmap extends StatefulWidget {
@@ -22,7 +25,7 @@ class ActivityHeatmap extends StatefulWidget {
     super.key,
     this.totalActiveDays = 28,
     this.currentStreak = 3,
-    this.weeksCount = 16,
+    this.weeksCount = 52,
   });
 
   final int totalActiveDays;
@@ -35,8 +38,10 @@ class ActivityHeatmap extends StatefulWidget {
 
 class _ActivityHeatmapState extends State<ActivityHeatmap> {
   HeatmapDayData? _selectedDay;
+  final ScrollController _scrollController = ScrollController();
 
   late final List<List<HeatmapDayData>> _weeks;
+  late final List<MapEntry<String, int>> _monthPositions;
 
   static const List<String> _monthNames = <String>[
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -47,6 +52,20 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
   void initState() {
     super.initState();
     _weeks = _generateActivityData(widget.weeksCount);
+    _monthPositions = _calculateMonthPositions(_weeks);
+
+    // Auto-scroll to current week (end) after frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   List<List<HeatmapDayData>> _generateActivityData(int countWeeks) {
@@ -57,7 +76,7 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
       final List<HeatmapDayData> weekDays = <HeatmapDayData>[];
       for (int d = 6; d >= 0; d--) {
         final DateTime dayDate = today.subtract(Duration(days: (w * 7 + d)));
-        final bool isRecent = w <= 3;
+        final bool isRecent = w <= 4;
         final int weekday = dayDate.weekday;
         final bool isWeekend =
             weekday == DateTime.saturday || weekday == DateTime.sunday;
@@ -65,15 +84,16 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
         int count = 0;
         if (isRecent && !isWeekend && (d % 2 == 0 || d == 1)) {
           count = ((d + w) % 4) + 1;
-        } else if (w % 3 == 0 && d == 2) {
+        } else if (w % 4 == 0 && d == 2) {
           count = 2;
-        } else if (w % 2 == 1 && d % 3 == 0) {
+        } else if (w % 3 == 1 && d % 3 == 0) {
           count = 1;
         }
 
         final int level = count == 0 ? 0 : count <= 1 ? 1 : count <= 3 ? 2 : 3;
+        final String month = _monthNames[dayDate.month - 1];
         final String formatted =
-            '${_monthNames[dayDate.month - 1]} ${dayDate.day}, ${dayDate.year}';
+            '$month ${dayDate.day}, ${dayDate.year}';
 
         weekDays.add(
           HeatmapDayData(
@@ -81,12 +101,26 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
             formattedDate: formatted,
             count: count,
             level: level,
+            month: month,
           ),
         );
       }
       weeks.add(weekDays);
     }
     return weeks;
+  }
+
+  List<MapEntry<String, int>> _calculateMonthPositions(List<List<HeatmapDayData>> weeks) {
+    final List<MapEntry<String, int>> positions = <MapEntry<String, int>>[];
+    String lastMonth = '';
+    for (int i = 0; i < weeks.length; i++) {
+      final String m = weeks[i].first.month;
+      if (m != lastMonth) {
+        positions.add(MapEntry<String, int>(m, i));
+        lastMonth = m;
+      }
+    }
+    return positions;
   }
 
   Color _getCellColor(int level, bool isDark) {
@@ -112,8 +146,12 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
     final Color textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
+    const double cellSize = 11.0;
+    const double cellGap = 3.0;
+    final double totalGridWidth = _weeks.length * (cellSize + cellGap);
+
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(18.0),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
         borderRadius: BorderRadius.circular(20.0),
@@ -125,129 +163,188 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Header: Title and Time Range
+          // Header: Title and Full Activity History Link (Matching Web 1:1)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Icon(
-                    Icons.calendar_today_rounded,
-                    size: 15.0,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 8.0),
-                  Text(
-                    'Practice Activity',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: textPrimary,
-                    ),
-                  ),
-                ],
-              ),
               Text(
-                'Last ${widget.weeksCount} Weeks',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 11.0,
-                  fontWeight: FontWeight.w600,
-                  color: textSecondary,
+                'Practice Activity',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/activity');
+                },
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'Full Activity History',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 4.0),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 13.0,
+                      color: AppColors.primary,
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14.0),
 
-          // Edge-to-Edge Responsive Grid
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              final double availableWidth = constraints.maxWidth;
-              final int numWeeks = _weeks.length;
-              // Calculate responsive cell size based on container width
-              const double gap = 3.5;
-              final double calculatedCellSize =
-                  ((availableWidth - ((numWeeks - 1) * gap)) / numWeeks)
-                      .clamp(12.0, 20.0);
-
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: _weeks.map((List<HeatmapDayData> week) {
-                  return Column(
-                    children: week.map((HeatmapDayData day) {
-                      final bool isSelected = _selectedDay?.date == day.date;
-                      return GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() {
-                            _selectedDay = isSelected ? null : day;
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          margin: const EdgeInsets.symmetric(vertical: 2.0),
-                          width: calculatedCellSize,
-                          height: calculatedCellSize,
-                          decoration: BoxDecoration(
-                            color: _getCellColor(day.level, isDark),
-                            borderRadius: BorderRadius.circular(4.0),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.white
-                                  : (day.level > 0
-                                      ? AppColors.primary.withValues(alpha: 0.3)
-                                      : (isDark
-                                          ? AppColors.darkBorder
-                                          : AppColors.lightBorder)),
-                              width: isSelected ? 1.5 : 0.8,
+          // Horizontally scrollable 52-week heatmap grid with month header track
+          SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: SizedBox(
+              width: totalGridWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  // Month Labels Header
+                  SizedBox(
+                    height: 16.0,
+                    width: totalGridWidth,
+                    child: Stack(
+                      children: _monthPositions.map((MapEntry<String, int> entry) {
+                        final double leftPos = entry.value * (cellSize + cellGap);
+                        return Positioned(
+                          left: leftPos,
+                          child: Text(
+                            entry.key,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              color: textSecondary,
                             ),
                           ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 6.0),
+
+                  // 52-week Grid
+                  Row(
+                    children: _weeks.map((List<HeatmapDayData> week) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: cellGap),
+                        child: Column(
+                          children: week.map((HeatmapDayData day) {
+                            final bool isSelected = _selectedDay?.date == day.date;
+                            return GestureDetector(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() {
+                                  _selectedDay = isSelected ? null : day;
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                margin: const EdgeInsets.only(bottom: cellGap),
+                                width: cellSize,
+                                height: cellSize,
+                                decoration: BoxDecoration(
+                                  color: _getCellColor(day.level, isDark),
+                                  borderRadius: BorderRadius.circular(2.5),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : (day.level > 0
+                                            ? AppColors.primary.withValues(alpha: 0.3)
+                                            : (isDark
+                                                ? AppColors.darkBorder
+                                                : AppColors.lightBorder)),
+                                    width: isSelected ? 1.5 : 0.8,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
                       );
                     }).toList(),
-                  );
-                }).toList(),
-              );
-            },
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 12.0),
+          const SizedBox(height: 14.0),
 
-          // Selected Tooltip or Legend
+          // Selected Tooltip or Legend (Matching Web 1:1)
           if (_selectedDay != null)
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 10.0,
-                vertical: 6.0,
+                horizontal: 12.0,
+                vertical: 8.0,
               ),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                borderRadius: BorderRadius.circular(8.0),
+                borderRadius: BorderRadius.circular(10.0),
                 border: Border.all(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                 ),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
-                  Text(
-                    _selectedDay!.formattedDate,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w600,
-                      color: textPrimary,
-                    ),
+                  Row(
+                    children: <Widget>[
+                      Text(
+                        _selectedDay!.formattedDate,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                        child: Text(
+                          '·',
+                          style: TextStyle(color: textSecondary.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                      Text(
+                        _selectedDay!.count == 0
+                            ? 'No submissions'
+                            : '${_selectedDay!.count} ${_selectedDay!.count == 1 ? 'challenge' : 'challenges'} solved',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: _selectedDay!.count > 0
+                              ? AppColors.primary
+                              : textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8.0),
-                  Text(
-                    _selectedDay!.count == 0
-                        ? 'No submissions'
-                        : '${_selectedDay!.count} challenges solved',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.0,
-                      color: _selectedDay!.count > 0
-                          ? AppColors.primary
-                          : textSecondary,
-                      fontWeight: FontWeight.w600,
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedDay = null);
+                    },
+                    child: Text(
+                      'Clear',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.0,
+                        color: textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -258,7 +355,7 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
                 Text(
-                  '${widget.totalActiveDays} active days this quarter',
+                  '${widget.totalActiveDays} active days this quarter · Last 12 Months',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11.0,
                     color: textSecondary,
@@ -282,6 +379,12 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
                         decoration: BoxDecoration(
                           color: _getCellColor(lvl, isDark),
                           borderRadius: BorderRadius.circular(2.5),
+                          border: Border.all(
+                            color: lvl > 0
+                                ? AppColors.primary.withValues(alpha: 0.3)
+                                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                            width: 0.6,
+                          ),
                         ),
                       );
                     }),

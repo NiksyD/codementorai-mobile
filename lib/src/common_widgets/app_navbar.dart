@@ -62,12 +62,12 @@ class AppNavbar extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: isDark
-                ? const Color(0xFF0F172A).withValues(alpha: 0.85)
+                ? AppColors.darkSurface.withValues(alpha: 0.88)
                 : Colors.white.withValues(alpha: 0.88),
             border: Border(
               top: BorderSide(
                 color: isDark
-                    ? const Color(0xFF1E293B).withValues(alpha: 0.8)
+                    ? AppColors.darkBorder.withValues(alpha: 0.85)
                     : const Color(0xFFE2E8F0),
                 width: 0.8,
               ),

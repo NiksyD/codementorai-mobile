@@ -24,7 +24,12 @@ class ActivityItemData {
 }
 
 class ActivityScreen extends StatefulWidget {
-  const ActivityScreen({super.key});
+  const ActivityScreen({
+    super.key,
+    this.showBackButton = false,
+  });
+
+  final bool showBackButton;
 
   @override
   State<ActivityScreen> createState() => _ActivityScreenState();
@@ -61,11 +66,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
     ),
     ActivityItemData(
       id: 'sub-4',
-      title: 'LRU Cache Eviction Policy',
-      module: 'Python Algorithms',
-      language: 'python',
-      status: 'Passed',
-      score: 92,
+      title: 'Deadlock Detection Graph Algorithm',
+      module: 'Concurrency Fundamentals',
+      language: 'java',
+      status: 'Needs Review',
+      score: 72,
       time: '3 days ago',
     ),
   ];
@@ -90,6 +95,18 @@ class _ActivityScreenState extends State<ActivityScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              if (widget.showBackButton) ...<Widget>[
+                IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: Icon(
+                    Icons.arrow_back_rounded,
+                    color: textPrimary,
+                  ),
+                  padding: EdgeInsets.zero,
+                  alignment: Alignment.centerLeft,
+                ),
+                const SizedBox(height: 8.0),
+              ],
               // Title & Subtitle
               Text(
                 'My Activity',
