@@ -578,7 +578,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isCompleted
                           ? (isDark
-                              ? const Color(0xFF1E293B)
+                              ? AppColors.darkSurfaceCard
                               : const Color(0xFFF1F5F9))
                           : AppColors.primary,
                       foregroundColor: isCompleted

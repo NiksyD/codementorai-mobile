@@ -141,7 +141,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                         padding: const EdgeInsets.all(14.0),
                         decoration: BoxDecoration(
                           color: isDark
-                              ? const Color(0xFF161E2E)
+                              ? AppColors.darkSurface
                               : AppColors.lightSurfaceCard,
                           borderRadius: BorderRadius.circular(16.0),
                           border: Border.all(color: borderColor),
@@ -360,7 +360,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
           color: isSelected
               ? AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08)
               : (isDark
-                  ? const Color(0xFF161E2E).withValues(alpha: 0.6)
+                  ? AppColors.darkSurface.withValues(alpha: 0.6)
                   : Colors.white),
           borderRadius: BorderRadius.circular(18.0),
           border: Border.all(

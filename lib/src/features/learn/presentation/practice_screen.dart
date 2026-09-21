@@ -144,7 +144,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1E293B)
+            ? AppColors.darkSurfaceCard
             : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
         title: Text(
@@ -189,7 +189,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
         context: context,
         builder: (BuildContext ctx) => AlertDialog(
           backgroundColor: Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFF1E293B)
+              ? AppColors.darkSurfaceCard
               : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
           title: Text(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../constants/app_colors.dart';
+
 /// Renders rich markdown with headers, code blocks, bold text, inline code,
 /// bullet/numbered lists, quotes, and dividers matching Web 1:1.
 class MarkdownContentView extends StatelessWidget {
@@ -153,7 +155,7 @@ class MarkdownContentView extends StatelessWidget {
             margin: const EdgeInsets.symmetric(vertical: 6.0),
             padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+              color: isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
               border: const Border(
                 left: BorderSide(color: Color(0xFF10B981), width: 3.0),
               ),
@@ -282,10 +284,10 @@ class MarkdownContentView extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 2.0),
                 padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                  color: isDark ? AppColors.darkSurface : const Color(0xFFE2E8F0),
                   borderRadius: BorderRadius.circular(5.0),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                    color: isDark ? AppColors.darkBorder : const Color(0xFFCBD5E1),
                     width: 0.5,
                   ),
                 ),

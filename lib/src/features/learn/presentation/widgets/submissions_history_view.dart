@@ -76,7 +76,7 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
                           width: 56.0,
                           height: 56.0,
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            color: isDark ? AppColors.darkSurfaceCard : const Color(0xFFF1F5F9),
                             shape: BoxShape.circle,
                             border: Border.all(color: borderColor),
                           ),
@@ -190,7 +190,7 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                      color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
                                       borderRadius: BorderRadius.circular(4.0),
                                       border: Border.all(color: borderColor),
                                     ),

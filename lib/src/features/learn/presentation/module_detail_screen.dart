@@ -811,7 +811,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: isDark
-                                          ? const Color(0xFF161E2E)
+                                          ? AppColors.darkSurface
                                           : AppColors.lightSurfaceCard,
                                       borderRadius: BorderRadius.circular(12.0),
                                       border: Border.all(color: borderColor),
@@ -1035,7 +1035,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark
-                              ? const Color(0xFF1E293B)
+                              ? AppColors.darkSurface
                               : const Color(0xFFF1F5F9),
                           foregroundColor: isDark
                               ? AppColors.darkTextPrimary
@@ -1097,7 +1097,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primary
-              : (isDark ? const Color(0xFF1E293B) : Colors.white),
+              : (isDark ? AppColors.darkSurface : Colors.white),
           borderRadius: BorderRadius.circular(20.0),
           border: Border.all(
             color: isSelected

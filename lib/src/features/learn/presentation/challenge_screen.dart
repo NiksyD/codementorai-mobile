@@ -147,7 +147,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1E293B)
+            ? AppColors.darkSurfaceCard
             : Colors.white,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
@@ -197,7 +197,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         context: context,
         builder: (BuildContext ctx) => AlertDialog(
           backgroundColor: Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFF1E293B)
+              ? AppColors.darkSurfaceCard
               : Colors.white,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
