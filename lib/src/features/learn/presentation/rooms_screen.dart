@@ -222,7 +222,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
               ),
               const SizedBox(height: 4.0),
               Text(
-                'Access your enrolled course rooms, coursework, and live grade tracking.',
+                'Access your enrolled rooms, collaborate with mentors, and track your progress.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   height: 1.4,
@@ -258,44 +258,115 @@ class _RoomsScreenState extends State<RoomsScreen> {
   }
 
   Widget _buildSkeletonList({required bool isDark}) {
-    return ShimmerLoading(
-      child: Column(
-        children: List<Widget>.generate(3, (_) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 14.0),
-            padding: const EdgeInsets.all(18.0),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-              borderRadius: BorderRadius.circular(20.0),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              ),
+    return Column(
+      children: List<Widget>.generate(3, (_) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14.0),
+          padding: const EdgeInsets.all(18.0),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+            borderRadius: BorderRadius.circular(20.0),
+            border: Border.all(
+              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
             ),
+          ),
+          child: ShimmerLoading(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const <Widget>[
-                SkeletonBox(
-                  width: 140.0,
-                  height: 16.0,
-                  borderRadius: 4.0,
+              children: <Widget>[
+                // Top: Header & Metadata
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const SkeletonBox(
+                            width: 160.0,
+                            height: 18.0,
+                            borderRadius: 6.0,
+                          ),
+                          const SizedBox(height: 8.0),
+                          Row(
+                            children: <Widget>[
+                              const SkeletonBox(
+                                width: 44.0,
+                                height: 16.0,
+                                borderRadius: 5.0,
+                              ),
+                              const SizedBox(width: 6.0),
+                              Text(
+                                '•',
+                                style: TextStyle(
+                                  fontSize: 11.0,
+                                  color: isDark
+                                      ? AppColors.darkBorder
+                                      : AppColors.lightBorder,
+                                ),
+                              ),
+                              const SizedBox(width: 6.0),
+                              const SkeletonCircle(size: 16.0),
+                              const SizedBox(width: 6.0),
+                              const SkeletonBox(
+                                width: 72.0,
+                                height: 13.0,
+                                borderRadius: 4.0,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12.0),
+                    const SkeletonBox(
+                      width: 32.0,
+                      height: 32.0,
+                      borderRadius: 10.0,
+                    ),
+                  ],
                 ),
-                SizedBox(height: 8.0),
-                SkeletonBox(
-                  width: 180.0,
+                const SizedBox(height: 12.0),
+                const SkeletonBox(
+                  width: 110.0,
                   height: 12.0,
                   borderRadius: 4.0,
                 ),
-                SizedBox(height: 16.0),
-                SkeletonBox(
+                const SizedBox(height: 14.0),
+                // Divider line
+                Container(
+                  height: 1.0,
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+                const SizedBox(height: 12.0),
+                // Bottom: Progress bar & status
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const <Widget>[
+                    SkeletonBox(
+                      width: 110.0,
+                      height: 12.0,
+                      borderRadius: 4.0,
+                    ),
+                    SkeletonBox(
+                      width: 28.0,
+                      height: 12.0,
+                      borderRadius: 4.0,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8.0),
+                const SkeletonBox(
                   width: double.infinity,
                   height: 6.0,
                   borderRadius: 3.0,
                 ),
               ],
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }),
     );
   }
 
@@ -306,7 +377,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(28.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
         borderRadius: BorderRadius.circular(22.0),
@@ -316,23 +387,6 @@ class _RoomsScreenState extends State<RoomsScreen> {
       ),
       child: Column(
         children: <Widget>[
-          Container(
-            width: 56.0,
-            height: 56.0,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              borderRadius: BorderRadius.circular(16.0),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              ),
-            ),
-            child: const Icon(
-              Icons.meeting_room_outlined,
-              size: 26.0,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 16.0),
           Text(
             'No Rooms Joined Yet',
             style: GoogleFonts.plusJakartaSans(
@@ -341,13 +395,13 @@ class _RoomsScreenState extends State<RoomsScreen> {
               color: textPrimary,
             ),
           ),
-          const SizedBox(height: 6.0),
+          const SizedBox(height: 8.0),
           Text(
-            'Have an invitation code from your mentor, teacher, or school? Enter the 6-character room code to access exclusive coursework and assignments.',
+            'Have an invitation code from your mentor, teacher, or school? Enter the 6-character room code to join your room and start learning.',
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12.0,
-              height: 1.45,
+              height: 1.5,
               color: textSecondary,
             ),
           ),

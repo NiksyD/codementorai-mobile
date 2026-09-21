@@ -40,9 +40,9 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color base = widget.baseColor ??
-        (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0));
+        (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05));
     final Color highlight = widget.highlightColor ??
-        (isDark ? const Color(0xFF334155) : const Color(0xFFF8FAFC));
+        (isDark ? Colors.white.withValues(alpha: 0.14) : Colors.black.withValues(alpha: 0.10));
 
     return AnimatedBuilder(
       animation: _controller,
@@ -92,7 +92,7 @@ class SkeletonBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color defaultColor =
-        isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+        isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06);
 
     return Container(
       width: width,
@@ -120,7 +120,7 @@ class SkeletonCircle extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color defaultColor =
-        isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+        isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06);
 
     return Container(
       width: size,
