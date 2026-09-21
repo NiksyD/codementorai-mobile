@@ -6,6 +6,7 @@ import '../domain/module_detail_model.dart';
 import '../domain/pathway_model.dart';
 import '../domain/module_review_model.dart';
 import '../domain/practice_exercise_model.dart';
+import '../domain/room_model.dart';
 import '../domain/submission_history_model.dart';
 import 'pathway_repository.dart';
 
@@ -1367,6 +1368,287 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
     } catch (e, st) {
       debugPrint('submitModuleReport error: $e\n$st');
       return false;
+    }
+  }
+
+  @override
+  Future<List<RoomModel>> getLearnerRooms(String userId) async {
+    // 1. First attempt Go / Node API Gateway
+    try {
+      final dynamic apiResult = await apiClient.get('/api/classrooms');
+      if (apiResult is Map && apiResult['classrooms'] is List) {
+        final List<dynamic> list = apiResult['classrooms'] as List<dynamic>;
+        return list
+            .map((dynamic item) => RoomModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {
+      // Graceful fallback to direct Supabase PostgreSQL queries
+    }
+
+    // 2. Direct Supabase Query
+    try {
+      final List<Map<String, dynamic>> memberships = await _supabase
+          .from('room_members')
+          .select('''
+            room_id,
+            status,
+            enrolled_at,
+            requested_at,
+            joined_via,
+            role,
+            rooms:room_id (
+              id,
+              name,
+              section,
+              join_code,
+              target_language,
+              primary_module_id,
+              description,
+              is_archived,
+              created_at,
+              mentor_id
+            )
+          ''')
+          .eq('learner_id', userId)
+          .order('enrolled_at', ascending: false);
+
+      final List<Map<String, dynamic>> validMembers = memberships.where((Map<String, dynamic> m) {
+        final dynamic rawRoom = m['rooms'];
+        final Map<String, dynamic>? room = rawRoom is List
+            ? (rawRoom.isNotEmpty ? rawRoom.first as Map<String, dynamic> : null)
+            : rawRoom as Map<String, dynamic>?;
+
+        final bool isArchived = room?['is_archived'] == true;
+        final String status = m['status'] as String? ?? 'active';
+        return room != null && !isArchived && status != 'rejected';
+      }).toList();
+
+      final List<String> roomIds = validMembers.map((Map<String, dynamic> m) {
+        final dynamic rawRoom = m['rooms'];
+        final Map<String, dynamic> room = rawRoom is List
+            ? rawRoom.first as Map<String, dynamic>
+            : rawRoom as Map<String, dynamic>;
+        return room['id'] as String;
+      }).toList();
+
+      // Fetch attached modules via room_modules
+      final Map<String, List<RoomModuleSummary>> modulesMap = <String, List<RoomModuleSummary>>{};
+      if (roomIds.isNotEmpty) {
+        final List<Map<String, dynamic>> rmRows = await _supabase
+            .from('room_modules')
+            .select('''
+              room_id,
+              display_order,
+              module_id,
+              modules:module_id (
+                mod_id,
+                mod_title,
+                mod_description,
+                mod_stack,
+                mod_status
+              )
+            ''')
+            .inFilter('room_id', roomIds)
+            .order('display_order', ascending: true);
+
+        for (final Map<String, dynamic> r in rmRows) {
+          final String rId = r['room_id'] as String? ?? '';
+          final dynamic rawMod = r['modules'];
+          final Map<String, dynamic>? modData = rawMod is List
+              ? (rawMod.isNotEmpty ? rawMod.first as Map<String, dynamic> : null)
+              : rawMod as Map<String, dynamic>?;
+
+          if (modData != null) {
+            modulesMap.putIfAbsent(rId, () => <RoomModuleSummary>[]).add(
+              RoomModuleSummary.fromJson(<String, dynamic>{
+                ...modData,
+                'displayOrder': r['display_order'],
+              }),
+            );
+          }
+        }
+      }
+
+      // Fetch mentor profiles
+      final List<String> mentorIds = validMembers
+          .map((Map<String, dynamic> m) {
+            final dynamic rawRoom = m['rooms'];
+            final Map<String, dynamic> room = rawRoom is List
+                ? rawRoom.first as Map<String, dynamic>
+                : rawRoom as Map<String, dynamic>;
+            return room['mentor_id'] as String?;
+          })
+          .whereType<String>()
+          .toSet()
+          .toList();
+
+      final Map<String, Map<String, dynamic>> mentorProfiles = <String, Map<String, dynamic>>{};
+      if (mentorIds.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> mentors = await _supabase
+              .from('profiles')
+              .select('user_id, user_first_name, user_last_name, user_avatar_url, user_email')
+              .inFilter('user_id', mentorIds);
+
+          for (final Map<String, dynamic> men in mentors) {
+            final String uId = men['user_id'] as String? ?? '';
+            final String fName = men['user_first_name'] as String? ?? '';
+            final String lName = men['user_last_name'] as String? ?? '';
+            final String email = men['user_email'] as String? ?? '';
+            final String fullName = '$fName $lName'.trim();
+            mentorProfiles[uId] = <String, dynamic>{
+              'name': fullName.isNotEmpty ? fullName : (email.split('@').first),
+              'avatarUrl': men['user_avatar_url'],
+              'email': email,
+            };
+          }
+        } catch (_) {
+          // Profiles might be restricted by RLS
+        }
+      }
+
+      return validMembers.map((Map<String, dynamic> m) {
+        final dynamic rawRoom = m['rooms'];
+        final Map<String, dynamic> room = rawRoom is List
+            ? rawRoom.first as Map<String, dynamic>
+            : rawRoom as Map<String, dynamic>;
+
+        final String rId = room['id'] as String? ?? '';
+        final String mId = room['mentor_id'] as String? ?? '';
+        final Map<String, dynamic>? mentor = mentorProfiles[mId];
+
+        return RoomModel(
+          id: rId,
+          name: room['name'] as String? ?? 'Room',
+          section: room['section'] as String? ?? 'General',
+          joinCode: room['join_code'] as String? ?? '',
+          targetLanguage: room['target_language'] as String? ?? 'python',
+          description: room['description'] as String? ?? '',
+          status: m['status'] as String? ?? 'active',
+          mentorName: mentor?['name'] as String? ?? 'Mentor',
+          mentorEmail: mentor?['email'] as String?,
+          mentorAvatarUrl: mentor?['avatarUrl'] as String?,
+          curriculumModules: modulesMap[rId] ?? const <RoomModuleSummary>[],
+          completedActivitiesCount: 0,
+          enrolledAt: m['enrolled_at'] as String?,
+          requestedAt: m['requested_at'] as String?,
+          isArchived: room['is_archived'] as bool? ?? false,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('getLearnerRooms direct fallback error: $e');
+      return <RoomModel>[];
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> joinRoom({
+    required String code,
+    required String userId,
+  }) async {
+    final String cleanCode = code.trim().toUpperCase();
+
+    // 1. Attempt API Gateway POST
+    try {
+      final dynamic apiResult = await apiClient.post(
+        '/api/classrooms/join',
+        body: <String, dynamic>{'code': cleanCode},
+      );
+      if (apiResult is Map) {
+        return Map<String, dynamic>.from(apiResult);
+      }
+    } catch (e) {
+      debugPrint('apiClient.post /api/classrooms/join failed, using direct fallback: $e');
+    }
+
+    // 2. Direct Supabase Fallback
+    try {
+      final List<Map<String, dynamic>> rooms = await _supabase
+          .from('rooms')
+          .select('id, name, section, join_code, target_language, mentor_id, is_archived')
+          .eq('join_code', cleanCode)
+          .limit(1);
+
+      if (rooms.isEmpty) {
+        return <String, dynamic>{
+          'success': false,
+          'error': 'No active room found with code "$cleanCode". Please check with your mentor.',
+        };
+      }
+
+      final Map<String, dynamic> room = rooms.first;
+      if (room['is_archived'] == true) {
+        return <String, dynamic>{
+          'success': false,
+          'error': 'This room has been archived by the mentor.',
+        };
+      }
+
+      if (room['mentor_id'] == userId) {
+        return <String, dynamic>{
+          'success': false,
+          'error': 'You are the creator of this room.',
+        };
+      }
+
+      // Check existing membership
+      final List<Map<String, dynamic>> existing = await _supabase
+          .from('room_members')
+          .select('id, status')
+          .eq('room_id', room['id'] as String)
+          .eq('learner_id', userId)
+          .limit(1);
+
+      if (existing.isNotEmpty) {
+        final String status = existing.first['status'] as String? ?? 'active';
+        if (status == 'active') {
+          return <String, dynamic>{
+            'success': true,
+            'status': 'active',
+            'alreadyEnrolled': true,
+            'message': 'You are already enrolled in this room!',
+            'classroomId': room['id'],
+          };
+        }
+        if (status == 'pending') {
+          return <String, dynamic>{
+            'success': true,
+            'status': 'pending',
+            'isPending': true,
+            'message': 'You have already requested admission for this room.',
+            'classroomId': room['id'],
+          };
+        }
+      }
+
+      // Insert pending membership request
+      await _supabase.from('room_members').insert(<String, dynamic>{
+        'room_id': room['id'],
+        'learner_id': userId,
+        'role': 'learner',
+        'joined_via': 'code',
+        'status': 'pending',
+        'requested_at': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      return <String, dynamic>{
+        'success': true,
+        'status': 'pending',
+        'isPending': true,
+        'message': 'Admission request sent! Waiting for your mentor to admit you.',
+        'classroom': <String, dynamic>{
+          'id': room['id'],
+          'name': room['name'],
+          'section': room['section'],
+          'targetLanguage': room['target_language'],
+        },
+      };
+    } catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'error': e.toString(),
+      };
     }
   }
 }

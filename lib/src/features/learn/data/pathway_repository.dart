@@ -58,4 +58,9 @@ abstract class PathwayRepository {
     required String reason,
     required String details,
   });
+  Future<List<dynamic>> getLearnerRooms(String userId);
+  Future<Map<String, dynamic>> joinRoom({
+    required String code,
+    required String userId,
+  });
 }

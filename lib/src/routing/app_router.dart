@@ -12,13 +12,42 @@ import '../features/learn/presentation/assessment_attempt_screen.dart';
 import '../features/learn/presentation/assessments_screen.dart';
 import '../features/learn/presentation/challenge_screen.dart';
 import '../features/learn/presentation/module_detail_screen.dart';
+import '../features/learn/domain/room_model.dart';
 import '../features/learn/presentation/practice_screen.dart';
+import '../features/learn/presentation/room_detail_screen.dart';
+import '../features/learn/presentation/rooms_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/profile/presentation/profile_setup_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: <RouteBase>[
+    GoRoute(
+      path: '/rooms',
+      builder: (BuildContext context, GoRouterState state) =>
+          const RoomsScreen(),
+    ),
+    GoRoute(
+      path: '/learn/rooms',
+      builder: (BuildContext context, GoRouterState state) =>
+          const RoomsScreen(),
+    ),
+    GoRoute(
+      path: '/rooms/:id',
+      builder: (BuildContext context, GoRouterState state) {
+        final String roomId = state.pathParameters['id'] ?? '';
+        final RoomModel? room = state.extra as RoomModel?;
+        return RoomDetailScreen(roomId: roomId, initialRoom: room);
+      },
+    ),
+    GoRoute(
+      path: '/learn/classrooms/:id',
+      builder: (BuildContext context, GoRouterState state) {
+        final String roomId = state.pathParameters['id'] ?? '';
+        final RoomModel? room = state.extra as RoomModel?;
+        return RoomDetailScreen(roomId: roomId, initialRoom: room);
+      },
+    ),
     GoRoute(
       path: '/activity',
       builder: (BuildContext context, GoRouterState state) =>

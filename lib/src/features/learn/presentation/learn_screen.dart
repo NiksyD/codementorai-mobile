@@ -865,14 +865,7 @@ class _LearnScreenState extends State<LearnScreen> {
         child: InkWell(
           onTap: () {
             HapticFeedback.lightImpact();
-            // User can explore collaborative rooms
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Collaborative Rooms are available on web.'),
-                behavior: SnackBarBehavior.floating,
-                duration: Duration(seconds: 2),
-              ),
-            );
+            context.push('/rooms');
           },
           borderRadius: BorderRadius.circular(20.0),
           child: Padding(
