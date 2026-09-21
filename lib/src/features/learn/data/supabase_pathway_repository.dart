@@ -1373,122 +1373,164 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
 
   @override
   Future<List<RoomModel>> getLearnerRooms(String userId) async {
-    // 1. First attempt Go / Node API Gateway
     try {
-      final dynamic apiResult = await apiClient.get('/api/classrooms');
-      if (apiResult is Map && apiResult['classrooms'] is List) {
-        final List<dynamic> list = apiResult['classrooms'] as List<dynamic>;
-        return list
-            .map((dynamic item) => RoomModel.fromJson(item as Map<String, dynamic>))
-            .toList();
-      }
-    } catch (_) {
-      // Graceful fallback to direct Supabase PostgreSQL queries
-    }
-
-    // 2. Direct Supabase Query
-    try {
+      // 1. Fetch memberships where user is an enrolled learner (active or pending)
       final List<Map<String, dynamic>> memberships = await _supabase
           .from('room_members')
-          .select('''
-            room_id,
-            status,
-            enrolled_at,
-            requested_at,
-            joined_via,
-            role,
-            rooms:room_id (
-              id,
-              name,
-              section,
-              join_code,
-              target_language,
-              primary_module_id,
-              description,
-              is_archived,
-              created_at,
-              mentor_id
-            )
-          ''')
+          .select('room_id, status, enrolled_at, requested_at, joined_via, role')
           .eq('learner_id', userId)
+          .neq('status', 'rejected')
           .order('enrolled_at', ascending: false);
 
-      final List<Map<String, dynamic>> validMembers = memberships.where((Map<String, dynamic> m) {
-        final dynamic rawRoom = m['rooms'];
-        final Map<String, dynamic>? room = rawRoom is List
-            ? (rawRoom.isNotEmpty ? rawRoom.first as Map<String, dynamic> : null)
-            : rawRoom as Map<String, dynamic>?;
-
-        final bool isArchived = room?['is_archived'] == true;
-        final String status = m['status'] as String? ?? 'active';
-        return room != null && !isArchived && status != 'rejected';
-      }).toList();
-
-      final List<String> roomIds = validMembers.map((Map<String, dynamic> m) {
-        final dynamic rawRoom = m['rooms'];
-        final Map<String, dynamic> room = rawRoom is List
-            ? rawRoom.first as Map<String, dynamic>
-            : rawRoom as Map<String, dynamic>;
-        return room['id'] as String;
-      }).toList();
-
-      // Fetch attached modules via room_modules
-      final Map<String, List<RoomModuleSummary>> modulesMap = <String, List<RoomModuleSummary>>{};
-      if (roomIds.isNotEmpty) {
-        final List<Map<String, dynamic>> rmRows = await _supabase
-            .from('room_modules')
-            .select('''
-              room_id,
-              display_order,
-              module_id,
-              modules:module_id (
-                mod_id,
-                mod_title,
-                mod_description,
-                mod_stack,
-                mod_status
-              )
-            ''')
-            .inFilter('room_id', roomIds)
-            .order('display_order', ascending: true);
-
-        for (final Map<String, dynamic> r in rmRows) {
-          final String rId = r['room_id'] as String? ?? '';
-          final dynamic rawMod = r['modules'];
-          final Map<String, dynamic>? modData = rawMod is List
-              ? (rawMod.isNotEmpty ? rawMod.first as Map<String, dynamic> : null)
-              : rawMod as Map<String, dynamic>?;
-
-          if (modData != null) {
-            modulesMap.putIfAbsent(rId, () => <RoomModuleSummary>[]).add(
-              RoomModuleSummary.fromJson(<String, dynamic>{
-                ...modData,
-                'displayOrder': r['display_order'],
-              }),
-            );
-          }
+      final Map<String, Map<String, dynamic>> membershipByRoomId =
+          <String, Map<String, dynamic>>{};
+      for (final Map<String, dynamic> m in memberships) {
+        final String rId = m['room_id'] as String? ?? '';
+        if (rId.isNotEmpty) {
+          membershipByRoomId[rId] = m;
         }
       }
 
-      // Fetch mentor profiles
-      final List<String> mentorIds = validMembers
-          .map((Map<String, dynamic> m) {
-            final dynamic rawRoom = m['rooms'];
-            final Map<String, dynamic> room = rawRoom is List
-                ? rawRoom.first as Map<String, dynamic>
-                : rawRoom as Map<String, dynamic>;
-            return room['mentor_id'] as String?;
-          })
+      // 2. Fetch rooms created by this user as a mentor
+      final List<Map<String, dynamic>> mentorRooms = await _supabase
+          .from('rooms')
+          .select(
+            'id, name, section, join_code, target_language, primary_module_id, description, is_archived, created_at, mentor_id',
+          )
+          .eq('mentor_id', userId)
+          .eq('is_archived', false)
+          .order('created_at', ascending: false);
+
+      // 3. Fetch rooms where user is an enrolled learner (if not already fetched as mentor)
+      final Set<String> enrolledRoomIds = membershipByRoomId.keys.toSet();
+      final Set<String> mentorRoomIds =
+          mentorRooms.map((Map<String, dynamic> r) => r['id'] as String).toSet();
+      final List<String> neededEnrolledIds =
+          enrolledRoomIds.difference(mentorRoomIds).toList();
+
+      List<Map<String, dynamic>> enrolledRooms = <Map<String, dynamic>>[];
+      if (neededEnrolledIds.isNotEmpty) {
+        enrolledRooms = await _supabase
+            .from('rooms')
+            .select(
+              'id, name, section, join_code, target_language, primary_module_id, description, is_archived, created_at, mentor_id',
+            )
+            .inFilter('id', neededEnrolledIds)
+            .eq('is_archived', false);
+      }
+
+      // Combine all rooms (mentor-managed rooms + enrolled rooms)
+      final List<Map<String, dynamic>> allRooms = <Map<String, dynamic>>[
+        ...mentorRooms,
+        ...enrolledRooms,
+      ];
+
+      if (allRooms.isEmpty) {
+        return <RoomModel>[];
+      }
+
+      final List<String> allRoomIds = allRooms
+          .map((Map<String, dynamic> r) => r['id'] as String? ?? '')
+          .where((String id) => id.isNotEmpty)
+          .toList();
+
+      // 4. Fetch attached modules via room_modules
+      final List<Map<String, dynamic>> rmRows = await _supabase
+          .from('room_modules')
+          .select('''
+            room_id,
+            display_order,
+            module_id,
+            modules (
+              mod_id,
+              mod_title,
+              mod_description,
+              mod_stack,
+              mod_status
+            )
+          ''')
+          .inFilter('room_id', allRoomIds)
+          .order('display_order', ascending: true);
+
+      final List<String> attachedModIds = rmRows
+          .map((Map<String, dynamic> r) => r['module_id'] as String? ?? '')
+          .where((String id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      // 5. Fetch topics & activities count per module (matching web 1:1)
+      final Map<String, int> topicCountMap = <String, int>{};
+      final Map<String, int> activityCountMap = <String, int>{};
+      final Map<String, List<String>> moduleActIdsMap = <String, List<String>>{};
+
+      if (attachedModIds.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> topicsData = await _supabase
+              .from('topics')
+              .select('track_id, topic_id, activities (act_id)')
+              .inFilter('track_id', attachedModIds);
+
+          for (final Map<String, dynamic> t in topicsData) {
+            final String trackId = t['track_id'] as String? ?? '';
+            topicCountMap[trackId] = (topicCountMap[trackId] ?? 0) + 1;
+
+            final dynamic rawActs = t['activities'];
+            final List<dynamic> acts = rawActs is List ? rawActs : <dynamic>[];
+            activityCountMap[trackId] =
+                (activityCountMap[trackId] ?? 0) + acts.length;
+
+            for (final dynamic a in acts) {
+              if (a is Map && a['act_id'] != null) {
+                moduleActIdsMap
+                    .putIfAbsent(trackId, () => <String>[])
+                    .add(a['act_id'].toString());
+              }
+            }
+          }
+        } catch (_) {
+          // Non-blocking
+        }
+      }
+
+      // Group modules by room_id
+      final Map<String, List<RoomModuleSummary>> modulesMap =
+          <String, List<RoomModuleSummary>>{};
+      for (final Map<String, dynamic> r in rmRows) {
+        final String rId = r['room_id'] as String? ?? '';
+        final dynamic rawMod = r['modules'];
+        final Map<String, dynamic>? modData = rawMod is List
+            ? (rawMod.isNotEmpty ? rawMod.first as Map<String, dynamic> : null)
+            : rawMod as Map<String, dynamic>?;
+
+        if (modData != null) {
+          final String mId = modData['mod_id'] as String? ?? '';
+          modulesMap.putIfAbsent(rId, () => <RoomModuleSummary>[]).add(
+                RoomModuleSummary.fromJson(<String, dynamic>{
+                  ...modData,
+                  'topicsCount': topicCountMap[mId] ?? 0,
+                  'activitiesCount': activityCountMap[mId] ?? 0,
+                  'displayOrder': r['display_order'] ?? 0,
+                }),
+              );
+        }
+      }
+
+      // 6. Fetch mentor profiles
+      final List<String> mentorIds = allRooms
+          .map((Map<String, dynamic> r) => r['mentor_id'] as String?)
           .whereType<String>()
           .toSet()
           .toList();
 
-      final Map<String, Map<String, dynamic>> mentorProfiles = <String, Map<String, dynamic>>{};
+      final Map<String, Map<String, dynamic>> mentorProfiles =
+          <String, Map<String, dynamic>>{};
       if (mentorIds.isNotEmpty) {
         try {
           final List<Map<String, dynamic>> mentors = await _supabase
               .from('profiles')
-              .select('user_id, user_first_name, user_last_name, user_avatar_url, user_email')
+              .select(
+                'user_id, user_first_name, user_last_name, user_avatar_url, user_email',
+              )
               .inFilter('user_id', mentorIds);
 
           for (final Map<String, dynamic> men in mentors) {
@@ -1508,15 +1550,53 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
         }
       }
 
-      return validMembers.map((Map<String, dynamic> m) {
-        final dynamic rawRoom = m['rooms'];
-        final Map<String, dynamic> room = rawRoom is List
-            ? rawRoom.first as Map<String, dynamic>
-            : rawRoom as Map<String, dynamic>;
+      // 7. Fetch user's completed submissions for progress calculation
+      final Set<String> passedActivityIds = <String>{};
+      try {
+        final List<Map<String, dynamic>> subs = await _supabase
+            .from('submissions')
+            .select('item_id')
+            .eq('user_id', userId)
+            .inFilter('sub_status', <String>[
+          'accepted',
+          'passed',
+          'Accepted',
+          'Passed',
+        ]);
 
+        for (final Map<String, dynamic> s in subs) {
+          final String? itemId = s['item_id'] as String?;
+          if (itemId != null && itemId.isNotEmpty) {
+            passedActivityIds.add(itemId);
+          }
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+
+      // 8. Build final RoomModel list
+      return allRooms.map((Map<String, dynamic> room) {
         final String rId = room['id'] as String? ?? '';
         final String mId = room['mentor_id'] as String? ?? '';
         final Map<String, dynamic>? mentor = mentorProfiles[mId];
+        final Map<String, dynamic>? membership = membershipByRoomId[rId];
+
+        // Determine status: if membership exists, use membership status; if user is mentor, it's active
+        final String status = membership?['status'] as String? ??
+            (mId == userId ? 'active' : 'active');
+
+        // Calculate completed activities count in this room
+        final List<RoomModuleSummary> roomMods =
+            modulesMap[rId] ?? const <RoomModuleSummary>[];
+        int completedActivitiesCount = 0;
+        for (final RoomModuleSummary mod in roomMods) {
+          final List<String> actIds = moduleActIdsMap[mod.id] ?? <String>[];
+          for (final String actId in actIds) {
+            if (passedActivityIds.contains(actId)) {
+              completedActivitiesCount++;
+            }
+          }
+        }
 
         return RoomModel(
           id: rId,
@@ -1525,19 +1605,20 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
           joinCode: room['join_code'] as String? ?? '',
           targetLanguage: room['target_language'] as String? ?? 'python',
           description: room['description'] as String? ?? '',
-          status: m['status'] as String? ?? 'active',
+          status: status,
           mentorName: mentor?['name'] as String? ?? 'Mentor',
           mentorEmail: mentor?['email'] as String?,
           mentorAvatarUrl: mentor?['avatarUrl'] as String?,
-          curriculumModules: modulesMap[rId] ?? const <RoomModuleSummary>[],
-          completedActivitiesCount: 0,
-          enrolledAt: m['enrolled_at'] as String?,
-          requestedAt: m['requested_at'] as String?,
+          curriculumModules: roomMods,
+          completedActivitiesCount: completedActivitiesCount,
+          enrolledAt: membership?['enrolled_at'] as String? ??
+              room['created_at'] as String?,
+          requestedAt: membership?['requested_at'] as String?,
           isArchived: room['is_archived'] as bool? ?? false,
         );
       }).toList();
     } catch (e) {
-      debugPrint('getLearnerRooms direct fallback error: $e');
+      debugPrint('getLearnerRooms error: $e');
       return <RoomModel>[];
     }
   }
