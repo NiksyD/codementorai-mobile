@@ -321,7 +321,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                 _buildSubNavTab(
                   id: 'practice',
                   label: 'Practice',
-                  count: mod.topics.length,
+                  count: mod.allPracticeActivities.length,
                   isSelected: _selectedTab == 'practice',
                   textPrimary: textPrimary,
                   textSecondary: textSecondary,
@@ -537,7 +537,9 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4.0),
                   child: LinearProgressIndicator(
-                    value: (mod.completion / 100.0).clamp(0.0, 1.0),
+                    value: mod.completion > 0
+                        ? (mod.completion / 100.0).clamp(0.0, 1.0)
+                        : 0.0,
                     minHeight: 5.0,
                     backgroundColor: isDark
                         ? AppColors.darkBorder
@@ -638,9 +640,142 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
         ),
         const SizedBox(height: 20.0),
 
-        // Section Title: Topic Pathways
+        // Module Progress Card Banner (1:1 Web Parity)
+        if (mod.totalPracticeCount > 0) ...<Widget>[
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(18.0),
+              border: Border.all(color: borderColor),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.03),
+                  blurRadius: 10.0,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      'Module Progress',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
+                    ),
+                    RichText(
+                      text: TextSpan(
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12.0,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                        children: <TextSpan>[
+                          TextSpan(
+                            text: '${mod.solvedPracticeCount}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          TextSpan(
+                            text:
+                                ' of ${mod.totalPracticeCount} Solved (${mod.practiceCompletionPercentage}%)',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10.0),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4.0),
+                  child: LinearProgressIndicator(
+                    value: mod.practiceCompletionPercentage > 0
+                        ? (mod.practiceCompletionPercentage / 100.0)
+                            .clamp(0.0, 1.0)
+                        : 0.0,
+                    minHeight: 6.0,
+                    backgroundColor: isDark
+                        ? AppColors.darkBorder
+                        : AppColors.lightBorder,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14.0),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40.0,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      HapticFeedback.mediumImpact();
+                      final ModuleActivityModel? firstUnsolved = mod
+                          .allPracticeActivities
+                          .cast<ModuleActivityModel?>()
+                          .firstWhere(
+                            (ModuleActivityModel? a) =>
+                                a != null && !a.isCompleted,
+                            orElse: () => mod.allPracticeActivities.isNotEmpty
+                                ? mod.allPracticeActivities.first
+                                : null,
+                          );
+                      if (firstUnsolved != null) {
+                        await context.push(
+                          '/modules/${widget.moduleId}/practice/${firstUnsolved.id}',
+                        );
+                        if (mounted) {
+                          _loadModuleData();
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor:
+                          isDark ? AppColors.onPrimaryDark : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          mod.solvedPracticeCount > 0
+                              ? 'Continue Learning'
+                              : 'Start Learning',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 6.0),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 14.0,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20.0),
+        ],
+
+        // Section Title: Guided Practice
         Text(
-          'Topic Pathways',
+          'Guided Practice',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 15.0,
             fontWeight: FontWeight.w800,
@@ -704,20 +839,15 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                         padding: const EdgeInsets.all(15.0),
                         child: Row(
                           children: <Widget>[
-                            Container(
-                              width: 28.0,
-                              height: 28.0,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8.0),
-                              ),
+                            SizedBox(
+                              width: 22.0,
                               child: Text(
                                 orderStr,
+                                textAlign: TextAlign.center,
                                 style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11.5,
+                                  fontSize: 11.0,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.primary,
+                                  color: textSecondary.withValues(alpha: 0.8),
                                 ),
                               ),
                             ),
@@ -749,6 +879,39 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                                 ],
                               ),
                             ),
+                            if (topic.totalCount > 0) ...<Widget>[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
+                                  vertical: 3.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: topic.isFullyCompleted
+                                      ? const Color(0xFF3ECF8E)
+                                          .withValues(alpha: 0.12)
+                                      : textSecondary
+                                          .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6.0),
+                                  border: Border.all(
+                                    color: topic.isFullyCompleted
+                                        ? const Color(0xFF3ECF8E)
+                                            .withValues(alpha: 0.3)
+                                        : borderColor,
+                                  ),
+                                ),
+                                child: Text(
+                                  '${topic.solvedCount}/${topic.totalCount} Solved${topic.isFullyCompleted ? " ✓" : ""}',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: topic.isFullyCompleted
+                                        ? const Color(0xFF3ECF8E)
+                                        : textSecondary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8.0),
+                            ],
                             AnimatedRotation(
                               turns: isExpanded ? 0.5 : 0.0,
                               duration: const Duration(milliseconds: 220),
@@ -769,7 +932,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                       secondChild: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          const Divider(height: 1.0),
+                          Divider(height: 1.0, color: borderColor),
                           if (topic.practiceActivities.isEmpty)
                             Padding(
                               padding: const EdgeInsets.all(14.0),
@@ -830,34 +993,42 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                                         ),
                                         const SizedBox(width: 12.0),
                                         Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: <Widget>[
-                                              Text(
-                                                act.title,
-                                                style:
-                                                    GoogleFonts.plusJakartaSans(
-                                                  fontSize: 13.0,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: textPrimary,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 2.0),
-                                              Text(
-                                                'GUIDED PRACTICE · CODE SANDBOX',
-                                                style:
-                                                    GoogleFonts.jetBrainsMono(
-                                                  fontSize: 9.0,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: textSecondary,
-                                                ),
-                                              ),
-                                            ],
+                                          child: Text(
+                                            act.title,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 13.0,
+                                              fontWeight: act.isCompleted
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w700,
+                                              color: textPrimary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
+                                        if (act.isCompleted) ...<Widget>[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 7.0,
+                                              vertical: 2.0,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF3ECF8E)
+                                                  .withValues(alpha: 0.12),
+                                              borderRadius:
+                                                  BorderRadius.circular(6.0),
+                                            ),
+                                            child: Text(
+                                              'Solved',
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF3ECF8E),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6.0),
+                                        ],
                                         Icon(
                                           Icons.arrow_forward_ios_rounded,
                                           size: 12.0,
@@ -968,23 +1139,49 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7.0,
-                            vertical: 2.5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: diffColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6.0),
-                          ),
-                          child: Text(
-                            ch.difficulty,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 10.0,
-                              fontWeight: FontWeight.w700,
-                              color: diffColor,
+                        Row(
+                          children: <Widget>[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7.0,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: diffColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6.0),
+                              ),
+                              child: Text(
+                                ch.difficulty,
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 10.0,
+                                  fontWeight: FontWeight.w700,
+                                  color: diffColor,
+                                ),
+                              ),
                             ),
-                          ),
+                            if (ch.isCompleted) ...<Widget>[
+                              const SizedBox(width: 8.0),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7.0,
+                                  vertical: 2.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF3ECF8E)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6.0),
+                                ),
+                                child: Text(
+                                  'Solved',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 10.0,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF3ECF8E),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         Row(
                           children: <Widget>[
@@ -1052,16 +1249,26 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            const Icon(
-                              Icons.code_rounded,
+                            Icon(
+                              ch.isCompleted
+                                  ? Icons.check_circle_outline_rounded
+                                  : Icons.code_rounded,
                               size: 16.0,
+                              color: ch.isCompleted
+                                  ? const Color(0xFF3ECF8E)
+                                  : null,
                             ),
                             const SizedBox(width: 6.0),
                             Text(
-                              'Solve Challenge',
+                              ch.isCompleted
+                                  ? 'Review Challenge'
+                                  : 'Solve Challenge',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13.0,
                                 fontWeight: FontWeight.w700,
+                                color: ch.isCompleted
+                                    ? const Color(0xFF3ECF8E)
+                                    : null,
                               ),
                             ),
                           ],

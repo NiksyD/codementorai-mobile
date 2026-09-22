@@ -23,6 +23,10 @@ class SupabasePathwayRepository implements PathwayRepository {
       <String, ModuleDetailModel>{};
   static final ValueNotifier<Set<String>> bookmarkedIdsNotifier =
       ValueNotifier<Set<String>>(<String>{});
+  /// Bumped after every successful practice/challenge submission so that
+  /// IndexedStack-cached screens (Dashboard, Modules) know to reload.
+  static final ValueNotifier<int> catalogRefreshNotifier =
+      ValueNotifier<int>(0);
 
   @override
   ModuleDetailModel? getCachedModuleDetails(String moduleId) =>
@@ -61,6 +65,9 @@ class SupabasePathwayRepository implements PathwayRepository {
     // 2. Fetch topics for each module
     final Map<String, List<Map<String, dynamic>>> topicsByTrack =
         <String, List<Map<String, dynamic>>>{};
+    // topicId -> trackId (needed to map activity back to module)
+    final Map<String, String> topicIdToTrackId = <String, String>{};
+    final List<String> allTopicIds = <String>[];
     try {
       final List<Map<String, dynamic>> allTopics = await _supabase
           .from('topics')
@@ -69,10 +76,44 @@ class SupabasePathwayRepository implements PathwayRepository {
 
       for (final Map<String, dynamic> t in allTopics) {
         final String trackId = t['track_id'] as String? ?? '';
+        final String topicId = t['topic_id'] as String? ?? '';
         topicsByTrack.putIfAbsent(trackId, () => <Map<String, dynamic>>[]).add(t);
+        if (topicId.isNotEmpty) {
+          topicIdToTrackId[topicId] = trackId;
+          allTopicIds.add(topicId);
+        }
       }
     } catch (_) {
       // Non-blocking
+    }
+
+    // 2b. Fetch all practice activities and build per-module totals
+    // actId -> trackId
+    final Map<String, String> actIdToTrackId = <String, String>{};
+    // trackId -> total practice activity count
+    final Map<String, int> moduleTotalPractice = <String, int>{};
+    if (allTopicIds.isNotEmpty) {
+      try {
+        final List<Map<String, dynamic>> allActivities = await _supabase
+            .from('activities')
+            .select('act_id, topic_id, track_id, act_type, act_status')
+            .filter('topic_id', 'in', allTopicIds);
+
+        for (final Map<String, dynamic> a in allActivities) {
+          final String actStatus =
+              (a['act_status'] as String? ?? 'published').toLowerCase();
+          if (actStatus == 'hidden') continue;
+          final String actId = a['act_id'] as String? ?? '';
+          final String tId = a['topic_id'] as String? ?? '';
+          final String trackId = topicIdToTrackId[tId] ?? '';
+          if (actId.isEmpty || trackId.isEmpty) continue;
+          actIdToTrackId[actId] = trackId;
+          moduleTotalPractice[trackId] =
+              (moduleTotalPractice[trackId] ?? 0) + 1;
+        }
+      } catch (_) {
+        // Non-blocking
+      }
     }
 
     // 3. Fetch User Bookmarks (user_practice_saves)
@@ -93,20 +134,38 @@ class SupabasePathwayRepository implements PathwayRepository {
     }
 
     // 4. Fetch User Practice Progress & Enrollments (user_practice_progress)
-    final Map<String, int> progressMap = <String, int>{};
     final Set<String> enrolledIds = <String>{};
     try {
       final List<Map<String, dynamic>> progressRows = await _supabase
           .from('user_practice_progress')
-          .select('track_id, upp_completion')
+          .select('track_id')
           .eq('user_id', userId);
 
       for (final Map<String, dynamic> row in progressRows) {
         final String? tId = row['track_id'] as String?;
-        final int? comp = (row['upp_completion'] as num?)?.toInt();
-        if (tId != null) {
-          enrolledIds.add(tId);
-          progressMap[tId] = comp ?? 0;
+        if (tId != null) enrolledIds.add(tId);
+      }
+    } catch (_) {
+      // Non-blocking
+    }
+
+    // 4b. Fetch accepted submissions to compute live per-module progress
+    // trackId -> solved count
+    final Map<String, int> moduleSolvedPractice = <String, int>{};
+    try {
+      final List<Map<String, dynamic>> acceptedSubs = await _supabase
+          .from('submissions')
+          .select('item_id')
+          .eq('user_id', userId)
+          .eq('sub_status', 'accepted');
+
+      for (final Map<String, dynamic> row in acceptedSubs) {
+        final String? itemId = row['item_id'] as String?;
+        if (itemId == null || itemId.isEmpty) continue;
+        final String? trackId = actIdToTrackId[itemId];
+        if (trackId != null && trackId.isNotEmpty) {
+          moduleSolvedPractice[trackId] =
+              (moduleSolvedPractice[trackId] ?? 0) + 1;
         }
       }
     } catch (_) {
@@ -149,14 +208,19 @@ class SupabasePathwayRepository implements PathwayRepository {
       // Non-blocking
     }
 
-    // 7. Map to PathwayModel list with real database progress
+    // 7. Map to PathwayModel list with dynamically computed live progress
     final List<PathwayModel> mappedPathways = <PathwayModel>[];
     for (final Map<String, dynamic> m in rawModules) {
       final String modId = m['mod_id'] as String? ?? '';
       final List<Map<String, dynamic>> topics = topicsByTrack[modId] ?? const <Map<String, dynamic>>[];
       final bool isEnrolled = enrolledIds.contains(modId);
       final bool isBookmarked = bookmarkedIds.contains(modId);
-      final int realProgress = progressMap[modId] ?? 0;
+
+      // Compute live completion: solved / total * 100 (same as getModuleDetails)
+      final int total = moduleTotalPractice[modId] ?? 0;
+      final int solved = moduleSolvedPractice[modId] ?? 0;
+      final int liveProgress =
+          total > 0 ? ((solved / total) * 100).round() : 0;
 
       mappedPathways.add(
         PathwayModel.fromDatabase(
@@ -164,7 +228,7 @@ class SupabasePathwayRepository implements PathwayRepository {
           topics: topics,
           isEnrolled: isEnrolled,
           isBookmarked: isBookmarked,
-          userProgress: realProgress,
+          userProgress: liveProgress,
         ),
       );
     }
@@ -280,6 +344,7 @@ class SupabasePathwayRepository implements PathwayRepository {
       int completion = 0;
       bool isBookmarked = bookmarkedIdsNotifier.value.contains(moduleId);
 
+      final Set<String> solvedItemIds = <String>{};
       if (userId.isNotEmpty) {
         try {
           final List<Map<String, dynamic>> saveRows = await _supabase
@@ -302,6 +367,19 @@ class SupabasePathwayRepository implements PathwayRepository {
             completion = (progRows.first['upp_completion'] as num?)?.toInt() ?? 0;
             isEnrolled = true;
           }
+
+          // Fetch user's accepted submissions to accurately flag solved activities
+          final List<Map<String, dynamic>> subRows = await _supabase
+              .from('submissions')
+              .select('item_id')
+              .eq('user_id', userId)
+              .eq('sub_status', 'accepted');
+          for (final Map<String, dynamic> r in subRows) {
+            final String? itemId = r['item_id'] as String?;
+            if (itemId != null && itemId.isNotEmpty) {
+              solvedItemIds.add(itemId);
+            }
+          }
         } catch (_) {}
       }
 
@@ -320,6 +398,9 @@ class SupabasePathwayRepository implements PathwayRepository {
       final Map<String, List<ModuleActivityModel>> activitiesByTopicId =
           <String, List<ModuleActivityModel>>{};
 
+      final List<ModuleActivityModel> moduleLevelChallenges = <ModuleActivityModel>[];
+
+      // Fetch topic activities
       if (allTopicIds.isNotEmpty) {
         try {
           final List<Map<String, dynamic>> actRows = await _supabase
@@ -333,11 +414,46 @@ class SupabasePathwayRepository implements PathwayRepository {
                 (a['act_status'] as String? ?? 'published').toLowerCase();
             if (actStatus == 'hidden') continue;
             final String tId = a['topic_id'] as String? ?? '';
-            final ModuleActivityModel act = ModuleActivityModel.fromJson(a);
+            final String actId = a['act_id'] as String? ?? '';
+            final ModuleActivityModel act = ModuleActivityModel.fromJson(
+              a,
+              isCompleted: solvedItemIds.contains(actId),
+            );
             activitiesByTopicId.putIfAbsent(tId, () => <ModuleActivityModel>[]).add(act);
           }
         } catch (_) {}
       }
+
+      // Fetch module-level activities/challenges (track_id == moduleId)
+      try {
+        final List<Map<String, dynamic>> modActRows = await _supabase
+            .from('activities')
+            .select()
+            .eq('track_id', moduleId)
+            .order('act_order_index', ascending: true);
+
+        for (final Map<String, dynamic> a in modActRows) {
+          final String actStatus =
+              (a['act_status'] as String? ?? 'published').toLowerCase();
+          if (actStatus == 'hidden') continue;
+          final String? tId = a['topic_id'] as String?;
+          final String actId = a['act_id'] as String? ?? '';
+          if (tId != null && tId.isNotEmpty) {
+            final ModuleActivityModel act = ModuleActivityModel.fromJson(
+              a,
+              isCompleted: solvedItemIds.contains(actId),
+            );
+            activitiesByTopicId.putIfAbsent(tId, () => <ModuleActivityModel>[]).add(act);
+          } else {
+            // Module-level benchmark challenge
+            final ModuleActivityModel act = ModuleActivityModel.fromJson(
+              a,
+              isCompleted: solvedItemIds.contains(actId),
+            );
+            moduleLevelChallenges.add(act);
+          }
+        }
+      } catch (_) {}
 
       // Deduplicate topics by compound key (order + title) and merge activities
       final Map<String, Map<String, dynamic>> uniqueTopicMap =
@@ -376,7 +492,13 @@ class SupabasePathwayRepository implements PathwayRepository {
             uniqueActs.add(a);
           }
         }
-        return ModuleTopicModel.fromJson(t, activities: uniqueActs);
+        final bool isTopicDone = uniqueActs.isNotEmpty &&
+            uniqueActs.every((ModuleActivityModel a) => a.isCompleted);
+        return ModuleTopicModel.fromJson(
+          t,
+          activities: uniqueActs,
+          isCompleted: isTopicDone,
+        );
       }).toList();
 
       List<String> stackList = <String>[];
@@ -399,6 +521,22 @@ class SupabasePathwayRepository implements PathwayRepository {
         coachAvatar = mentorObj['user_avatar_url'] as String?;
       }
 
+      // Compute actual completion from solved practice activities (1:1 with Web)
+      int totalPracticeActs = 0;
+      int solvedPracticeActs = 0;
+      for (final ModuleTopicModel topic in mappedTopics) {
+        for (final ModuleActivityModel act in topic.practiceActivities) {
+          totalPracticeActs++;
+          if (act.isCompleted) {
+            solvedPracticeActs++;
+          }
+        }
+      }
+      int effectiveCompletion = completion;
+      if (totalPracticeActs > 0 && solvedPracticeActs > 0) {
+        effectiveCompletion = ((solvedPracticeActs / totalPracticeActs) * 100).round();
+      }
+
       final ModuleDetailModel result = ModuleDetailModel(
         id: moduleId,
         title: mod['mod_title'] as String? ?? 'Engineering Module',
@@ -408,10 +546,11 @@ class SupabasePathwayRepository implements PathwayRepository {
         coachName: coachName,
         coachAvatar: coachAvatar,
         rating: 5.0,
-        completion: completion,
+        completion: effectiveCompletion,
         isEnrolled: isEnrolled,
         isBookmarked: isBookmarked,
         topics: mappedTopics,
+        challenges: moduleLevelChallenges,
       );
       _moduleDetailsCache[moduleId] = result;
       return result;
@@ -546,7 +685,8 @@ class SupabasePathwayRepository implements PathwayRepository {
               .from('submissions')
               .select('sub_id')
               .eq('user_id', userId)
-              .eq('act_id', exerciseId)
+              .eq('item_id', exerciseId)
+              .eq('sub_status', 'accepted')
               .limit(1);
           isCompleted = subRows.isNotEmpty;
         } catch (_) {}
@@ -603,20 +743,12 @@ class SupabasePathwayRepository implements PathwayRepository {
         }
       }
 
-      // Fallback 1: derive from starterCodes keys that have meaningful content
-      if (declaredLanguages.isEmpty && starterCodes.isNotEmpty) {
-        for (final MapEntry<String, String> entry in starterCodes.entries) {
-          if (!isPlaceholder(entry.value)) {
-            declaredLanguages.add(entry.key);
-          }
-        }
-      }
-
-      // Fallback 2: inherit from the parent module's stack if available
-      if (declaredLanguages.isEmpty && moduleId.isNotEmpty) {
+      // Priority 1: Module technology stack
+      final List<String> modStackLangs = <String>[];
+      if (moduleId.isNotEmpty) {
         final ModuleDetailModel? cachedMod = _moduleDetailsCache[moduleId];
         if (cachedMod != null && cachedMod.stack.isNotEmpty) {
-          declaredLanguages.addAll(cachedMod.stack);
+          modStackLangs.addAll(cachedMod.stack);
         } else {
           try {
             final List<Map<String, dynamic>> modRows = await _supabase
@@ -629,11 +761,11 @@ class SupabasePathwayRepository implements PathwayRepository {
               if (modStack is List) {
                 for (final dynamic s in modStack) {
                   if (s != null && s.toString().trim().isNotEmpty) {
-                    declaredLanguages.add(s.toString().trim().toLowerCase());
+                    modStackLangs.add(s.toString().trim().toLowerCase());
                   }
                 }
               } else if (modStack is String && modStack.trim().isNotEmpty) {
-                declaredLanguages.addAll(
+                modStackLangs.addAll(
                   modStack.split(',').map((String s) => s.trim().toLowerCase()).where((String s) => s.isNotEmpty),
                 );
               }
@@ -642,71 +774,77 @@ class SupabasePathwayRepository implements PathwayRepository {
         }
       }
 
-      // Final fallback if no languages found anywhere
-      if (declaredLanguages.isEmpty) {
-        declaredLanguages.add('javascript');
+      const List<String> allSupported = <String>[
+        'java',
+        'python',
+        'javascript',
+        'typescript',
+        'cpp',
+        'c',
+        'csharp',
+      ];
+
+      final Set<String> candidateLangs = <String>{};
+
+      // 1. Check non-empty starter codes in DB
+      for (final String l in allSupported) {
+        final String? s = starterCodes[l];
+        if (s != null && s.trim().isNotEmpty && !isPlaceholder(s)) {
+          candidateLangs.add(l);
+        }
       }
 
-      // Fallback starter code strictly for declared languages
-      if (declaredLanguages.contains('java')) {
-        starterCodes.putIfAbsent(
-          'java',
-          () =>
-              'public class Solution {\n    public static void main(String[] args) {\n        // Guided Practice: $title\n        System.out.println("Hello, CodeMentor!");\n    }\n}',
-        );
+      // 2. Check declared languages in code_details
+      for (final String l in declaredLanguages) {
+        if (allSupported.contains(l)) candidateLangs.add(l);
       }
-      if (declaredLanguages.contains('python')) {
-        starterCodes.putIfAbsent(
-          'python',
-          () =>
-              '# Guided Practice: $title\ndef solution():\n    print("Hello, CodeMentor!")\n\nif __name__ == "__main__":\n    solution()\n',
-        );
+
+      // 3. Check module stack
+      for (final String l in modStackLangs) {
+        if (allSupported.contains(l)) candidateLangs.add(l);
       }
-      if (declaredLanguages.contains('javascript')) {
-        starterCodes.putIfAbsent(
-          'javascript',
-          () =>
-              '// Guided Practice: $title\nfunction solution() {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();\n',
-        );
+
+      // Determine primary language (prefer module stack language if available)
+      String primaryLang = modStackLangs.isNotEmpty
+          ? modStackLangs.first
+          : (declaredLanguages.isNotEmpty ? declaredLanguages.first : 'java');
+      if (!allSupported.contains(primaryLang)) {
+        primaryLang = candidateLangs.isNotEmpty ? candidateLangs.first : 'java';
       }
-      if (declaredLanguages.contains('typescript')) {
-        starterCodes.putIfAbsent(
-          'typescript',
-          () =>
-              '// Guided Practice: $title\nfunction solution(): void {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();\n',
-        );
-      }
-      if (declaredLanguages.contains('c')) {
-        starterCodes.putIfAbsent(
-          'c',
-          () =>
-              '#include <stdio.h>\n\nint main() {\n    // Guided Practice: $title\n    printf("Hello, CodeMentor!\\n");\n    return 0;\n}\n',
-        );
-      }
-      if (declaredLanguages.contains('cpp')) {
-        starterCodes.putIfAbsent(
-          'cpp',
-          () =>
-              '#include <iostream>\n\nint main() {\n    // Guided Practice: $title\n    std::cout << "Hello, CodeMentor!" << std::endl;\n    return 0;\n}\n',
-        );
-      }
-      if (declaredLanguages.contains('csharp')) {
-        starterCodes.putIfAbsent(
-          'csharp',
-          () =>
-              'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // Guided Practice: $title\n        Console.WriteLine("Hello, CodeMentor!");\n    }\n}\n',
-        );
+      candidateLangs.add(primaryLang);
+
+      final List<String> finalLanguages = <String>[
+        primaryLang,
+        ...candidateLangs.where((String l) => l != primaryLang),
+      ];
+
+      // Clean default boilerplate templates matching web (no hardcoded solutions)
+      const Map<String, String> defaultTemplates = <String, String>{
+        'java': 'public class Solution {\n    public static void main(String[] args) {\n        // TODO: Implement solution logic\n    }\n}',
+        'python': 'def solve():\n    # TODO: Implement solution logic\n    pass\n\nif __name__ == "__main__":\n    solve()',
+        'javascript': 'function solve() {\n  // TODO: Implement solution logic\n}\n\nsolve();',
+        'typescript': 'function solve(): void {\n  // TODO: Implement solution logic\n}\n\nsolve();',
+        'cpp': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
+        'c': '#include <stdio.h>\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
+        'csharp': 'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // TODO: Implement solution logic\n    }\n}',
+      };
+
+      for (final String lang in finalLanguages) {
+        final String? authored = starterCodes[lang];
+        if (authored == null || authored.trim().isEmpty || isPlaceholder(authored)) {
+          starterCodes[lang] = defaultTemplates[lang] ?? defaultTemplates['java']!;
+        }
       }
 
       final Map<String, String> modelSolutions = <String, String>{
         'java':
-            'public class Solution {\n    public static void main(String[] args) {\n        System.out.println("Hello, CodeMentor!");\n    }\n}',
+            'public class Solution {\n    public static void main(String[] args) {\n        // Solution\n    }\n}',
         'python':
-            'def solution():\n    print("Hello, CodeMentor!")\n\nif __name__ == "__main__":\n    solution()',
+            'def solve():\n    pass\n\nif __name__ == "__main__":\n    solve()',
         'javascript':
-            'function solution() {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();',
+            'function solve() {\n}\n\nsolve();',
         'typescript':
-            'function solution(): void {\n  console.log("Hello, CodeMentor!");\n}\n\nsolution();',
+            'function solve(): void {\n}\n\nsolve();',
       };
 
       // Mapped test cases
@@ -717,8 +855,8 @@ class SupabasePathwayRepository implements PathwayRepository {
       if (testCases.isEmpty) {
         testCases = <TestCaseModel>[
           const TestCaseModel(
-            input: 'N/A',
-            expectedOutput: 'Hello, CodeMentor!',
+            input: 'Main.main()',
+            expectedOutput: '42',
             isSample: true,
             orderIndex: 1,
           ),
@@ -741,18 +879,7 @@ Your program must compile without syntax errors and pass the validation test cas
 1. Implement your solution logic inside the starter template.
 2. Ensure exact casing, spacing, and punctuation in your stdout prints.
 3. Do not modify the class or function entry point signatures.
-
----
-
-### Example 1
-
-**Input:**
-`N/A`
-
-**Output:**
-```text
-Hello, CodeMentor!
-```''';
+''';
 
       return PracticeExerciseModel(
         id: exerciseId,
@@ -763,7 +890,7 @@ Hello, CodeMentor!
         category: 'Programming Practice',
         targetTime: targetTime,
         targetSpace: targetSpace,
-        languages: declaredLanguages,
+        languages: finalLanguages,
         starterCodes: starterCodes,
         modelSolutions: modelSolutions,
         testCases: testCases,
@@ -783,39 +910,80 @@ Hello, CodeMentor!
     String language,
   ) async {
     try {
-      // 1. Insert into submissions table
+      // 1. Insert into submissions table (using live schema: item_id, sub_status, sub_verdict jsonb)
       if (userId.isNotEmpty) {
         try {
           await _supabase.from('submissions').insert(<String, dynamic>{
             'user_id': userId,
-            'track_id': moduleId,
-            'act_id': exerciseId,
+            'item_id': exerciseId,
             'sub_code': code,
-            'sub_language': language,
-            'sub_status': 'Accepted',
-            'sub_verdict': 'Optimal',
+            'sub_language': language.toLowerCase(),
+            'sub_status': 'accepted',
+            'sub_verdict': <String, dynamic>{
+              'verdict': 'Accepted',
+              'grade': 'A+',
+            },
             'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
           });
         } catch (_) {}
       }
 
-      // 2. Fetch current completion and update user_practice_progress
+      // 2. Compute accurate completion based on total practice activities (1:1 with Web)
       if (userId.isNotEmpty && moduleId.isNotEmpty) {
         try {
-          final List<Map<String, dynamic>> progRows = await _supabase
-              .from('user_practice_progress')
-              .select('upp_completion')
-              .eq('user_id', userId)
-              .eq('track_id', moduleId)
-              .limit(1);
+          final List<Map<String, dynamic>> tRows = await _supabase
+              .from('topics')
+              .select('topic_id')
+              .eq('track_id', moduleId);
 
-          int currentComp = 0;
-          if (progRows.isNotEmpty) {
-            currentComp =
-                (progRows.first['upp_completion'] as num?)?.toInt() ?? 0;
+          final List<String> topicIds = tRows
+              .map((Map<String, dynamic> t) => t['topic_id'] as String? ?? '')
+              .where((String s) => s.isNotEmpty)
+              .toList();
+
+          int totalCount = 1;
+          final Set<String> topicActIds = <String>{};
+
+          if (topicIds.isNotEmpty) {
+            final List<Map<String, dynamic>> aRows = await _supabase
+                .from('activities')
+                .select('act_id, act_category, act_status')
+                .filter('topic_id', 'in', topicIds);
+
+            for (final Map<String, dynamic> a in aRows) {
+              final String cat = (a['act_category'] as String? ?? 'practice').toLowerCase();
+              final String st = (a['act_status'] as String? ?? 'published').toLowerCase();
+              if (st != 'hidden' && cat != 'challenge') {
+                final String aId = a['act_id'] as String? ?? '';
+                if (aId.isNotEmpty) topicActIds.add(aId);
+              }
+            }
           }
 
-          final int nextComp = (currentComp + 25).clamp(0, 100);
+          if (topicActIds.isNotEmpty) {
+            totalCount = topicActIds.length;
+          }
+
+          // Fetch user's accepted submissions
+          final List<Map<String, dynamic>> userSubs = await _supabase
+              .from('submissions')
+              .select('item_id')
+              .eq('user_id', userId)
+              .eq('sub_status', 'accepted');
+
+          final Set<String> solvedSet = <String>{};
+          for (final Map<String, dynamic> r in userSubs) {
+            final String? itemId = r['item_id'] as String?;
+            if (itemId != null && itemId.isNotEmpty) solvedSet.add(itemId);
+          }
+          solvedSet.add(exerciseId);
+
+          int solvedCount = 0;
+          for (final String aId in topicActIds) {
+            if (solvedSet.contains(aId)) solvedCount++;
+          }
+
+          final int nextComp = totalCount > 0 ? ((solvedCount / totalCount) * 100).round() : 100;
 
           await _supabase.from('user_practice_progress').upsert(<String, dynamic>{
             'user_id': userId,
@@ -824,7 +992,10 @@ Hello, CodeMentor!
             'upp_updated_at': DateTime.now().toUtc().toIso8601String(),
           }, onConflict: 'user_id,track_id');
 
-          // Update memory cache
+          // Invalidate cache so module detail recomputes immediately
+          _moduleDetailsCache.remove(moduleId);
+
+          // Update memory dashboard cache if present
           if (cachedData != null) {
             cachedData = LearnDashboardData(
               activePathway: cachedData!.activePathway,
@@ -847,6 +1018,9 @@ Hello, CodeMentor!
           }
         } catch (_) {}
       }
+
+      // Signal all cached catalog/dashboard screens to reload fresh progress
+      catalogRefreshNotifier.value++;
 
       return true;
     } catch (_) {
@@ -902,7 +1076,8 @@ Hello, CodeMentor!
               .from('submissions')
               .select('sub_id')
               .eq('user_id', userId)
-              .eq('act_id', challengeId)
+              .eq('item_id', challengeId)
+              .eq('sub_status', 'accepted')
               .limit(1);
           isCompleted = subRows.isNotEmpty;
         } catch (_) {}
@@ -959,20 +1134,12 @@ Hello, CodeMentor!
         }
       }
 
-      // Fallback 1: derive from starterCodes keys that have meaningful content
-      if (declaredLanguages.isEmpty && starterCodes.isNotEmpty) {
-        for (final MapEntry<String, String> entry in starterCodes.entries) {
-          if (!isPlaceholder(entry.value)) {
-            declaredLanguages.add(entry.key);
-          }
-        }
-      }
-
-      // Fallback 2: inherit from the parent module's stack if available
-      if (declaredLanguages.isEmpty && moduleId.isNotEmpty) {
+      // Priority 1: Module technology stack
+      final List<String> modStackLangs = <String>[];
+      if (moduleId.isNotEmpty) {
         final ModuleDetailModel? cachedMod = _moduleDetailsCache[moduleId];
         if (cachedMod != null && cachedMod.stack.isNotEmpty) {
-          declaredLanguages.addAll(cachedMod.stack);
+          modStackLangs.addAll(cachedMod.stack);
         } else {
           try {
             final List<Map<String, dynamic>> modRows = await _supabase
@@ -985,11 +1152,11 @@ Hello, CodeMentor!
               if (modStack is List) {
                 for (final dynamic s in modStack) {
                   if (s != null && s.toString().trim().isNotEmpty) {
-                    declaredLanguages.add(s.toString().trim().toLowerCase());
+                    modStackLangs.add(s.toString().trim().toLowerCase());
                   }
                 }
               } else if (modStack is String && modStack.trim().isNotEmpty) {
-                declaredLanguages.addAll(
+                modStackLangs.addAll(
                   modStack.split(',').map((String s) => s.trim().toLowerCase()).where((String s) => s.isNotEmpty),
                 );
               }
@@ -998,71 +1165,77 @@ Hello, CodeMentor!
         }
       }
 
-      // Final fallback if no languages found anywhere
-      if (declaredLanguages.isEmpty) {
-        declaredLanguages.add('javascript');
+      const List<String> allSupported = <String>[
+        'java',
+        'python',
+        'javascript',
+        'typescript',
+        'cpp',
+        'c',
+        'csharp',
+      ];
+
+      final Set<String> candidateLangs = <String>{};
+
+      // 1. Check non-empty starter codes in DB
+      for (final String l in allSupported) {
+        final String? s = starterCodes[l];
+        if (s != null && s.trim().isNotEmpty && !isPlaceholder(s)) {
+          candidateLangs.add(l);
+        }
       }
 
-      // Default fallback starter codes matching Web challenge template strictly for declared languages
-      if (declaredLanguages.contains('java')) {
-        starterCodes.putIfAbsent(
-          'java',
-          () =>
-              'public class Solution {\n    public static void main(String[] args) {\n        // Skill Challenge: $title\n        int value = 42;\n        System.out.println(value);\n    }\n}',
-        );
+      // 2. Check declared languages in code_details
+      for (final String l in declaredLanguages) {
+        if (allSupported.contains(l)) candidateLangs.add(l);
       }
-      if (declaredLanguages.contains('python')) {
-        starterCodes.putIfAbsent(
-          'python',
-          () =>
-              '# Skill Challenge: $title\ndef solution():\n    target_val = 42\n    print(target_val)\n\nif __name__ == "__main__":\n    solution()\n',
-        );
+
+      // 3. Check module stack
+      for (final String l in modStackLangs) {
+        if (allSupported.contains(l)) candidateLangs.add(l);
       }
-      if (declaredLanguages.contains('javascript')) {
-        starterCodes.putIfAbsent(
-          'javascript',
-          () =>
-              '// Skill Challenge: $title\nfunction solution() {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();\n',
-        );
+
+      // Determine primary language (prefer module stack language if available)
+      String primaryLang = modStackLangs.isNotEmpty
+          ? modStackLangs.first
+          : (declaredLanguages.isNotEmpty ? declaredLanguages.first : 'java');
+      if (!allSupported.contains(primaryLang)) {
+        primaryLang = candidateLangs.isNotEmpty ? candidateLangs.first : 'java';
       }
-      if (declaredLanguages.contains('typescript')) {
-        starterCodes.putIfAbsent(
-          'typescript',
-          () =>
-              '// Skill Challenge: $title\nfunction solution(): void {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();\n',
-        );
-      }
-      if (declaredLanguages.contains('c')) {
-        starterCodes.putIfAbsent(
-          'c',
-          () =>
-              '#include <stdio.h>\n\nint main() {\n    // Skill Challenge: $title\n    int value = 42;\n    printf("%d\\n", value);\n    return 0;\n}\n',
-        );
-      }
-      if (declaredLanguages.contains('cpp')) {
-        starterCodes.putIfAbsent(
-          'cpp',
-          () =>
-              '#include <iostream>\n\nint main() {\n    // Skill Challenge: $title\n    int value = 42;\n    std::cout << value << std::endl;\n    return 0;\n}\n',
-        );
-      }
-      if (declaredLanguages.contains('csharp')) {
-        starterCodes.putIfAbsent(
-          'csharp',
-          () =>
-              'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // Skill Challenge: $title\n        int value = 42;\n        Console.WriteLine(value);\n    }\n}\n',
-        );
+      candidateLangs.add(primaryLang);
+
+      final List<String> finalLanguages = <String>[
+        primaryLang,
+        ...candidateLangs.where((String l) => l != primaryLang),
+      ];
+
+      // Default fallback starter codes matching Web challenge template (clean TODO boilerplate)
+      const Map<String, String> defaultTemplates = <String, String>{
+        'java': 'public class Solution {\n    public static void main(String[] args) {\n        // TODO: Implement solution logic\n    }\n}',
+        'python': 'def solve():\n    # TODO: Implement solution logic\n    pass\n\nif __name__ == "__main__":\n    solve()',
+        'javascript': 'function solve() {\n  // TODO: Implement solution logic\n}\n\nsolve();',
+        'typescript': 'function solve(): void {\n  // TODO: Implement solution logic\n}\n\nsolve();',
+        'cpp': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
+        'c': '#include <stdio.h>\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
+        'csharp': 'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // TODO: Implement solution logic\n    }\n}',
+      };
+
+      for (final String lang in finalLanguages) {
+        final String? authored = starterCodes[lang];
+        if (authored == null || authored.trim().isEmpty || isPlaceholder(authored)) {
+          starterCodes[lang] = defaultTemplates[lang] ?? defaultTemplates['java']!;
+        }
       }
 
       final Map<String, String> modelSolutions = <String, String>{
         'java':
-            'public class Solution {\n    public static void main(String[] args) {\n        int value = 42;\n        System.out.println(value);\n    }\n}',
+            'public class Solution {\n    public static void main(String[] args) {\n        // Solution\n    }\n}',
         'python':
-            'def solution():\n    target_val = 42\n    print(target_val)\n\nif __name__ == "__main__":\n    solution()',
+            'def solve():\n    pass\n\nif __name__ == "__main__":\n    solve()',
         'javascript':
-            'function solution() {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();',
+            'function solve() {\n}\n\nsolve();',
         'typescript':
-            'function solution(): void {\n  const targetVal = 42;\n  console.log(targetVal);\n}\n\nsolution();',
+            'function solve(): void {\n}\n\nsolve();',
       };
 
       // Mapped test cases
@@ -1084,41 +1257,23 @@ Hello, CodeMentor!
       final String rawDesc = actData?['act_description'] as String? ?? '';
       final String richDescription = rawDesc.isNotEmpty
           ? rawDesc
-          : '''### Problem Statement
+          : '''### Challenge Statement
 
-Declare and initialize an integer variable named `value` set to `42`, then output its value to standard output.
+Solve this algorithmic challenge adhering to strict SLA execution limits.
 
-Your program must compile without errors, satisfy target algorithmic SLA bounds, and pass all validation assertions.
-
----
-
-### Constraints & SLA Benchmarks
-- Target Time Complexity: **$targetTime**
-- Target Space Complexity: **$targetSpace**
-- Memory Allocation Limit: **64 MB**
-
----
-
-### Example 1
-
-**Input:**
-`Main.main()`
-
-**Output:**
-```text
-42
-```''';
+Ensure your code compiles cleanly and satisfies the validation test suite.
+''';
 
       return PracticeExerciseModel(
         id: challengeId,
         moduleId: moduleId,
-        title: title.isNotEmpty ? title : 'Skill Challenge',
+        title: title.isNotEmpty ? title : 'Skill Challenge Benchmark',
         description: richDescription,
         difficulty: difficulty,
-        category: 'Algorithmic Challenge',
+        category: 'Algorithm Challenge',
         targetTime: targetTime,
         targetSpace: targetSpace,
-        languages: declaredLanguages,
+        languages: finalLanguages,
         starterCodes: starterCodes,
         modelSolutions: modelSolutions,
         testCases: testCases,
@@ -1140,69 +1295,27 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
     String language,
   ) async {
     try {
-      // 1. Insert into submissions table
+      // 1. Insert into submissions table (using live schema: item_id, sub_status, sub_verdict jsonb)
       if (userId.isNotEmpty) {
         try {
           await _supabase.from('submissions').insert(<String, dynamic>{
             'user_id': userId,
-            'track_id': moduleId,
-            'act_id': challengeId,
+            'item_id': challengeId,
             'sub_code': code,
-            'sub_language': language,
-            'sub_status': 'Accepted',
-            'sub_verdict': 'Optimal',
+            'sub_language': language.toLowerCase(),
+            'sub_status': 'accepted',
+            'sub_verdict': <String, dynamic>{
+              'verdict': 'Accepted',
+              'grade': 'A+',
+            },
             'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
           });
         } catch (_) {}
       }
 
-      // 2. Fetch current completion and update user_practice_progress
-      if (userId.isNotEmpty && moduleId.isNotEmpty) {
-        try {
-          final List<Map<String, dynamic>> progRows = await _supabase
-              .from('user_practice_progress')
-              .select('upp_completion')
-              .eq('user_id', userId)
-              .eq('track_id', moduleId)
-              .limit(1);
-
-          int currentComp = 0;
-          if (progRows.isNotEmpty) {
-            currentComp =
-                (progRows.first['upp_completion'] as num?)?.toInt() ?? 0;
-          }
-
-          final int nextComp = (currentComp + 25).clamp(0, 100);
-
-          await _supabase.from('user_practice_progress').upsert(<String, dynamic>{
-            'user_id': userId,
-            'track_id': moduleId,
-            'upp_completion': nextComp,
-            'upp_updated_at': DateTime.now().toUtc().toIso8601String(),
-          }, onConflict: 'user_id,track_id');
-
-          // Update memory cache
-          if (cachedData != null) {
-            cachedData = LearnDashboardData(
-              activePathway: cachedData!.activePathway,
-              enrolledPathways: cachedData!.enrolledPathways.map((PathwayModel p) {
-                if (p.id == moduleId) {
-                  return p.copyWith(
-                    completion: nextComp,
-                    status: nextComp >= 100 ? 'Mastered' : 'In Progress',
-                  );
-                }
-                return p;
-              }).toList(),
-              currentStreak: cachedData!.currentStreak,
-              totalActiveDays: cachedData!.totalActiveDays,
-              easySolved: cachedData!.easySolved,
-              mediumSolved: cachedData!.mediumSolved + 1,
-              hardSolved: cachedData!.hardSolved,
-              recommendedChallenges: cachedData!.recommendedChallenges,
-            );
-          }
-        } catch (_) {}
+      // 2. Invalidate cache so module detail recomputes immediately
+      if (moduleId.isNotEmpty) {
+        _moduleDetailsCache.remove(moduleId);
       }
 
       return true;
@@ -1224,7 +1337,7 @@ Your program must compile without errors, satisfy target algorithmic SLA bounds,
           .from('submissions')
           .select('*')
           .eq('user_id', userId)
-          .eq('act_id', exerciseId)
+          .eq('item_id', exerciseId)
           .order('sub_submitted_at', ascending: false);
 
       return rows

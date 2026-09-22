@@ -43,6 +43,8 @@ class _ModulesScreenState extends State<ModulesScreen> {
     super.initState();
     SupabasePathwayRepository.bookmarkedIdsNotifier
         .addListener(_onBookmarksChanged);
+    SupabasePathwayRepository.catalogRefreshNotifier
+        .addListener(_onCatalogRefresh);
     _loadModules();
   }
 
@@ -50,8 +52,14 @@ class _ModulesScreenState extends State<ModulesScreen> {
   void dispose() {
     SupabasePathwayRepository.bookmarkedIdsNotifier
         .removeListener(_onBookmarksChanged);
+    SupabasePathwayRepository.catalogRefreshNotifier
+        .removeListener(_onCatalogRefresh);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onCatalogRefresh() {
+    _loadModules();
   }
 
   void _onBookmarksChanged() {

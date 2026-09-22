@@ -47,6 +47,19 @@ class _LearnScreenState extends State<LearnScreen> {
     _profile = SupabaseProfileRepository.cachedProfile;
     _dashboardData = SupabasePathwayRepository.cachedData;
     _isLoading = _dashboardData == null;
+    SupabasePathwayRepository.catalogRefreshNotifier
+        .addListener(_onCatalogRefresh);
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    SupabasePathwayRepository.catalogRefreshNotifier
+        .removeListener(_onCatalogRefresh);
+    super.dispose();
+  }
+
+  void _onCatalogRefresh() {
     _loadData();
   }
 

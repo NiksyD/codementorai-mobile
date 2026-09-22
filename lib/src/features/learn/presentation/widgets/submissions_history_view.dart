@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../common_widgets/shimmer_skeleton.dart';
 import '../../../../constants/app_colors.dart';
 import '../../domain/submission_history_model.dart';
 
@@ -35,24 +36,38 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
     final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     if (widget.isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const SizedBox(
-              width: 24.0,
-              height: 24.0,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            const SizedBox(height: 12.0),
-            Text(
-              'Loading submission history...',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.0,
-                color: textSecondary,
+      return ShimmerLoading(
+        child: ListView.separated(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          itemCount: 3,
+          separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12.0),
+          itemBuilder: (BuildContext context, int index) {
+            return Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(14.0),
+                border: Border.all(color: borderColor),
               ),
-            ),
-          ],
+              child: const Row(
+                children: <Widget>[
+                  SkeletonBox(width: 28.0, height: 28.0, borderRadius: 14.0),
+                  SizedBox(width: 12.0),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SkeletonBox(width: 140.0, height: 16.0, borderRadius: 4.0),
+                        SizedBox(height: 6.0),
+                        SkeletonBox(width: 180.0, height: 12.0, borderRadius: 4.0),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       );
     }
@@ -205,13 +220,54 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 2.0),
-                              Text(
-                                '${sub.status} · ${sub.verdict} · ${sub.timeAgoFormatted}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  color: textSecondary,
-                                ),
+                              const SizedBox(height: 5.0),
+                              Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 6.0,
+                                runSpacing: 4.0,
+                                children: <Widget>[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
+                                    decoration: BoxDecoration(
+                                      color: sub.isAccepted
+                                          ? const Color(0xFF3ECF8E).withValues(alpha: 0.15)
+                                          : AppColors.error.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(6.0),
+                                    ),
+                                    child: Text(
+                                      sub.verdict.isNotEmpty ? sub.verdict : (sub.isAccepted ? 'Accepted' : 'Failed'),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.0,
+                                        fontWeight: FontWeight.w700,
+                                        color: sub.isAccepted ? const Color(0xFF3ECF8E) : AppColors.error,
+                                      ),
+                                    ),
+                                  ),
+                                  if (sub.grade != null && sub.grade!.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(6.0),
+                                        border: Border.all(color: borderColor),
+                                      ),
+                                      child: Text(
+                                        'Grade ${sub.grade}',
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  Text(
+                                    '·  ${sub.timeAgoFormatted}',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: textSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

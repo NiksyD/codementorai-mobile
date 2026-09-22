@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
+import '../data/code_execution_service.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/practice_exercise_model.dart';
@@ -61,12 +63,14 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadSubmissions() async {
+  Future<void> _loadSubmissions({bool forceLoading = false}) async {
     final user = Supabase.instance.client.auth.currentUser;
     final String userId = user?.id ?? '';
     if (userId.isEmpty) return;
 
-    setState(() => _isLoadingSubmissions = true);
+    if (_submissions.isEmpty || forceLoading) {
+      setState(() => _isLoadingSubmissions = true);
+    }
     final List<SubmissionHistoryModel> list =
         await widget.pathwayRepository.getExerciseSubmissions(
       userId: userId,
@@ -236,138 +240,28 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     }
   }
 
-  ExecutionResultModel _runSimulation(String code, String lang) {
-    final List<String> stdout = <String>[];
-    final List<String> logs = <String>[];
-    final String trimmed = code.trim();
-
-    final String starter = _challenge?.starterCodes[lang] ?? '';
-    final bool isUnmodified = trimmed.isEmpty || trimmed == starter.trim();
-
-    final String fileExt = lang == 'javascript'
-        ? 'js'
-        : lang == 'typescript'
-            ? 'ts'
-            : lang == 'python'
-                ? 'py'
-                : lang == 'java'
-                    ? 'java'
-                    : lang == 'csharp'
-                        ? 'cs'
-                        : lang == 'cpp'
-                            ? 'cpp'
-                            : (lang == 'c' ? 'c' : 'txt');
-    final String fileName = (lang == 'java' || lang == 'csharp')
-        ? 'Solution.$fileExt'
-        : 'solution.$fileExt';
-
-    logs.add('> compile --target $lang $fileName');
-
-    if (isUnmodified) {
-      logs.add('[Notice] Starter template unmodified. Implement your challenge solution.');
-      return ExecutionResultModel(
-        isSuccess: false,
-        rawLog: logs.join('\n'),
-        errorTitle: 'Starter Code Detected',
-        socraticHint:
-            'You have not modified the template yet. Read the challenge constraints and implement your algorithm.',
-        passedTestCases: 0,
-        totalTestCases: _challenge?.testCases.length ?? 1,
-      );
-    }
-
-    // Bracket matching syntax check
-    int openBraces = 0;
-    int closeBraces = 0;
-    for (int i = 0; i < code.length; i++) {
-      if (code[i] == '{') openBraces++;
-      if (code[i] == '}') closeBraces++;
-    }
-
-    if (lang != 'python' && openBraces != closeBraces) {
-      logs.add('error: reached end of file while parsing (unmatched braces)');
-      logs.add('Exit code: 1 (compilation failed)');
-      return ExecutionResultModel(
-        isSuccess: false,
-        rawLog: logs.join('\n'),
-        errorTitle: 'SyntaxError: Unmatched Braces',
-        socraticHint:
-            'Check your curly braces { }. Every opening brace must have a matching closing brace.',
-        passedTestCases: 0,
-        totalTestCases: _challenge?.testCases.length ?? 1,
-      );
-    }
-
-    // Extract print statements
-    final RegExp printRegex = RegExp(
-      r'(?:System\.out\.println|System\.out\.print|console\.log|printf|print)\s*\(\s*(.*?)\s*\)',
-    );
-
-    for (final Match match in printRegex.allMatches(code)) {
-      final String? rawVal = match.group(1)?.trim();
-      if (rawVal != null) {
-        final String cleaned =
-            rawVal.replaceAll(RegExp(r'''^["']|["']$'''), '');
-        if (cleaned.isNotEmpty) stdout.add(cleaned);
-      }
-    }
-
-    logs.add('[Compilation] Build successful.');
-    logs.add('[Benchmark] SLA Bounds: Time ${_challenge?.targetTime ?? "O(N)"} | Space ${_challenge?.targetSpace ?? "O(1)"}');
-    logs.add('[Execution] Running challenge test harness assertions...');
-
-    if (stdout.isNotEmpty) {
-      logs.add('── Standard Output (stdout) ──');
-      for (final String s in stdout) {
-        logs.add('  $s');
-      }
-      logs.add('──────────────────────────────');
-    }
-
-    final int totalCases = _challenge?.testCases.length ?? 1;
-    final String expectedFirstCase =
-        _challenge?.testCases.first.expectedOutput ?? '';
-    final String joinedStdout = stdout.join('\n').trim();
-
-    final bool matchesExpected = expectedFirstCase.isEmpty ||
-        joinedStdout.toLowerCase().contains(expectedFirstCase.toLowerCase()) ||
-        joinedStdout.isNotEmpty;
-
-    if (matchesExpected) {
-      logs.add('  ✓ All test cases passed.');
-      logs.add('  ✓ Complexity bounds verified.');
-      logs.add('Exit code: 0 (success)');
-      return ExecutionResultModel(
-        isSuccess: true,
-        rawLog: logs.join('\n'),
-        passedTestCases: totalCases,
-        totalTestCases: totalCases,
-        stdout: stdout,
-      );
-    } else {
-      logs.add('  ✗ Test assertion mismatch: output did not match specification.');
-      logs.add('Exit code: 1 (test failure)');
-      return ExecutionResultModel(
-        isSuccess: false,
-        rawLog: logs.join('\n'),
-        errorTitle: 'Output Mismatch',
-        socraticHint:
-            'Check your algorithm logic. Ensure the output strictly conforms to the expected specification.',
-        passedTestCases: 0,
-        totalTestCases: totalCases,
-        stdout: stdout,
-      );
-    }
-  }
-
   Future<void> _handleRunTests() async {
     if (_isExecuting) return;
     HapticFeedback.lightImpact();
     setState(() => _isExecuting = true);
 
-    await Future<void>.delayed(const Duration(milliseconds: 650));
-    final ExecutionResultModel result =
-        _runSimulation(_codeController.text, _selectedLanguage);
+    final TestCaseModel? primaryCase =
+        (_challenge?.testCases.isNotEmpty == true)
+            ? _challenge!.testCases.first
+            : null;
+
+    final String stdin = primaryCase?.input ?? '';
+    final String expectedOutput = primaryCase?.expectedOutput ?? '';
+    final int totalCases = _challenge?.testCases.length ?? 1;
+
+    final ExecutionResultModel result = await CodeExecutionService.execute(
+      code: _codeController.text,
+      language: _selectedLanguage,
+      stdin: stdin,
+      expectedOutput: expectedOutput,
+      totalTestCases: totalCases,
+      apiBaseUrl: dotenv.env['API_BASE_URL'],
+    );
 
     if (mounted) {
       setState(() => _isExecuting = false);
@@ -384,9 +278,23 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     HapticFeedback.mediumImpact();
     setState(() => _isExecuting = true);
 
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    final ExecutionResultModel result =
-        _runSimulation(_codeController.text, _selectedLanguage);
+    final TestCaseModel? primaryCase =
+        (_challenge?.testCases.isNotEmpty == true)
+            ? _challenge!.testCases.first
+            : null;
+
+    final String stdin = primaryCase?.input ?? '';
+    final String expectedOutput = primaryCase?.expectedOutput ?? '';
+    final int totalCases = _challenge?.testCases.length ?? 1;
+
+    final ExecutionResultModel result = await CodeExecutionService.execute(
+      code: _codeController.text,
+      language: _selectedLanguage,
+      stdin: stdin,
+      expectedOutput: expectedOutput,
+      totalTestCases: totalCases,
+      apiBaseUrl: dotenv.env['API_BASE_URL'],
+    );
 
     if (!mounted) return;
     setState(() => _isExecuting = false);
@@ -412,7 +320,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     );
 
     // Refresh submissions list in background
-    _loadSubmissions();
+    _loadSubmissions(forceLoading: true);
 
     if (mounted) {
       ChallengeCompletionModal.show(

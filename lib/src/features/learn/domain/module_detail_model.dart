@@ -30,8 +30,10 @@ class ModuleActivityModel {
     final String cat = json['act_category'] as String? ?? 'practice';
     final String title = json['act_title'] as String? ?? 'Activity';
     final bool isCh = cat.toLowerCase() == 'challenge' ||
+        cat.toLowerCase() == 'assessment' ||
         title.toLowerCase().contains('challenge') ||
-        title.toLowerCase().contains('benchmark');
+        title.toLowerCase().contains('benchmark') ||
+        title.toLowerCase().contains('assessment');
 
     return ModuleActivityModel(
       id: json['act_id'] as String? ?? '',
@@ -75,6 +77,14 @@ class ModuleTopicModel {
       .where((ModuleActivityModel a) => a.category == 'challenge')
       .toList();
 
+  int get solvedCount =>
+      practiceActivities.where((ModuleActivityModel a) => a.isCompleted).length;
+
+  int get totalCount => practiceActivities.length;
+
+  bool get isFullyCompleted =>
+      totalCount > 0 && solvedCount == totalCount;
+
   factory ModuleTopicModel.fromJson(
     Map<String, dynamic> json, {
     List<ModuleActivityModel> activities = const <ModuleActivityModel>[],
@@ -106,6 +116,7 @@ class ModuleDetailModel {
     this.isBookmarked = false,
     this.coachAvatar,
     this.topics = const <ModuleTopicModel>[],
+    this.challenges = const <ModuleActivityModel>[],
   });
 
   final String id;
@@ -120,6 +131,7 @@ class ModuleDetailModel {
   final bool isEnrolled;
   final bool isBookmarked;
   final List<ModuleTopicModel> topics;
+  final List<ModuleActivityModel> challenges;
 
   ModuleDetailModel copyWith({
     String? id,
@@ -134,6 +146,7 @@ class ModuleDetailModel {
     bool? isEnrolled,
     bool? isBookmarked,
     List<ModuleTopicModel>? topics,
+    List<ModuleActivityModel>? challenges,
   }) {
     return ModuleDetailModel(
       id: id ?? this.id,
@@ -148,6 +161,7 @@ class ModuleDetailModel {
       isEnrolled: isEnrolled ?? this.isEnrolled,
       isBookmarked: isBookmarked ?? this.isBookmarked,
       topics: topics ?? this.topics,
+      challenges: challenges ?? this.challenges,
     );
   }
 
@@ -159,12 +173,31 @@ class ModuleDetailModel {
     return list;
   }
 
+  int get solvedPracticeCount =>
+      allPracticeActivities.where((ModuleActivityModel a) => a.isCompleted).length;
+
+  int get totalPracticeCount => allPracticeActivities.length;
+
+  int get practiceCompletionPercentage => totalPracticeCount > 0
+      ? ((solvedPracticeCount / totalPracticeCount) * 100).round()
+      : 0;
+
   List<ModuleActivityModel> get allChallenges {
+    // Prioritize module-level benchmark challenges (track_id == moduleId)
+    // to match Web's 1:1 parity where challenges are queried via track_id.
+    // Only fall back to topic-level challenge activities when no module-level
+    // challenges exist, preventing double-counting (e.g. 7 + 6 = 13).
+    if (challenges.isNotEmpty) {
+      return challenges;
+    }
+
+    // Fallback: aggregate challenge activities from topics
     final List<ModuleActivityModel> list = <ModuleActivityModel>[];
     for (final ModuleTopicModel t in topics) {
       list.addAll(t.challengeActivities);
     }
-    // If no challenges found in topics, provide standard algorithmic challenges
+
+    // If no challenges found anywhere, provide standard algorithmic challenges
     if (list.isEmpty) {
       list.addAll(<ModuleActivityModel>[
         ModuleActivityModel(
