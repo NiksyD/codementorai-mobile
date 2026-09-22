@@ -22,6 +22,7 @@ class LearnDashboardData {
   const LearnDashboardData({
     required this.activePathway,
     required this.enrolledPathways,
+    required this.allPathways,
     required this.currentStreak,
     required this.totalActiveDays,
     required this.easySolved,
@@ -32,6 +33,10 @@ class LearnDashboardData {
 
   final PathwayModel? activePathway;
   final List<PathwayModel> enrolledPathways;
+
+  /// Full published module catalog (enrolled + non-enrolled), matching web 1:1.
+  final List<PathwayModel> allPathways;
+
   final int currentStreak;
   final int totalActiveDays;
   final int easySolved;

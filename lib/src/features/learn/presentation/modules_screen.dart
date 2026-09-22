@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
+import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
@@ -307,11 +308,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
               // Modules List
               if (_isLoading)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  ),
-                )
+                _buildSkeletonList(isDark: isDark)
               else if (filtered.isEmpty)
                 SliverFillRemaining(
                   child: Center(
@@ -629,6 +626,110 @@ class _ModulesScreenState extends State<ModulesScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonList({required bool isDark}) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 32.0),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (BuildContext context, int index) {
+            return _buildSkeletonCard(isDark: isDark);
+          },
+          childCount: 4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonCard({required bool isDark}) {
+    final Color cardBg =
+        isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard;
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14.0),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20.0),
+        border: Border.all(color: borderColor),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ShimmerLoading(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // Header: Stack skeleton + completion status skeleton
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const <Widget>[
+                  Row(
+                    children: <Widget>[
+                      SkeletonCircle(size: 26.0),
+                      SizedBox(width: 6.0),
+                      SkeletonCircle(size: 26.0),
+                    ],
+                  ),
+                  SkeletonBox(
+                    width: 80.0,
+                    height: 14.0,
+                    borderRadius: 4.0,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14.0),
+
+              // Title & Description
+              const SkeletonBox(
+                width: 200.0,
+                height: 18.0,
+                borderRadius: 5.0,
+              ),
+              const SizedBox(height: 8.0),
+              const SkeletonBox(
+                width: double.infinity,
+                height: 12.0,
+                borderRadius: 4.0,
+              ),
+              const SizedBox(height: 6.0),
+              const SkeletonBox(
+                width: 160.0,
+                height: 12.0,
+                borderRadius: 4.0,
+              ),
+              const SizedBox(height: 14.0),
+
+              // Divider / Progress Bar Placeholder
+              const SkeletonBox(
+                width: double.infinity,
+                height: 5.0,
+                borderRadius: 3.0,
+              ),
+              const SizedBox(height: 14.0),
+
+              // Footer: Topics / Coach + Action button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const <Widget>[
+                  SkeletonBox(
+                    width: 120.0,
+                    height: 13.0,
+                    borderRadius: 4.0,
+                  ),
+                  SkeletonBox(
+                    width: 68.0,
+                    height: 28.0,
+                    borderRadius: 10.0,
                   ),
                 ],
               ),

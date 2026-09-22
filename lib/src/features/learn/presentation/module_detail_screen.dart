@@ -587,7 +587,13 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                       ),
                       const SizedBox(width: 2.0),
                       Text(
-                        '5.0',
+                        (_reviews.isNotEmpty
+                                ? _reviews
+                                        .map((ModuleReviewModel r) => r.rating)
+                                        .reduce((int a, int b) => a + b) /
+                                    _reviews.length
+                                : mod.rating)
+                            .toStringAsFixed(1),
                         style: GoogleFonts.jetBrainsMono(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,

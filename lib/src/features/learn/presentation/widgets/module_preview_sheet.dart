@@ -186,7 +186,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                                       ),
                                       const SizedBox(width: 2.0),
                                       Text(
-                                        '5.0',
+                                        mod.rating.toStringAsFixed(1),
                                         style: GoogleFonts.jetBrainsMono(
                                           fontSize: 11.0,
                                           fontWeight: FontWeight.w700,

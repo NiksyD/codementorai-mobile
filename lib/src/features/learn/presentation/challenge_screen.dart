@@ -40,8 +40,10 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
   PracticeExerciseModel? _challenge;
   bool _isLoading = true;
   String _selectedLanguage = 'java';
-  String _activeTab = 'description'; // 'description', 'editor', or 'submissions'
+  String _activeTab = 'description'; // 'description', 'editor', 'testcases', or 'submissions'
   bool _isExecuting = false;
+  ExecutionResultModel? _lastResult;
+  int _selectedTestCaseIdx = 0;
 
   List<SubmissionHistoryModel> _submissions = <SubmissionHistoryModel>[];
   bool _isLoadingSubmissions = false;
@@ -264,11 +266,15 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     );
 
     if (mounted) {
-      setState(() => _isExecuting = false);
+      setState(() {
+        _isExecuting = false;
+        _lastResult = result;
+      });
       PracticeConsoleSheet.show(
         context,
         result: result,
         testCases: _challenge?.testCases ?? const <TestCaseModel>[],
+        onRunCode: _handleRunTests,
       );
     }
   }
@@ -297,13 +303,17 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     );
 
     if (!mounted) return;
-    setState(() => _isExecuting = false);
+    setState(() {
+      _isExecuting = false;
+      _lastResult = result;
+    });
 
     if (!result.isSuccess) {
       PracticeConsoleSheet.show(
         context,
         result: result,
         testCases: _challenge?.testCases ?? const <TestCaseModel>[],
+        onRunCode: _handleRunTests,
       );
       return;
     }
@@ -551,7 +561,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       ),
       body: Column(
         children: <Widget>[
-          // Segmented Sub-Nav: [ Description ] <-> [ Code Editor ] <-> [ Submissions ]
+          // Segmented Sub-Nav: [ Description ] <-> [ Code Editor ] <-> [ Test Cases ] <-> [ Submissions ]
           Container(
             decoration: BoxDecoration(
               color: cardBg,
@@ -574,7 +584,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                 Expanded(
                   child: _buildSubNavTab(
                     id: 'editor',
-                    label: 'Code Editor',
+                    label: 'Editor',
                     icon: Icons.code_rounded,
                     isSelected: _activeTab == 'editor',
                     textPrimary: textPrimary,
@@ -583,10 +593,20 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                 ),
                 Expanded(
                   child: _buildSubNavTab(
+                    id: 'testcases',
+                    label: 'Test Cases',
+                    icon: Icons.checklist_rounded,
+                    isSelected: _activeTab == 'testcases',
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                  ),
+                ),
+                Expanded(
+                  child: _buildSubNavTab(
                     id: 'submissions',
                     label: _submissions.isNotEmpty
-                        ? 'Submissions (${_submissions.length})'
-                        : 'Submissions',
+                        ? 'History (${_submissions.length})'
+                        : 'History',
                     icon: Icons.history_rounded,
                     isSelected: _activeTab == 'submissions',
                     textPrimary: textPrimary,
@@ -613,12 +633,21 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                         controller: _codeController,
                         language: _selectedLanguage,
                       )
-                    : SubmissionsHistoryView(
-                        submissions: _submissions,
-                        isLoading: _isLoadingSubmissions,
-                        onRefresh: _loadSubmissions,
-                        onRestoreCode: _restoreHistoricalCode,
-                      )),
+                    : (_activeTab == 'testcases'
+                        ? _buildTestCasesView(
+                            ch,
+                            isDark,
+                            textPrimary,
+                            textSecondary,
+                            cardBg,
+                            borderColor,
+                          )
+                        : SubmissionsHistoryView(
+                            submissions: _submissions,
+                            isLoading: _isLoadingSubmissions,
+                            onRefresh: _loadSubmissions,
+                            onRestoreCode: _restoreHistoricalCode,
+                          ))),
           ),
 
           // Floating Bottom Action Dock
@@ -633,6 +662,35 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
               top: false,
               child: Row(
                 children: <Widget>[
+                  // Quick Test Cases / Console Drawer Button
+                  Container(
+                    margin: const EdgeInsets.only(right: 10.0),
+                    child: SizedBox(
+                      height: 44.0,
+                      width: 44.0,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          PracticeConsoleSheet.show(
+                            context,
+                            result: _lastResult,
+                            testCases: ch.testCases,
+                            onRunCode: _handleRunTests,
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          side: BorderSide(color: borderColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                          foregroundColor: textSecondary,
+                        ),
+                        child: const Icon(Icons.terminal_rounded, size: 20.0),
+                      ),
+                    ),
+                  ),
+
                   // Run Tests Button
                   Expanded(
                     flex: 2,
@@ -732,14 +790,14 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
           children: <Widget>[
             Icon(
               icon,
-              size: 16.0,
+              size: 15.0,
               color: isSelected ? AppColors.primary : textSecondary,
             ),
-            const SizedBox(width: 6.0),
+            const SizedBox(width: 5.0),
             Text(
               label,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.0,
+                fontSize: 12.0,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                 color: isSelected ? AppColors.primary : textSecondary,
               ),
@@ -820,6 +878,359 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
             cardBg: cardBg,
             borderColor: borderColor,
           ),
+
+          // Examples & Test Cases (1:1 with Web BrowserIde)
+          if (ch.testCases.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 24.0),
+            Row(
+              children: <Widget>[
+                const Icon(
+                  Icons.playlist_add_check_rounded,
+                  size: 18.0,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 8.0),
+                Text(
+                  'EXAMPLES & TEST CASES',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12.0),
+            ...ch.testCases.take(3).toList().asMap().entries.map((entry) {
+              final int idx = entry.key;
+              final TestCaseModel tc = entry.value;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12.0),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(14.0),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14.0,
+                        vertical: 8.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.darkSurface
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(13.0),
+                        ),
+                        border: Border(
+                          bottom: BorderSide(color: borderColor, width: 0.8),
+                        ),
+                      ),
+                      child: Text(
+                        'Example ${idx + 1}',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11.0,
+                          fontWeight: FontWeight.w700,
+                          color: textSecondary,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(14.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          if (tc.input.isNotEmpty) ...<Widget>[
+                            Text(
+                              'Input:',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.w700,
+                                color: textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 4.0),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8.0),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? AppColors.darkBackground
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8.0),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Text(
+                                tc.input,
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 11.5,
+                                  color: textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10.0),
+                          ],
+                          Text(
+                            'Output:',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF3ECF8E),
+                            ),
+                          ),
+                          const SizedBox(height: 4.0),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8.0),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? AppColors.darkBackground
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8.0),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: Text(
+                              tc.expectedOutput,
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 11.5,
+                                color: const Color(0xFF3ECF8E),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTestCasesView(
+    PracticeExerciseModel ch,
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    if (ch.testCases.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Text(
+            'No test cases defined for this challenge.',
+            style: TextStyle(color: textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final int safeIdx = _selectedTestCaseIdx.clamp(0, ch.testCases.length - 1);
+    final TestCaseModel tc = ch.testCases[safeIdx];
+    final bool hasRun = _lastResult != null;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // Header info
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Text(
+                'TEST CASES (${ch.testCases.length})',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11.0,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: textSecondary,
+                ),
+              ),
+              if (hasRun)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                  decoration: BoxDecoration(
+                    color: (_lastResult!.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6.0),
+                  ),
+                  child: Text(
+                    _lastResult!.isSuccess
+                        ? 'Passed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'
+                        : 'Failed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w700,
+                      color: _lastResult!.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12.0),
+
+          // Case Selector Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List<Widget>.generate(ch.testCases.length, (int idx) {
+                final bool isSelected = safeIdx == idx;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ChoiceChip(
+                    label: Text('Case ${idx + 1}'),
+                    selected: isSelected,
+                    onSelected: (bool val) {
+                      if (val) setState(() => _selectedTestCaseIdx = idx);
+                    },
+                    labelStyle: GoogleFonts.jetBrainsMono(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? Colors.white : textSecondary,
+                    ),
+                    selectedColor: AppColors.primary,
+                    backgroundColor: cardBg,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                      side: BorderSide(color: borderColor),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 16.0),
+
+          // Input Block
+          Text(
+            'Input',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              fontWeight: FontWeight.w700,
+              color: textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6.0),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(10.0),
+              border: Border.all(color: borderColor),
+            ),
+            child: SelectableText(
+              tc.input.isEmpty ? '(empty input)' : tc.input,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 12.0,
+                color: textPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14.0),
+
+          // Expected Output Block
+          Text(
+            'Expected Output',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              fontWeight: FontWeight.w700,
+              color: textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6.0),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(10.0),
+              border: Border.all(color: borderColor),
+            ),
+            child: SelectableText(
+              tc.expectedOutput,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 12.0,
+                color: const Color(0xFF3ECF8E),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14.0),
+
+          // Actual Output / Status
+          if (hasRun) ...<Widget>[
+            Text(
+              'Actual Output (stdout)',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.0,
+                fontWeight: FontWeight.w700,
+                color: textSecondary,
+              ),
+            ),
+            const SizedBox(height: 6.0),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(10.0),
+                border: Border.all(color: borderColor),
+              ),
+              child: SelectableText(
+                _lastResult!.stdout.isNotEmpty
+                    ? _lastResult!.stdout.join('\n')
+                    : (_lastResult!.isSuccess ? tc.expectedOutput : 'No stdout recorded'),
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 12.0,
+                  color: _lastResult!.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ] else ...<Widget>[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14.0),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12.0),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 18.0,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 10.0),
+                  Expanded(
+                    child: Text(
+                      'Ready to validate. Tap "Run Tests" below to run your code against this case.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.w500,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

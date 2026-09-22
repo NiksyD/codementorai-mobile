@@ -6,17 +6,20 @@ import '../../domain/practice_exercise_model.dart';
 class PracticeConsoleSheet extends StatefulWidget {
   const PracticeConsoleSheet({
     super.key,
-    required this.result,
+    this.result,
     required this.testCases,
+    this.onRunCode,
   });
 
-  final ExecutionResultModel result;
+  final ExecutionResultModel? result;
   final List<TestCaseModel> testCases;
+  final VoidCallback? onRunCode;
 
   static Future<void> show(
     BuildContext context, {
-    required ExecutionResultModel result,
+    ExecutionResultModel? result,
     required List<TestCaseModel> testCases,
+    VoidCallback? onRunCode,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -25,6 +28,7 @@ class PracticeConsoleSheet extends StatefulWidget {
       builder: (BuildContext ctx) => PracticeConsoleSheet(
         result: result,
         testCases: testCases,
+        onRunCode: onRunCode,
       ),
     );
   }
@@ -46,7 +50,8 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
     final Color textPrimary = isDark ? AppColors.darkTextPrimary : const Color(0xFF0F172A);
     final Color textSecondary = isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B);
 
-    final bool isSuccess = widget.result.isSuccess;
+    final bool hasRun = widget.result != null;
+    final bool isSuccess = widget.result?.isSuccess ?? false;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.65,
@@ -77,19 +82,27 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
                 Row(
                   children: <Widget>[
                     Icon(
-                      isSuccess
-                          ? Icons.check_circle_rounded
-                          : Icons.error_outline_rounded,
-                      color: isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
+                      !hasRun
+                          ? Icons.checklist_rounded
+                          : (isSuccess
+                              ? Icons.check_circle_rounded
+                              : Icons.error_outline_rounded),
+                      color: !hasRun
+                          ? AppColors.primary
+                          : (isSuccess ? const Color(0xFF3ECF8E) : AppColors.error),
                       size: 20.0,
                     ),
                     const SizedBox(width: 8.0),
                     Text(
-                      isSuccess ? 'All Tests Passed' : 'Execution Notice',
+                      !hasRun
+                          ? 'Test Cases (${widget.testCases.length})'
+                          : (isSuccess ? 'All Tests Passed' : 'Execution Notice'),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16.0,
                         fontWeight: FontWeight.w800,
-                        color: isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
+                        color: !hasRun
+                            ? textPrimary
+                            : (isSuccess ? const Color(0xFF3ECF8E) : AppColors.error),
                       ),
                     ),
                   ],
@@ -133,7 +146,9 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
                             : null,
                       ),
                       child: Text(
-                        'Test Cases (${widget.result.passedTestCases}/${widget.result.totalTestCases})',
+                        !hasRun
+                            ? 'Test Cases (${widget.testCases.length})'
+                            : 'Test Cases (${widget.result!.passedTestCases}/${widget.result!.totalTestCases})',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12.0,
                           fontWeight: _activeTab == 'cases' ? FontWeight.w700 : FontWeight.w500,
@@ -185,8 +200,8 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8.0),
               child: _activeTab == 'cases'
-                  ? _buildTestCasesTab(cardBg, borderColor, textPrimary, textSecondary)
-                  : _buildTerminalTab(cardBg, borderColor, textPrimary, textSecondary),
+                  ? _buildTestCasesTab(cardBg, borderColor, textPrimary, textSecondary, hasRun)
+                  : _buildTerminalTab(cardBg, borderColor, textPrimary, textSecondary, hasRun, isSuccess),
             ),
           ),
         ],
@@ -199,17 +214,23 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
     Color borderColor,
     Color textPrimary,
     Color textSecondary,
+    bool hasRun,
   ) {
     if (widget.testCases.isEmpty) {
       return Center(
-        child: Text('No test cases defined', style: TextStyle(color: textSecondary)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24.0),
+          child: Text('No test cases defined', style: TextStyle(color: textSecondary)),
+        ),
       );
     }
 
     final TestCaseModel tc = widget.testCases[_selectedCaseIdx.clamp(0, widget.testCases.length - 1)];
-    final String stdoutLine = widget.result.stdout.isNotEmpty
-        ? widget.result.stdout.join('\n')
-        : (widget.result.isSuccess ? tc.expectedOutput : 'No stdout recorded');
+    final String stdoutLine = hasRun && widget.result != null
+        ? (widget.result!.stdout.isNotEmpty
+            ? widget.result!.stdout.join('\n')
+            : (widget.result!.isSuccess ? tc.expectedOutput : 'No stdout recorded'))
+        : '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,7 +287,7 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
             border: Border.all(color: borderColor),
           ),
           child: Text(
-            tc.input,
+            tc.input.isEmpty ? '(empty input)' : tc.input,
             style: GoogleFonts.jetBrainsMono(fontSize: 12.0, color: textPrimary),
           ),
         ),
@@ -303,73 +324,122 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
 
         const SizedBox(height: 12.0),
 
-        // Actual Output
-        Text(
-          'Actual Output (stdout):',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: textSecondary,
-          ),
-        ),
-        const SizedBox(height: 4.0),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(8.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Text(
-            stdoutLine,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 12.0,
-              color: widget.result.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
-              fontWeight: FontWeight.w600,
+        // Actual Output or Pre-run prompt
+        if (hasRun && widget.result != null) ...<Widget>[
+          Text(
+            'Actual Output (stdout):',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: textSecondary,
             ),
           ),
-        ),
-
-        // Socratic Hint Banner if error occurred
-        if (widget.result.socraticHint != null && widget.result.socraticHint!.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 16.0),
+          const SizedBox(height: 4.0),
           Container(
-            padding: const EdgeInsets.all(14.0),
+            width: double.infinity,
+            padding: const EdgeInsets.all(10.0),
             decoration: BoxDecoration(
-              color: const Color(0xFF3ECF8E).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12.0),
-              border: Border.all(color: const Color(0xFF3ECF8E).withValues(alpha: 0.3)),
+              color: cardBg,
+              borderRadius: BorderRadius.circular(8.0),
+              border: Border.all(color: borderColor),
+            ),
+            child: Text(
+              stdoutLine,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 12.0,
+                color: widget.result!.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+
+          // Socratic Hint Banner if error occurred
+          if (widget.result!.socraticHint != null && widget.result!.socraticHint!.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 16.0),
+            Container(
+              padding: const EdgeInsets.all(14.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3ECF8E).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12.0),
+                border: Border.all(color: const Color(0xFF3ECF8E).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Icon(Icons.lightbulb_outline_rounded, color: Color(0xFF3ECF8E), size: 18.0),
+                  const SizedBox(width: 10.0),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Socratic AI Mentor Hint',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF3ECF8E),
+                          ),
+                        ),
+                        const SizedBox(height: 4.0),
+                        Text(
+                          widget.result!.socraticHint!,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            height: 1.45,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ] else ...<Widget>[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(10.0),
+              border: Border.all(color: borderColor),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Icon(Icons.lightbulb_outline_rounded, color: Color(0xFF3ECF8E), size: 18.0),
+                const Icon(
+                  Icons.play_circle_outline_rounded,
+                  size: 18.0,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(width: 10.0),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Socratic AI Mentor Hint',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF3ECF8E),
-                        ),
-                      ),
-                      const SizedBox(height: 4.0),
-                      Text(
-                        widget.result.socraticHint!,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.0,
-                          height: 1.45,
-                          color: textPrimary,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'Tap "Run Tests" to test your code against this case.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w500,
+                      color: textSecondary,
+                    ),
                   ),
                 ),
+                if (widget.onRunCode != null)
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onRunCode!();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                    ),
+                    child: const Text('Run Tests', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  ),
               ],
             ),
           ),
@@ -383,7 +453,13 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
     Color borderColor,
     Color textPrimary,
     Color textSecondary,
+    bool hasRun,
+    bool isSuccess,
   ) {
+    final String content = hasRun && widget.result != null
+        ? widget.result!.rawLog
+        : 'Terminal idle. Run your code to inspect compiler logs and output.';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14.0),
@@ -393,11 +469,13 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
         border: Border.all(color: borderColor),
       ),
       child: SelectableText(
-        widget.result.rawLog,
+        content,
         style: GoogleFonts.jetBrainsMono(
           fontSize: 12.0,
           height: 1.5,
-          color: widget.result.isSuccess ? const Color(0xFF3ECF8E) : const Color(0xFFF87171),
+          color: hasRun
+              ? (isSuccess ? const Color(0xFF3ECF8E) : const Color(0xFFF87171))
+              : textSecondary,
         ),
       ),
     );

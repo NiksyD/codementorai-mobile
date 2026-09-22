@@ -13,6 +13,7 @@ class PathwayModel {
     this.isBookmarked = false,
     this.coachName,
     this.coachAvatar,
+    this.rating = 5.0,
   });
 
   final String id;
@@ -28,6 +29,7 @@ class PathwayModel {
   final bool isBookmarked;
   final String? coachName;
   final String? coachAvatar;
+  final double rating;
 
   PathwayModel copyWith({
     String? id,
@@ -43,6 +45,7 @@ class PathwayModel {
     bool? isBookmarked,
     String? coachName,
     String? coachAvatar,
+    double? rating,
   }) {
     return PathwayModel(
       id: id ?? this.id,
@@ -58,6 +61,7 @@ class PathwayModel {
       isBookmarked: isBookmarked ?? this.isBookmarked,
       coachName: coachName ?? this.coachName,
       coachAvatar: coachAvatar ?? this.coachAvatar,
+      rating: rating ?? this.rating,
     );
   }
 
@@ -110,6 +114,7 @@ class PathwayModel {
       isBookmarked: isBookmarked,
       coachName: moduleData['coach_name'] as String?,
       coachAvatar: moduleData['coach_avatar'] as String?,
+      rating: (moduleData['mod_rating'] as num?)?.toDouble() ?? 5.0,
     );
   }
 }

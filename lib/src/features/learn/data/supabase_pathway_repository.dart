@@ -96,7 +96,7 @@ class SupabasePathwayRepository implements PathwayRepository {
       try {
         final List<Map<String, dynamic>> allActivities = await _supabase
             .from('activities')
-            .select('act_id, topic_id, track_id, act_type, act_status')
+            .select('act_id, topic_id, track_id, act_type, act_category, act_status')
             .filter('topic_id', 'in', allTopicIds);
 
         for (final Map<String, dynamic> a in allActivities) {
@@ -110,6 +110,31 @@ class SupabasePathwayRepository implements PathwayRepository {
           actIdToTrackId[actId] = trackId;
           moduleTotalPractice[trackId] =
               (moduleTotalPractice[trackId] ?? 0) + 1;
+        }
+
+        // Also include direct module-level challenges
+        final List<String> allModIds = rawModules
+            .map((dynamic m) => (m as Map<String, dynamic>)['mod_id'] as String? ?? '')
+            .where((String s) => s.isNotEmpty)
+            .toList();
+
+        if (allModIds.isNotEmpty) {
+          final List<Map<String, dynamic>> directActs = await _supabase
+              .from('activities')
+              .select('act_id, track_id, act_status')
+              .filter('track_id', 'in', allModIds);
+
+          for (final Map<String, dynamic> a in directActs) {
+            final String actStatus =
+                (a['act_status'] as String? ?? 'published').toLowerCase();
+            if (actStatus == 'hidden') continue;
+            final String actId = a['act_id'] as String? ?? '';
+            final String trackId = a['track_id'] as String? ?? '';
+            if (actId.isEmpty || trackId.isEmpty || actIdToTrackId.containsKey(actId)) continue;
+            actIdToTrackId[actId] = trackId;
+            moduleTotalPractice[trackId] =
+                (moduleTotalPractice[trackId] ?? 0) + 1;
+          }
         }
       } catch (_) {
         // Non-blocking
@@ -135,15 +160,19 @@ class SupabasePathwayRepository implements PathwayRepository {
 
     // 4. Fetch User Practice Progress & Enrollments (user_practice_progress)
     final Set<String> enrolledIds = <String>{};
+    final Map<String, int> dbProgressMap = <String, int>{};
     try {
       final List<Map<String, dynamic>> progressRows = await _supabase
           .from('user_practice_progress')
-          .select('track_id')
+          .select('track_id, upp_completion')
           .eq('user_id', userId);
 
       for (final Map<String, dynamic> row in progressRows) {
         final String? tId = row['track_id'] as String?;
-        if (tId != null) enrolledIds.add(tId);
+        if (tId != null) {
+          enrolledIds.add(tId);
+          dbProgressMap[tId] = (row['upp_completion'] as num?)?.toInt() ?? 0;
+        }
       }
     } catch (_) {
       // Non-blocking
@@ -157,7 +186,7 @@ class SupabasePathwayRepository implements PathwayRepository {
           .from('submissions')
           .select('item_id')
           .eq('user_id', userId)
-          .eq('sub_status', 'accepted');
+          .inFilter('sub_status', const <String>['accepted', 'passed', 'Accepted', 'Passed']);
 
       for (final Map<String, dynamic> row in acceptedSubs) {
         final String? itemId = row['item_id'] as String?;
@@ -217,10 +246,14 @@ class SupabasePathwayRepository implements PathwayRepository {
       final bool isBookmarked = bookmarkedIds.contains(modId);
 
       // Compute live completion: solved / total * 100 (same as getModuleDetails)
+      // Fallback to upp_completion from DB when the bulk activities query
+      // returns empty (e.g. large IN filter exceeding URL/row limits).
       final int total = moduleTotalPractice[modId] ?? 0;
       final int solved = moduleSolvedPractice[modId] ?? 0;
-      final int liveProgress =
+      final int dynamicProgress =
           total > 0 ? ((solved / total) * 100).round() : 0;
+      final int liveProgress =
+          dynamicProgress > 0 ? dynamicProgress : (dbProgressMap[modId] ?? 0);
 
       mappedPathways.add(
         PathwayModel.fromDatabase(
@@ -279,6 +312,7 @@ class SupabasePathwayRepository implements PathwayRepository {
     final LearnDashboardData result = LearnDashboardData(
       activePathway: activePathway,
       enrolledPathways: enrolledPathways,
+      allPathways: mappedPathways,
       currentStreak: currentStreak > 0 ? currentStreak : 3,
       totalActiveDays: currentStreak > 0 ? currentStreak * 5 : 28,
       easySolved: easySolved > 0 ? easySolved : 18,
@@ -306,12 +340,13 @@ class SupabasePathwayRepository implements PathwayRepository {
             _moduleDetailsCache[moduleId]!.copyWith(isEnrolled: true);
       }
       if (cachedData != null) {
+        PathwayModel markEnrolled(PathwayModel p) =>
+            p.id == moduleId ? p.copyWith(isEnrolled: true) : p;
+
         cachedData = LearnDashboardData(
           activePathway: cachedData!.activePathway,
-          enrolledPathways: cachedData!.enrolledPathways
-              .map((PathwayModel p) =>
-                  p.id == moduleId ? p.copyWith(isEnrolled: true) : p)
-              .toList(),
+          enrolledPathways: cachedData!.enrolledPathways.map(markEnrolled).toList(),
+          allPathways: cachedData!.allPathways.map(markEnrolled).toList(),
           currentStreak: cachedData!.currentStreak,
           totalActiveDays: cachedData!.totalActiveDays,
           easySolved: cachedData!.easySolved,
@@ -521,20 +556,26 @@ class SupabasePathwayRepository implements PathwayRepository {
         coachAvatar = mentorObj['user_avatar_url'] as String?;
       }
 
-      // Compute actual completion from solved practice activities (1:1 with Web)
-      int totalPracticeActs = 0;
-      int solvedPracticeActs = 0;
+      // Compute actual completion from solved activities and challenges (1:1 with Web)
+      int totalModuleActs = 0;
+      int solvedModuleActs = 0;
       for (final ModuleTopicModel topic in mappedTopics) {
-        for (final ModuleActivityModel act in topic.practiceActivities) {
-          totalPracticeActs++;
+        for (final ModuleActivityModel act in topic.activities) {
+          totalModuleActs++;
           if (act.isCompleted) {
-            solvedPracticeActs++;
+            solvedModuleActs++;
           }
         }
       }
+      for (final ModuleActivityModel ch in moduleLevelChallenges) {
+        totalModuleActs++;
+        if (ch.isCompleted) {
+          solvedModuleActs++;
+        }
+      }
       int effectiveCompletion = completion;
-      if (totalPracticeActs > 0 && solvedPracticeActs > 0) {
-        effectiveCompletion = ((solvedPracticeActs / totalPracticeActs) * 100).round();
+      if (totalModuleActs > 0) {
+        effectiveCompletion = ((solvedModuleActs / totalModuleActs) * 100).round();
       }
 
       final ModuleDetailModel result = ModuleDetailModel(
@@ -545,7 +586,7 @@ class SupabasePathwayRepository implements PathwayRepository {
         price: (mod['mod_price'] as num?)?.toDouble() ?? 0.0,
         coachName: coachName,
         coachAvatar: coachAvatar,
-        rating: 5.0,
+        rating: (mod['mod_rating'] as num?)?.toDouble() ?? 5.0,
         completion: effectiveCompletion,
         isEnrolled: isEnrolled,
         isBookmarked: isBookmarked,
@@ -562,7 +603,7 @@ class SupabasePathwayRepository implements PathwayRepository {
   @override
   Future<List<PathwayModel>> getAllModules(String userId) async {
     final LearnDashboardData data = await getLearnDashboardData(userId);
-    return data.enrolledPathways;
+    return data.allPathways;
   }
 
   @override
@@ -590,12 +631,13 @@ class SupabasePathwayRepository implements PathwayRepository {
 
     // Optimistically update dashboard/catalog cache if loaded
     if (cachedData != null) {
+      PathwayModel updateBookmark(PathwayModel p) =>
+          p.id == moduleId ? p.copyWith(isBookmarked: isBookmarked) : p;
+
       cachedData = LearnDashboardData(
         activePathway: cachedData!.activePathway,
-        enrolledPathways: cachedData!.enrolledPathways
-            .map((PathwayModel p) =>
-                p.id == moduleId ? p.copyWith(isBookmarked: isBookmarked) : p)
-            .toList(),
+        enrolledPathways: cachedData!.enrolledPathways.map(updateBookmark).toList(),
+        allPathways: cachedData!.allPathways.map(updateBookmark).toList(),
         currentStreak: cachedData!.currentStreak,
         totalActiveDays: cachedData!.totalActiveDays,
         easySolved: cachedData!.easySolved,
@@ -947,18 +989,33 @@ Your program must compile without syntax errors and pass the validation test cas
           if (topicIds.isNotEmpty) {
             final List<Map<String, dynamic>> aRows = await _supabase
                 .from('activities')
-                .select('act_id, act_category, act_status')
+                .select('act_id, act_status')
                 .filter('topic_id', 'in', topicIds);
 
             for (final Map<String, dynamic> a in aRows) {
-              final String cat = (a['act_category'] as String? ?? 'practice').toLowerCase();
               final String st = (a['act_status'] as String? ?? 'published').toLowerCase();
-              if (st != 'hidden' && cat != 'challenge') {
+              if (st != 'hidden') {
                 final String aId = a['act_id'] as String? ?? '';
                 if (aId.isNotEmpty) topicActIds.add(aId);
               }
             }
           }
+
+          // Also include module-level challenges
+          try {
+            final List<Map<String, dynamic>> modDirectActs = await _supabase
+                .from('activities')
+                .select('act_id, act_status')
+                .eq('track_id', moduleId);
+
+            for (final Map<String, dynamic> a in modDirectActs) {
+              final String st = (a['act_status'] as String? ?? 'published').toLowerCase();
+              if (st != 'hidden') {
+                final String aId = a['act_id'] as String? ?? '';
+                if (aId.isNotEmpty) topicActIds.add(aId);
+              }
+            }
+          } catch (_) {}
 
           if (topicActIds.isNotEmpty) {
             totalCount = topicActIds.length;
@@ -969,7 +1026,7 @@ Your program must compile without syntax errors and pass the validation test cas
               .from('submissions')
               .select('item_id')
               .eq('user_id', userId)
-              .eq('sub_status', 'accepted');
+              .inFilter('sub_status', const <String>['accepted', 'passed', 'Accepted', 'Passed']);
 
           final Set<String> solvedSet = <String>{};
           for (final Map<String, dynamic> r in userSubs) {
@@ -997,17 +1054,20 @@ Your program must compile without syntax errors and pass the validation test cas
 
           // Update memory dashboard cache if present
           if (cachedData != null) {
+            PathwayModel updateProgress(PathwayModel p) {
+              if (p.id == moduleId) {
+                return p.copyWith(
+                  completion: nextComp,
+                  status: nextComp >= 100 ? 'Mastered' : 'In Progress',
+                );
+              }
+              return p;
+            }
+
             cachedData = LearnDashboardData(
               activePathway: cachedData!.activePathway,
-              enrolledPathways: cachedData!.enrolledPathways.map((PathwayModel p) {
-                if (p.id == moduleId) {
-                  return p.copyWith(
-                    completion: nextComp,
-                    status: nextComp >= 100 ? 'Mastered' : 'In Progress',
-                  );
-                }
-                return p;
-              }).toList(),
+              enrolledPathways: cachedData!.enrolledPathways.map(updateProgress).toList(),
+              allPathways: cachedData!.allPathways.map(updateProgress).toList(),
               currentStreak: cachedData!.currentStreak,
               totalActiveDays: cachedData!.totalActiveDays,
               easySolved: cachedData!.easySolved + 1,
