@@ -524,7 +524,9 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
               ),
               const SizedBox(height: 5.0),
               Text(
-                mod.description,
+                mod.description.trim().isNotEmpty
+                    ? mod.description.trim()
+                    : 'Self-paced coding practice exercises and challenges.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   color: textSecondary,

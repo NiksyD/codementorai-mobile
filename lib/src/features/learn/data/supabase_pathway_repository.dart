@@ -578,10 +578,16 @@ class SupabasePathwayRepository implements PathwayRepository {
         effectiveCompletion = ((solvedModuleActs / totalModuleActs) * 100).round();
       }
 
+      final String rawDesc =
+          mod['mod_description'] as String? ?? mod['description'] as String? ?? '';
+      final String finalDesc = rawDesc.trim().isNotEmpty
+          ? rawDesc.trim()
+          : 'Self-paced coding practice exercises and challenges.';
+
       final ModuleDetailModel result = ModuleDetailModel(
         id: moduleId,
         title: mod['mod_title'] as String? ?? 'Engineering Module',
-        description: mod['mod_description'] as String? ?? '',
+        description: finalDesc,
         stack: stackList,
         price: (mod['mod_price'] as num?)?.toDouble() ?? 0.0,
         coachName: coachName,

@@ -28,10 +28,16 @@ class RoomModuleSummary {
       stackList = rawStack.split(',').map((String s) => s.trim().toLowerCase()).toList();
     }
 
+    final String rawDesc =
+        json['description'] as String? ?? json['mod_description'] as String? ?? '';
+    final String cleanDesc = rawDesc.trim().isNotEmpty
+        ? rawDesc.trim()
+        : 'Self-paced coding practice exercises and challenges.';
+
     return RoomModuleSummary(
       id: json['id'] as String? ?? json['mod_id'] as String? ?? '',
       title: json['title'] as String? ?? json['mod_title'] as String? ?? 'Module',
-      description: json['description'] as String? ?? json['mod_description'] as String? ?? '',
+      description: cleanDesc,
       stack: stackList,
       status: json['status'] as String? ?? json['mod_status'] as String? ?? 'published',
       topicsCount: (json['topicsCount'] as num?)?.toInt() ?? 0,

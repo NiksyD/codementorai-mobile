@@ -535,19 +535,19 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                               letterSpacing: -0.2,
                             ),
                           ),
-                          if (module.description.isNotEmpty) ...<Widget>[
-                            const SizedBox(height: 4.0),
-                            Text(
-                              module.description,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12.0,
-                                color: textSecondary,
-                                height: 1.35,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 4.0),
+                          Text(
+                            module.description.trim().isNotEmpty
+                                ? module.description.trim()
+                                : 'Self-paced coding practice exercises and challenges.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.0,
+                              color: textSecondary,
+                              height: 1.35,
                             ),
-                          ],
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ],
                       ),
                     ),

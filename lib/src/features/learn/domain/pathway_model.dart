@@ -75,7 +75,11 @@ class PathwayModel {
     final String id = moduleData['mod_id'] as String? ?? '';
     final String title =
         moduleData['mod_title'] as String? ?? 'Engineering Pathway';
-    final String description = moduleData['mod_description'] as String? ?? '';
+    final String rawDescription =
+        moduleData['mod_description'] as String? ?? moduleData['description'] as String? ?? '';
+    final String description = rawDescription.trim().isNotEmpty
+        ? rawDescription.trim()
+        : 'Self-paced coding practice exercises and challenges.';
 
     List<String> stackList = <String>[];
     final dynamic rawStack = moduleData['mod_stack'];
