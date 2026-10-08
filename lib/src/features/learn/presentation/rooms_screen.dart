@@ -79,7 +79,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
-            table: 'room_members',
+            table: 'hub_members',
             filter: PostgresChangeFilter(
               type: PostgresChangeFilterType.eq,
               column: 'learner_id',
@@ -212,7 +212,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Rooms',
+                'My Hubs',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 22.0,
                   fontWeight: FontWeight.w800,
@@ -222,7 +222,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
               ),
               const SizedBox(height: 4.0),
               Text(
-                'Access your enrolled rooms, collaborate with mentors, and track your progress.',
+                'Access your enrolled hubs, collaborate with mentors, and track your progress.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   height: 1.4,
@@ -237,7 +237,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
           onPressed: () => _handleJoinRoom(),
           icon: const Icon(Icons.add_rounded, size: 16.0),
           label: Text(
-            'Join Room',
+            'Join Hub',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12.5,
               fontWeight: FontWeight.w700,
@@ -388,7 +388,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
       child: Column(
         children: <Widget>[
           Text(
-            'No Rooms Joined Yet',
+            'No Hubs Joined Yet',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 16.0,
               fontWeight: FontWeight.w700,
@@ -397,7 +397,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
           ),
           const SizedBox(height: 8.0),
           Text(
-            'Have an invitation code from your mentor, teacher, or school? Enter the 6-character room code to join your room and start learning.',
+            'Have an invitation code from your mentor, teacher, or school? Enter the 6-character hub code to join your hub and start learning.',
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12.0,
@@ -410,7 +410,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
             onPressed: () => _handleJoinRoom(),
             icon: const Icon(Icons.key_rounded, size: 16.0),
             label: Text(
-              'Enter Room Code',
+              'Enter Hub Code',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13.0,
                 fontWeight: FontWeight.w700,
@@ -466,8 +466,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
                     'mentorName': room.mentorName,
                   });
                 } else {
-                  // Direct navigation to room details
-                  context.push('/rooms/${room.id}', extra: room);
+                  // Direct navigation to hub details
+                  context.push('/hubs/${room.id}', extra: room);
                 }
               },
               borderRadius: BorderRadius.circular(20.0),

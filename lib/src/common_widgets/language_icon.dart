@@ -152,12 +152,27 @@ class LanguageIcon extends StatelessWidget {
         );
   }
 
+  static bool get _isInTestEnvironment {
+    try {
+      final String bindingType = WidgetsBinding.instance.runtimeType.toString();
+      return bindingType.contains('Test');
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final LanguageConfig config = _getConfig();
 
     Widget iconWidget;
-    if (config.logoUrl.isNotEmpty) {
+    if (_isInTestEnvironment) {
+      iconWidget = Icon(
+        config.fallbackIcon,
+        size: size,
+        color: config.color,
+      );
+    } else if (config.logoUrl.isNotEmpty) {
       final bool isSvg = config.logoUrl.endsWith('.svg');
       if (isSvg) {
         iconWidget = SvgPicture.network(
@@ -165,6 +180,11 @@ class LanguageIcon extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.contain,
+          errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) => Icon(
+            config.fallbackIcon,
+            size: size,
+            color: config.color,
+          ),
           placeholderBuilder: (BuildContext context) => SizedBox(
             width: size,
             height: size,

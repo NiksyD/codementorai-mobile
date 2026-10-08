@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../common_widgets/language_avatar_stack.dart';
 import '../../../../constants/app_colors.dart';
+import '../../../../utils/currency_formatter.dart';
 import '../../domain/pathway_model.dart';
 
 class ModulePreviewSheet extends StatefulWidget {
@@ -54,6 +55,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final PathwayModel mod = widget.module;
+    final double proPrice = mod.price > 0 ? mod.price : 19.0;
     final List<String> stack =
         mod.stack.isNotEmpty ? mod.stack : <String>[mod.language];
 
@@ -225,7 +227,8 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                       _buildPlanCard(
                         id: 'pro',
                         title: 'Complete Mastery',
-                        price: '\$19 USD',
+                        price: CurrencyFormatter.formatConvertedPhp(proPrice),
+                        subPrice: '≈ \$${proPrice.toStringAsFixed(0)} USD',
                         badge: 'RECOMMENDED',
                         description:
                             'Unlock algorithmic challenges, unlimited AI code reviews, and certification.',
@@ -306,7 +309,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                                   children: <Widget>[
                                     Text(
                                       _selectedTier == 'pro'
-                                          ? 'Upgrade & Enroll • \$19'
+                                          ? 'Upgrade & Enroll • ${CurrencyFormatter.formatConvertedPhp(proPrice)}'
                                           : 'Enroll for Free',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 13.5,
@@ -337,6 +340,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
     required String id,
     required String title,
     required String price,
+    String? subPrice,
     required String description,
     required List<String> perks,
     required bool isDark,
@@ -431,13 +435,29 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                     ],
                   ],
                 ),
-                Text(
-                  price,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 13.0,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      price,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 13.0,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
+                    ),
+                    if (subPrice != null) ...<Widget>[
+                      const SizedBox(height: 1.0),
+                      Text(
+                        subPrice,
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 10.0,
+                          color: textSecondary.withValues(alpha: 0.75),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

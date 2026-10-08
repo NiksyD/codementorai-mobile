@@ -41,6 +41,8 @@ abstract class PathwayRepository {
     required String moduleId,
     required String exerciseId,
   });
+  Future<List<DashboardSubmission>> getUserSubmissions(String userId) async =>
+      (await getLearnDashboardData(userId)).submissions;
   Future<List<ModuleReviewModel>> getModuleReviews(String moduleId);
   Future<bool> submitModuleReview({
     required String moduleId,

@@ -246,7 +246,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  _room?.name ?? 'Room Details',
+                  _room?.name ?? 'Hub Details',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16.0,
                     fontWeight: FontWeight.w800,
@@ -681,7 +681,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             ),
             const SizedBox(height: 12.0),
             Text(
-              'Room Not Found',
+              'Hub Not Found',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16.0,
                 fontWeight: FontWeight.w700,
@@ -690,7 +690,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             ),
             const SizedBox(height: 6.0),
             Text(
-              'This room may have been archived or removed by the instructor.',
+              'This hub may have been archived or removed by the instructor.',
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12.5,
@@ -699,7 +699,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             ),
             const SizedBox(height: 18.0),
             ElevatedButton(
-              onPressed: () => context.go('/rooms'),
+              onPressed: () => context.go('/hubs'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
@@ -707,7 +707,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   borderRadius: BorderRadius.circular(12.0),
                 ),
               ),
-              child: const Text('Back to Rooms'),
+              child: const Text('Back to Hubs'),
             ),
           ],
         ),

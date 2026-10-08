@@ -70,7 +70,7 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
   Future<void> _submit(String code) async {
     final String clean = code.trim().toUpperCase();
     if (clean.length < 5) {
-      setState(() => _errorMessage = 'Please enter a valid 6-character room code.');
+      setState(() => _errorMessage = 'Please enter a valid 6-character hub code.');
       return;
     }
 
@@ -92,7 +92,7 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
           _admissionPendingData = result['classroom'] is Map
               ? Map<String, dynamic>.from(result['classroom'] as Map)
               : <String, dynamic>{
-                  'name': 'Room',
+                  'name': 'Hub',
                   'section': 'General',
                 };
         });
@@ -195,7 +195,7 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
             Text(
-              'Join a Room',
+              'Join a Hub',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18.0,
                 fontWeight: FontWeight.w800,

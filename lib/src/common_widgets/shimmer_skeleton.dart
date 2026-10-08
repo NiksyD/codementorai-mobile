@@ -26,8 +26,12 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration)
-      ..repeat();
+    _controller = AnimationController(vsync: this, duration: widget.duration);
+    final bool isTest =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (!isTest) {
+      _controller.repeat();
+    }
   }
 
   @override

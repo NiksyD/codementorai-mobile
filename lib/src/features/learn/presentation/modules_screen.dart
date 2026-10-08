@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
+import '../../../common_widgets/filter_tab_bar.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
 import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
@@ -38,6 +39,21 @@ class _ModulesScreenState extends State<ModulesScreen> {
     <String, String>{'id': 'bookmarked', 'label': 'Saved'},
     <String, String>{'id': 'completed', 'label': 'Completed'},
   ];
+
+  static const Map<String, List<String>> _searchAliases = <String, List<String>>{
+    'cpp': <String>['c++', 'cpp'],
+    'c++': <String>['c++', 'cpp'],
+    'csharp': <String>['c#', 'csharp'],
+    'c#': <String>['c#', 'csharp'],
+    'js': <String>['javascript', 'js'],
+    'javascript': <String>['javascript', 'js'],
+    'ts': <String>['typescript', 'ts'],
+    'typescript': <String>['typescript', 'ts'],
+    'py': <String>['python', 'py'],
+    'python': <String>['python', 'py'],
+    'react': <String>['react', 'js-react'],
+    'spring': <String>['spring', 'java-spring'],
+  };
 
   @override
   void initState() {
@@ -77,8 +93,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   Future<void> _loadModules() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    final String userId = user?.id ?? '';
+    String userId = '';
+    try {
+      userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+    } catch (_) {}
     final List<PathwayModel> data =
         await widget.pathwayRepository.getAllModules(userId);
     if (mounted) {
@@ -89,26 +107,84 @@ class _ModulesScreenState extends State<ModulesScreen> {
     }
   }
 
-  List<PathwayModel> get _filteredModules {
-    return _modules.where((PathwayModel p) {
-      final bool matchesCategory = _selectedCategory == 'all' ||
-          (_selectedCategory == 'in-progress' &&
-              p.isEnrolled &&
-              p.completion < 100) ||
-          (_selectedCategory == 'completed' &&
-              p.isEnrolled &&
-              p.completion >= 100) ||
-          (_selectedCategory == 'bookmarked' && p.isBookmarked);
+  // Filter and Priority Sort: 1. Completed (100%), 2. Enrolled, 3. Explore
+  List<PathwayModel> get _processedModules {
+    final List<PathwayModel> filtered = _modules.where((PathwayModel p) {
+      // Category filter
+      if (_selectedCategory == 'in-progress' &&
+          (!p.isEnrolled || p.completion >= 100)) {
+        return false;
+      }
+      if (_selectedCategory == 'completed' &&
+          (!p.isEnrolled || p.completion < 100)) {
+        return false;
+      }
+      if (_selectedCategory == 'bookmarked' && !p.isBookmarked) {
+        return false;
+      }
 
-      final bool matchesSearch = _searchQuery.isEmpty ||
-          p.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.stack.any(
-            (String s) => s.toLowerCase().contains(_searchQuery.toLowerCase()),
-          );
+      // Multi-token AND search with alias matching (matching Web 1:1)
+      if (_searchQuery.trim().isNotEmpty) {
+        final List<String> rawTokens = _searchQuery
+            .trim()
+            .toLowerCase()
+            .split(RegExp(r'\s+'))
+            .where((String s) => s.isNotEmpty)
+            .toList();
 
-      return matchesCategory && matchesSearch;
+        final String title = p.title.toLowerCase();
+        final String desc = p.description.toLowerCase();
+        final String id = p.id.toLowerCase();
+        final List<String> stack = p.stack.map((String s) => s.toLowerCase()).toList();
+
+        return rawTokens.every((String token) {
+          final List<String> terms = _searchAliases[token] ?? <String>[token];
+
+          return terms.any((String term) {
+            if (term == 'c') {
+              final bool isC = id == 'c' ||
+                  stack.contains('c') ||
+                  RegExp(r'\bc\b', caseSensitive: false).hasMatch(p.title);
+              if (isC) return true;
+            }
+
+            return title.contains(term) ||
+                desc.contains(term) ||
+                id.contains(term) ||
+                stack.any((String s) => s.contains(term));
+          });
+        });
+      }
+
+      return true;
     }).toList();
+
+    // Priority Sort: 1. Completed (100%), 2. Enrolled, 3. Explore
+    return filtered..sort((PathwayModel a, PathwayModel b) {
+      final int aCompleted = (a.isEnrolled && a.completion >= 100) ? 1 : 0;
+      final int bCompleted = (b.isEnrolled && b.completion >= 100) ? 1 : 0;
+      if (aCompleted != bCompleted) return bCompleted - aCompleted;
+
+      final int aEnrolled = a.isEnrolled ? 1 : 0;
+      final int bEnrolled = b.isEnrolled ? 1 : 0;
+      if (aEnrolled != bEnrolled) return bEnrolled - aEnrolled;
+
+      return 0;
+    });
+  }
+
+  int _getCategoryCount(String categoryId) {
+    switch (categoryId) {
+      case 'in-progress':
+        return _modules.where((PathwayModel p) => p.isEnrolled && p.completion < 100).length;
+      case 'bookmarked':
+        return _modules.where((PathwayModel p) => p.isBookmarked).length;
+      case 'completed':
+        return _modules.where((PathwayModel p) => p.isEnrolled && p.completion >= 100).length;
+      case 'all':
+      default:
+        return _modules.length;
+    }
   }
 
   @override
@@ -121,7 +197,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
     final Color textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
-    final List<PathwayModel> filtered = _filteredModules;
+    final List<PathwayModel> displayModules = _processedModules;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -135,13 +211,14 @@ class _ModulesScreenState extends State<ModulesScreen> {
               parent: BouncingScrollPhysics(),
             ),
             slivers: <Widget>[
-              // Header & Search
+              // ── Header & Search Controls (Matching Web 1:1) ──
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 0.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      // Screen Title & Caption per AGENTS.md rule 1.3
                       Text(
                         'Explore Modules',
                         style: GoogleFonts.plusJakartaSans(
@@ -156,188 +233,123 @@ class _ModulesScreenState extends State<ModulesScreen> {
                         'Browse coding modules and practice challenges.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13.0,
+                          fontWeight: FontWeight.w500,
                           color: textSecondary,
                         ),
                       ),
                       const SizedBox(height: 16.0),
 
-                      // 1. Redesigned Search Input (Pixel-Perfect Alignment)
-                      TextField(
-                        controller: _searchController,
-                        onChanged: (String val) {
-                          setState(() {
-                            _searchQuery = val;
-                          });
-                        },
-                        textAlignVertical: TextAlignVertical.center,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w500,
-                          color: textPrimary,
+                      // Shadcn Search Input
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+                          borderRadius: BorderRadius.circular(12.0),
+                          border: Border.all(
+                            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                            width: 1.0,
+                          ),
                         ),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: isDark
-                              ? AppColors.darkSurfaceCard
-                              : AppColors.lightSurfaceCard,
-                          hintText: 'Search modules by tech or name...',
-                          hintStyle: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.0,
-                            fontWeight: FontWeight.w400,
-                            color: textSecondary.withValues(alpha: 0.6),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (String val) {
+                            setState(() {
+                              _searchQuery = val;
+                            });
+                          },
+                          textAlignVertical: TextAlignVertical.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                            color: textPrimary,
                           ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            size: 19.0,
-                            color: textSecondary,
-                          ),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.close_rounded,
-                                    size: 18.0,
-                                    color: textSecondary,
-                                  ),
-                                  onPressed: () {
-                                    HapticFeedback.selectionClick();
-                                    _searchController.clear();
-                                    setState(() {
-                                      _searchQuery = '';
-                                    });
-                                  },
-                                )
-                              : null,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14.0,
-                            vertical: 12.0,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14.0),
-                            borderSide: BorderSide(
-                              color: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.lightBorder,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'Search modules...',
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.0,
+                              fontWeight: FontWeight.w400,
+                              color: textSecondary.withValues(alpha: 0.7),
                             ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14.0),
-                            borderSide: BorderSide(
-                              color: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.lightBorder,
+                            prefixIcon: Icon(
+                              Icons.search_rounded,
+                              size: 19.0,
+                              color: textSecondary,
                             ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14.0),
-                            borderSide: const BorderSide(
-                              color: AppColors.primary,
-                              width: 1.5,
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: Icon(
+                                      Icons.close_rounded,
+                                      size: 17.0,
+                                      color: textSecondary,
+                                    ),
+                                    onPressed: () {
+                                      HapticFeedback.selectionClick();
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                      });
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14.0,
+                              vertical: 12.0,
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 14.0),
 
-                      // 2. Redesigned Category Pills (Pixel-Perfect Vertical Centering)
-                      SizedBox(
+                      // Shadcn Filter Tabs with Dynamic Count Badges (Standard 36.0 Height)
+                      FilterTabBar(
                         height: 36.0,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _categories.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(width: 8.0),
-                          itemBuilder: (context, index) {
-                            final Map<String, String> cat = _categories[index];
-                            final bool isSelected =
-                                _selectedCategory == cat['id'];
-
-                            return GestureDetector(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() {
-                                  _selectedCategory = cat['id']!;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                alignment: Alignment.center,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14.0,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : (isDark
-                                          ? AppColors.darkSurfaceCard
-                                          : AppColors.lightSurfaceCard),
-                                  borderRadius: BorderRadius.circular(10.0),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? AppColors.primary
-                                        : (isDark
-                                            ? AppColors.darkBorder
-                                            : AppColors.lightBorder),
-                                  ),
-                                ),
-                                child: Text(
-                                  cat['label']!,
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.0,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w600,
-                                    color: isSelected
-                                        ? (isDark
-                                            ? AppColors.onPrimaryDark
-                                            : Colors.white)
-                                        : textSecondary,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                        tabs: _categories.map((Map<String, String> cat) {
+                          final String catId = cat['id']!;
+                          return FilterTabItem(
+                            id: catId,
+                            label: cat['label']!,
+                            count: _getCategoryCount(catId),
+                          );
+                        }).toList(),
+                        selectedId: _selectedCategory,
+                        onTabSelected: (String catId) {
+                          setState(() {
+                            _selectedCategory = catId;
+                          });
+                        },
                       ),
-                      const SizedBox(height: 16.0),
+                      const SizedBox(height: 14.0),
+
+                      // Summary Counter Header (Matching Web 1:1)
+                      if (!_isLoading && displayModules.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: Text(
+                            'Showing ${displayModules.length} module${displayModules.length == 1 ? '' : 's'}',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w500,
+                              color: textSecondary,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ),
 
-              // Modules List
+              // ── Modules List / Empty State / Skeleton ──
               if (_isLoading)
                 _buildSkeletonList(isDark: isDark)
-              else if (filtered.isEmpty)
-                SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(
-                          Icons.layers_clear_outlined,
-                          size: 48.0,
-                          color: textSecondary.withValues(alpha: 0.5),
-                        ),
-                        const SizedBox(height: 12.0),
-                        Text(
-                          'No modules found',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15.0,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4.0),
-                        Text(
-                          'Try searching for another keyword or filter.',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                      ],
+              else if (displayModules.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 32.0),
+                    child: _buildEmptyState(
+                      isDark: isDark,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
                     ),
                   ),
                 )
@@ -347,7 +359,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (BuildContext context, int index) {
-                        final PathwayModel module = filtered[index];
+                        final PathwayModel module = displayModules[index];
                         return _buildModuleCard(
                           module: module,
                           isDark: isDark,
@@ -355,7 +367,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           textSecondary: textSecondary,
                         );
                       },
-                      childCount: filtered.length,
+                      childCount: displayModules.length,
                     ),
                   ),
                 ),
@@ -366,6 +378,9 @@ class _ModulesScreenState extends State<ModulesScreen> {
     );
   }
 
+  // ===========================================================================
+  // MODULE CARD (Matching Web Shadcn Card 1:1)
+  // ===========================================================================
   Widget _buildModuleCard({
     required PathwayModel module,
     required bool isDark,
@@ -374,11 +389,18 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }) {
     final bool isEnrolled = module.isEnrolled;
     final bool isCompleted = isEnrolled && module.completion >= 100;
-    final String actionText = !isEnrolled
-        ? 'Start'
-        : (isCompleted
+
+    // CTA Label strictly following AGENTS.md rule 1.2
+    final String ctaLabel = !isEnrolled
+        ? 'Start Learning'
+        : isCompleted
             ? 'Review'
-            : (module.completion > 0 ? 'Continue' : 'Start'));
+            : 'Continue Learning';
+
+    // Strict 0% Handling per AGENTS.md rule 2.3
+    final double progressValue = module.completion <= 0
+        ? 0.0
+        : (module.completion / 100.0).clamp(0.0, 1.0);
 
     Future<void> handleCardAction() async {
       HapticFeedback.lightImpact();
@@ -392,10 +414,13 @@ class _ModulesScreenState extends State<ModulesScreen> {
           context,
           module: module,
           onEnroll: (String tier) async {
-            final user = Supabase.instance.client.auth.currentUser;
-            if (user != null) {
+            String userId = '';
+            try {
+              userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+            } catch (_) {}
+            if (userId.isNotEmpty) {
               final bool ok = await widget.pathwayRepository.enrollModule(
-                user.id,
+                userId,
                 module.id,
               );
               if (ok) {
@@ -419,8 +444,11 @@ class _ModulesScreenState extends State<ModulesScreen> {
     }
 
     Future<void> handleToggleBookmark() async {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) {
+      String userId = '';
+      try {
+        userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+      } catch (_) {}
+      if (userId.isEmpty) {
         AppToast.showError(context, 'Please log in to save bookmarks');
         return;
       }
@@ -433,7 +461,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
             .toList();
       });
       final bool ok = await widget.pathwayRepository.toggleBookmark(
-        user.id,
+        userId,
         module.id,
         nextState,
       );
@@ -449,193 +477,453 @@ class _ModulesScreenState extends State<ModulesScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14.0),
+      margin: const EdgeInsets.only(bottom: 16.0),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
         borderRadius: BorderRadius.circular(20.0),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          width: 1.0,
         ),
       ),
       child: InkWell(
         onTap: handleCardAction,
         borderRadius: BorderRadius.circular(20.0),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // Header: Stack + Status + Bookmark
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // ── Card Header (Stack, Done Badge, Bookmark Button) ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 14.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  LanguageAvatarStack(
-                    languages: module.stack.isNotEmpty
-                        ? module.stack
-                        : <String>[module.language],
-                    size: 26.0,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: <Widget>[
+                      LanguageAvatarStack(
+                        languages: module.stack.isNotEmpty
+                            ? module.stack
+                            : <String>[module.language],
+                        maxVisible: 3,
+                        size: 28.0,
+                      ),
+                      Row(
+                        children: <Widget>[
+                          // "Done" Badge if Completed
+                          if (isCompleted) ...<Widget>[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6.0),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 13.0,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                  const SizedBox(width: 4.0),
+                                  Text(
+                                    'Done',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.0,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF10B981),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8.0),
+                          ],
+
+                          // Bookmark Icon Button (Matching Web size-8 rounded-lg)
+                          GestureDetector(
+                            onTap: handleToggleBookmark,
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              width: 32.0,
+                              height: 32.0,
+                              decoration: BoxDecoration(
+                                color: module.isBookmarked
+                                    ? AppColors.primary.withValues(alpha: 0.12)
+                                    : (isDark
+                                        ? AppColors.darkSurface
+                                        : AppColors.lightSurfaceCard),
+                                borderRadius: BorderRadius.circular(8.0),
+                                border: Border.all(
+                                  color: module.isBookmarked
+                                      ? AppColors.primary.withValues(alpha: 0.35)
+                                      : (isDark
+                                          ? AppColors.darkBorder
+                                          : AppColors.lightBorder),
+                                  width: 1.0,
+                                ),
+                              ),
+                              child: Icon(
+                                module.isBookmarked
+                                    ? Icons.bookmark_rounded
+                                    : Icons.bookmark_border_rounded,
+                                size: 17.0,
+                                color: module.isBookmarked
+                                    ? AppColors.primary
+                                    : textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 12.0),
+
+                  // Title & Description
+                  Text(
+                    module.title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                      letterSpacing: -0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    module.description.isNotEmpty
+                        ? module.description
+                        : 'Master core programming concepts and hands-on challenges.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      color: textSecondary,
+                      height: 1.45,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12.0),
+
+                  // Mentor Info, Star Rating, & Topics count
                   Row(
                     children: <Widget>[
-                      if (isEnrolled)
-                        Text(
-                          '${module.completion}% Complete',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: module.completion > 0
-                                ? AppColors.primary
-                                : textSecondary,
+                      if (module.coachAvatar != null && module.coachAvatar!.isNotEmpty)
+                        ClipOval(
+                          child: Image.network(
+                            module.coachAvatar!,
+                            width: 16.0,
+                            height: 16.0,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.person_outline_rounded,
+                              size: 14.0,
+                              color: textSecondary,
+                            ),
                           ),
                         )
                       else
-                        Text(
-                          'Not Enrolled',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.0,
-                            fontWeight: FontWeight.w600,
-                            color: textSecondary.withValues(alpha: 0.65),
-                          ),
+                        Icon(
+                          Icons.person_outline_rounded,
+                          size: 14.0,
+                          color: textSecondary,
                         ),
-                      const SizedBox(width: 8.0),
-                      GestureDetector(
-                        onTap: handleToggleBookmark,
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.all(3.0),
-                          child: Icon(
-                            module.isBookmarked
-                                ? Icons.bookmark_rounded
-                                : Icons.bookmark_border_rounded,
-                            size: 19.0,
-                            color: module.isBookmarked
-                                ? AppColors.primary
-                                : textSecondary.withValues(alpha: 0.5),
-                          ),
+                      const SizedBox(width: 5.0),
+                      Text(
+                        module.coachName ?? 'AI Mentor',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: textPrimary.withValues(alpha: 0.8),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                        child: Text(
+                          '·',
+                          style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
+                        ),
+                      ),
+                      Icon(
+                        Icons.star_rounded,
+                        size: 14.0,
+                        color: const Color(0xFFF59E0B),
+                      ),
+                      const SizedBox(width: 2.0),
+                      Text(
+                        module.rating.toStringAsFixed(1),
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11.0,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                        child: Text(
+                          '·',
+                          style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
+                        ),
+                      ),
+                      Text(
+                        '${module.totalModules} Topics',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: textSecondary,
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12.0),
+            ),
 
-              // Title & Description
-              Text(
-                module.title,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15.0,
-                  fontWeight: FontWeight.w800,
-                  color: textPrimary,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(height: 4.0),
-              Text(
-                module.description,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  color: textSecondary,
-                  height: 1.4,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 14.0),
+            // Hairline separator
+            Divider(
+              height: 1.0,
+              thickness: 1.0,
+              color: isDark
+                  ? AppColors.darkBorder.withValues(alpha: 0.5)
+                  : AppColors.lightBorder.withValues(alpha: 0.7),
+            ),
 
-              // Progress Bar (Shown when enrolled)
-              if (isEnrolled) ...<Widget>[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4.0),
-                  child: LinearProgressIndicator(
-                    value: (module.completion / 100.0).clamp(0.0, 1.0),
-                    minHeight: 5.0,
-                    backgroundColor:
-                        isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                  ),
-                ),
-                const SizedBox(height: 14.0),
-              ] else ...<Widget>[
-                Divider(
-                  height: 1.0,
-                  color: (isDark ? AppColors.darkBorder : AppColors.lightBorder)
-                      .withValues(alpha: 0.5),
-                ),
-                const SizedBox(height: 14.0),
-              ],
-
-              // Footer: Coach info + Action
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // ── Card Footer (Progress & Full-width Action Button) ──
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    '${module.totalModules} Topics · ${module.coachName ?? 'CodeMentor AI'}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w500,
-                      color: textSecondary,
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: handleCardAction,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isCompleted
-                          ? (isDark
-                              ? AppColors.darkSurfaceCard
-                              : const Color(0xFFF1F5F9))
-                          : AppColors.primary,
-                      foregroundColor: isCompleted
-                          ? (isDark
-                              ? AppColors.darkTextPrimary
-                              : AppColors.lightTextPrimary)
-                          : (isDark ? AppColors.onPrimaryDark : Colors.white),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14.0,
-                        vertical: 8.0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        side: isCompleted
-                            ? BorderSide(
-                                color: isDark
-                                    ? AppColors.darkBorder
-                                    : AppColors.lightBorder,
-                              )
-                            : BorderSide.none,
-                      ),
-                      elevation: 0,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  // Progress Track (Shown when enrolled)
+                  if (isEnrolled) ...<Widget>[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: <Widget>[
                         Text(
-                          actionText,
+                          'Progress',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 11.0,
+                            fontWeight: FontWeight.w600,
+                            color: textSecondary,
                           ),
                         ),
-                        const SizedBox(width: 4.0),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 13.0,
+                        Text(
+                          '${module.completion}%',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: isCompleted
+                                ? AppColors.primary
+                                : textPrimary,
+                          ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 6.0),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999.0),
+                      child: SizedBox(
+                        height: 5.0,
+                        child: LinearProgressIndicator(
+                          value: progressValue,
+                          backgroundColor: isDark
+                              ? AppColors.darkSurface
+                              : AppColors.lightBorder,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isCompleted ? AppColors.primary : AppColors.primary.withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12.0),
+                  ],
+
+                  // Action Button (Full-width Shadcn Button)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 42.0,
+                    child: ElevatedButton(
+                      onPressed: handleCardAction,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isCompleted
+                            ? (isDark
+                                ? AppColors.darkSurface
+                                : AppColors.lightSurfaceCard)
+                            : AppColors.primary,
+                        foregroundColor: isCompleted
+                            ? textPrimary
+                            : (isDark ? AppColors.onPrimaryDark : Colors.white),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                          side: isCompleted
+                              ? BorderSide(
+                                  color: isDark
+                                      ? AppColors.darkBorder
+                                      : AppColors.lightBorder,
+                                  width: 1.0,
+                                )
+                              : BorderSide.none,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Text(
+                            ctaLabel,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 5.0),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 14.0,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  // ===========================================================================
+  // EMPTY STATE (Matching Web Shadcn Empty Card 1:1)
+  // ===========================================================================
+  Widget _buildEmptyState({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final String title = _searchQuery.trim().isNotEmpty
+        ? 'No modules matching "$_searchQuery"'
+        : _selectedCategory == 'bookmarked'
+            ? 'No saved modules yet'
+            : _selectedCategory == 'in-progress'
+                ? 'No modules in progress'
+                : _selectedCategory == 'completed'
+                    ? 'No completed modules yet'
+                    : 'No published modules available';
+
+    final String subtitle = _searchQuery.trim().isNotEmpty
+        ? 'Try searching for a different language, keyword, or topic.'
+        : _selectedCategory == 'bookmarked'
+            ? 'Tap the bookmark icon on any module card to save it for quick access.'
+            : 'Modules published by mentors will appear here.';
+
+    final bool hasFilterOrSearch =
+        _selectedCategory != 'all' || _searchQuery.trim().isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 40.0, horizontal: 20.0),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+        borderRadius: BorderRadius.circular(20.0),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          width: 1.0,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 48.0,
+            height: 48.0,
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurfaceCard,
+              borderRadius: BorderRadius.circular(14.0),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                width: 1.0,
+              ),
+            ),
+            child: Icon(
+              _selectedCategory == 'bookmarked'
+                  ? Icons.bookmark_border_rounded
+                  : Icons.layers_clear_outlined,
+              size: 22.0,
+              color: textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14.0),
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15.0,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4.0),
+          Text(
+            subtitle,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              color: textSecondary,
+              height: 1.45,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (hasFilterOrSearch) ...<Widget>[
+            const SizedBox(height: 16.0),
+            ElevatedButton(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                _searchController.clear();
+                setState(() {
+                  _searchQuery = '';
+                  _selectedCategory = 'all';
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+              ),
+              child: Text(
+                'Clear Search & Filters',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SKELETON LOADING STATE (Matching Web Shadcn Skeleton 1:1)
+  // ===========================================================================
   Widget _buildSkeletonList({required bool isDark}) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 32.0),
@@ -651,102 +939,61 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   Widget _buildSkeletonCard({required bool isDark}) {
-    final Color cardBg =
-        isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard;
-    final Color borderColor =
-        isDark ? AppColors.darkBorder : AppColors.lightBorder;
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 14.0),
+      margin: const EdgeInsets.only(bottom: 16.0),
       decoration: BoxDecoration(
-        color: cardBg,
+        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
         borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(color: borderColor),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          width: 1.0,
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ShimmerLoading(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // Header: Stack skeleton + completion status skeleton
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: ShimmerLoading(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.all(18.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: const <Widget>[
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: <Widget>[
-                      SkeletonCircle(size: 26.0),
-                      SizedBox(width: 6.0),
-                      SkeletonCircle(size: 26.0),
+                      SkeletonBox(width: 60.0, height: 28.0, borderRadius: 14.0),
+                      SkeletonBox(width: 32.0, height: 32.0, borderRadius: 8.0),
                     ],
                   ),
-                  SkeletonBox(
-                    width: 80.0,
-                    height: 14.0,
-                    borderRadius: 4.0,
-                  ),
+                  SizedBox(height: 14.0),
+                  SkeletonBox(width: 180.0, height: 16.0, borderRadius: 4.0),
+                  SizedBox(height: 6.0),
+                  SkeletonBox(width: double.infinity, height: 12.0, borderRadius: 4.0),
+                  SizedBox(height: 4.0),
+                  SkeletonBox(width: 220.0, height: 12.0, borderRadius: 4.0),
+                  SizedBox(height: 12.0),
+                  SkeletonBox(width: 140.0, height: 13.0, borderRadius: 4.0),
                 ],
               ),
-              const SizedBox(height: 14.0),
-
-              // Title & Description
-              const SkeletonBox(
-                width: 200.0,
-                height: 18.0,
-                borderRadius: 5.0,
-              ),
-              const SizedBox(height: 8.0),
-              const SkeletonBox(
+            ),
+            Divider(
+              height: 1.0,
+              thickness: 1.0,
+              color: isDark
+                  ? AppColors.darkBorder.withValues(alpha: 0.5)
+                  : AppColors.lightBorder.withValues(alpha: 0.7),
+            ),
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SkeletonBox(
                 width: double.infinity,
-                height: 12.0,
-                borderRadius: 4.0,
+                height: 42.0,
+                borderRadius: 12.0,
               ),
-              const SizedBox(height: 6.0),
-              const SkeletonBox(
-                width: 160.0,
-                height: 12.0,
-                borderRadius: 4.0,
-              ),
-              const SizedBox(height: 14.0),
-
-              // Divider / Progress Bar Placeholder
-              const SkeletonBox(
-                width: double.infinity,
-                height: 5.0,
-                borderRadius: 3.0,
-              ),
-              const SizedBox(height: 14.0),
-
-              // Footer: Topics / Coach + Action button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const <Widget>[
-                  SkeletonBox(
-                    width: 120.0,
-                    height: 13.0,
-                    borderRadius: 4.0,
-                  ),
-                  SkeletonBox(
-                    width: 68.0,
-                    height: 28.0,
-                    borderRadius: 10.0,
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
-  }
-}
-
-extension IterableExtension<E> on Iterable<E> {
-  Iterable<E> filter(bool Function(E element) test) sync* {
-    for (final E element in this) {
-      if (test(element)) {
-        yield element;
-      }
-    }
   }
 }

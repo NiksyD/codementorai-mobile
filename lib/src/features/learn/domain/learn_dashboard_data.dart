@@ -1,4 +1,7 @@
+import 'dashboard_submission.dart';
 import 'pathway_model.dart';
+
+export 'dashboard_submission.dart';
 
 class LearnChallengeModel {
   const LearnChallengeModel({
@@ -28,7 +31,8 @@ class LearnDashboardData {
     required this.easySolved,
     required this.mediumSolved,
     required this.hardSolved,
-    required this.recommendedChallenges,
+    this.recommendedChallenges = const <LearnChallengeModel>[],
+    this.submissions = const <DashboardSubmission>[],
   });
 
   final PathwayModel? activePathway;
@@ -43,6 +47,7 @@ class LearnDashboardData {
   final int mediumSolved;
   final int hardSolved;
   final List<LearnChallengeModel> recommendedChallenges;
+  final List<DashboardSubmission> submissions;
 
   int get totalSolved => easySolved + mediumSolved + hardSolved;
 }

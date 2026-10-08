@@ -1,79 +1,243 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../common_widgets/filter_tab_bar.dart';
 import '../../../common_widgets/language_icon.dart';
+import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
-
-class ActivityItemData {
-  const ActivityItemData({
-    required this.id,
-    required this.title,
-    required this.module,
-    required this.language,
-    required this.status, // 'Passed', 'Needs Review', 'Accepted'
-    required this.score,
-    required this.time,
-  });
-
-  final String id;
-  final String title;
-  final String module;
-  final String language;
-  final String status;
-  final int score;
-  final String time;
-}
+import '../data/pathway_repository.dart';
+import '../data/supabase_pathway_repository.dart';
+import '../domain/dashboard_submission.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({
     super.key,
     this.showBackButton = false,
+    this.pathwayRepository = const SupabasePathwayRepository(),
   });
 
   final bool showBackButton;
+  final PathwayRepository pathwayRepository;
 
   @override
   State<ActivityScreen> createState() => _ActivityScreenState();
 }
 
 class _ActivityScreenState extends State<ActivityScreen> {
-  static const List<ActivityItemData> _recentSubmissions = <ActivityItemData>[
-    ActivityItemData(
-      id: 'sub-1',
-      title: 'Print Multiple Lines with Formatting',
-      module: 'Java Fundamentals',
-      language: 'java',
-      status: 'Passed',
-      score: 96,
-      time: 'Today',
-    ),
-    ActivityItemData(
-      id: 'sub-2',
-      title: 'Debug: Missing Main Method',
-      module: 'Java Fundamentals',
-      language: 'java',
-      status: 'Needs Review',
-      score: 84,
-      time: 'Yesterday',
-    ),
-    ActivityItemData(
-      id: 'sub-3',
-      title: 'Async / Await Error Propagation',
-      module: 'JavaScript Core',
-      language: 'javascript',
-      status: 'Passed',
-      score: 100,
-      time: '2 days ago',
-    ),
-    ActivityItemData(
-      id: 'sub-4',
-      title: 'Deadlock Detection Graph Algorithm',
-      module: 'Concurrency Fundamentals',
-      language: 'java',
-      status: 'Needs Review',
-      score: 72,
-      time: '3 days ago',
-    ),
-  ];
+  List<DashboardSubmission> _submissions = <DashboardSubmission>[];
+  bool _isLoading = true;
+
+  String _statusFilter = 'all'; // 'all', 'passed', 'needs-review', 'pending'
+  String _langFilter = 'all';
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  int _currentPage = 1;
+  static const int _itemsPerPage = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    if (SupabasePathwayRepository.cachedData != null &&
+        SupabasePathwayRepository.cachedData!.submissions.isNotEmpty) {
+      _submissions = SupabasePathwayRepository.cachedData!.submissions;
+      _isLoading = false;
+    }
+    _fetchSubmissions();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchSubmissions({bool force = false}) async {
+    if (_submissions.isEmpty) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    try {
+      String userId = '';
+      try {
+        userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+      } catch (_) {
+        // Fallback for tests or unauthenticated session
+      }
+
+      final List<DashboardSubmission> data =
+          await widget.pathwayRepository.getUserSubmissions(userId);
+
+      if (mounted) {
+        setState(() {
+          _submissions = data;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  int get _passedCount =>
+      _submissions.where((DashboardSubmission s) => s.isPassed).length;
+
+  int get _needsReviewCount =>
+      _submissions.where((DashboardSubmission s) => s.isNeedsReview).length;
+
+  int get _pendingCount =>
+      _submissions.where((DashboardSubmission s) => s.isPending).length;
+
+  int get _streak => DashboardSubmission.computeStreak(_submissions);
+
+  int get _passRate {
+    if (_submissions.isEmpty) return 0;
+    return ((_passedCount / _submissions.length) * 100).round();
+  }
+
+  List<FilterTabItem> get _filterTabs => <FilterTabItem>[
+        FilterTabItem(id: 'all', label: 'All', count: _submissions.length),
+        FilterTabItem(id: 'passed', label: 'Passed', count: _passedCount),
+        FilterTabItem(
+          id: 'needs-review',
+          label: 'Needs Review',
+          count: _needsReviewCount,
+        ),
+        if (_pendingCount > 0)
+          FilterTabItem(id: 'pending', label: 'Pending', count: _pendingCount),
+      ];
+
+  Map<String, int> get _languageCounts {
+    final Map<String, int> counts = <String, int>{};
+    for (final DashboardSubmission s in _submissions) {
+      final String lang = s.language.toLowerCase();
+      counts[lang] = (counts[lang] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  List<DashboardSubmission> get _filteredSubmissions {
+    return _submissions.where((DashboardSubmission s) {
+      if (_statusFilter == 'passed' && !s.isPassed) return false;
+      if (_statusFilter == 'needs-review' && !s.isNeedsReview) return false;
+      if (_statusFilter == 'pending' && !s.isPending) return false;
+      if (_langFilter != 'all' &&
+          s.language.toLowerCase() != _langFilter.toLowerCase()) {
+        return false;
+      }
+      if (_searchQuery.trim().isNotEmpty) {
+        final String q = _searchQuery.trim().toLowerCase();
+        final bool matchesTitle = s.title.toLowerCase().contains(q);
+        final bool matchesModule = s.module.toLowerCase().contains(q);
+        final bool matchesLang = s.language.toLowerCase().contains(q);
+        if (!matchesTitle && !matchesModule && !matchesLang) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  int get _totalPages =>
+      max(1, (_filteredSubmissions.length / _itemsPerPage).ceil());
+  int get _startIndex => (_currentPage - 1) * _itemsPerPage;
+  int get _endIndex =>
+      min(_startIndex + _itemsPerPage, _filteredSubmissions.length);
+
+  List<DashboardSubmission> get _visibleSubmissions {
+    if (_filteredSubmissions.isEmpty) return const <DashboardSubmission>[];
+    return _filteredSubmissions.sublist(
+      _startIndex,
+      min(_endIndex, _filteredSubmissions.length),
+    );
+  }
+
+  Color _getDifficultyColor(String diff) {
+    switch (diff.toLowerCase()) {
+      case 'easy':
+        return const Color(0xFF10B981);
+      case 'hard':
+        return const Color(0xFFF43F5E);
+      default:
+        return const Color(0xFFF59E0B);
+    }
+  }
+
+  Widget _buildDifficultyBadge(String difficulty) {
+    final Color color = _getDifficultyColor(difficulty);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999.0),
+        border: Border.all(
+          color: color.withValues(alpha: 0.25),
+          width: 1.0,
+        ),
+      ),
+      child: Text(
+        difficulty,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final String s = DashboardSubmission.normalizeStatus(status);
+    final bool isPassed = s == 'Passed';
+    final bool isPending = s == 'Pending';
+
+    final Color badgeColor = isPassed
+        ? const Color(0xFF10B981)
+        : isPending
+            ? const Color(0xFF64748B)
+            : const Color(0xFFF59E0B);
+
+    final IconData icon = isPassed
+        ? Icons.check_circle_rounded
+        : isPending
+            ? Icons.hourglass_empty_rounded
+            : Icons.access_time_rounded;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.0),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6.0),
+        border: Border.all(
+          color: badgeColor.withValues(alpha: 0.25),
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 12.0, color: badgeColor),
+          const SizedBox(width: 4.0),
+          Text(
+            s,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: badgeColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,204 +248,245 @@ class _ActivityScreenState extends State<ActivityScreen> {
         isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final Color textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              if (widget.showBackButton) ...<Widget>[
-                IconButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: Icon(
-                    Icons.arrow_back_rounded,
+        child: RefreshIndicator(
+          onRefresh: () => _fetchSubmissions(force: true),
+          color: AppColors.primary,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Optional Back button
+                if (widget.showBackButton) ...<Widget>[
+                  IconButton(
+                    onPressed: () {
+                      if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      } else {
+                        context.go('/learn');
+                      }
+                    },
+                    icon: Icon(Icons.arrow_back_rounded, color: textPrimary),
+                    padding: EdgeInsets.zero,
+                    alignment: Alignment.centerLeft,
+                    constraints: const BoxConstraints(minWidth: 36.0, minHeight: 36.0),
+                  ),
+                  const SizedBox(height: 4.0),
+                ],
+
+                // Screen Title & Subtitle (Cross-platform parity)
+                Text(
+                  'My Activity',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 22.0,
+                    fontWeight: FontWeight.w800,
                     color: textPrimary,
+                    letterSpacing: -0.4,
                   ),
-                  padding: EdgeInsets.zero,
-                  alignment: Alignment.centerLeft,
                 ),
-                const SizedBox(height: 8.0),
-              ],
-              // Title & Subtitle
-              Text(
-                'My Activity',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 22.0,
-                  fontWeight: FontWeight.w800,
-                  color: textPrimary,
-                  letterSpacing: -0.4,
+                const SizedBox(height: 3.0),
+                Text(
+                  'Submissions history, code reviews, and accuracy logs',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    color: textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4.0),
-              Text(
-                'Submissions history, code reviews, and accuracy logs',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13.0,
-                  color: textSecondary,
-                ),
-              ),
-              const SizedBox(height: 20.0),
+                const SizedBox(height: 16.0),
 
-              // Activity Metrics Row
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: _buildMetricBox(
-                      label: 'Submissions',
-                      value: '14',
-                      isDark: isDark,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 10.0),
-                  Expanded(
-                    child: _buildMetricBox(
-                      label: 'Avg Score',
-                      value: '93%',
-                      isDark: isDark,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 10.0),
-                  Expanded(
-                    child: _buildMetricBox(
-                      label: 'Reviews',
-                      value: '4',
-                      isDark: isDark,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24.0),
-
-              // Timeline Feed Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: <Widget>[
-                  Text(
-                    'Recent Submissions',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w700,
-                      color: textPrimary,
-                    ),
-                  ),
-                  Text(
-                    '${_recentSubmissions.length} Recorded',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w600,
-                      color: textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12.0),
-
-              // Submissions List
-              Column(
-                children: _recentSubmissions.map((ActivityItemData item) {
-                  final bool isPassed = item.status == 'Passed' || item.status == 'Accepted';
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10.0),
-                    padding: const EdgeInsets.all(14.0),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.darkSurfaceCard
-                          : AppColors.lightSurfaceCard,
-                      borderRadius: BorderRadius.circular(16.0),
-                      border: Border.all(
-                        color: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.lightBorder,
+                // Metrics Overview Row
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _buildMetricBox(
+                        label: 'Submissions',
+                        value: '${_submissions.length}',
+                        icon: Icons.layers_outlined,
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
                       ),
                     ),
-                    child: Row(
-                      children: <Widget>[
-                        LanguageIcon(language: item.language, size: 22.0),
-                        const SizedBox(width: 12.0),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                item.title,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.0,
-                                  fontWeight: FontWeight.w700,
-                                  color: textPrimary,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 3.0),
-                              Text(
-                                '${item.module} · ${item.time}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.0,
-                                  color: textSecondary,
-                                ),
-                              ),
-                            ],
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: _buildMetricBox(
+                        label: 'Pass Rate',
+                        value: '$_passRate%',
+                        icon: Icons.check_circle_outline_rounded,
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                        accentColor: _passRate >= 70
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFF59E0B),
+                      ),
+                    ),
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: _buildMetricBox(
+                        label: 'Streak',
+                        value: '${_streak}d',
+                        icon: Icons.local_fire_department_rounded,
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                        accentColor: const Color(0xFFF59E0B),
+                      ),
+                    ),
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: _buildMetricBox(
+                        label: 'Review',
+                        value: '$_needsReviewCount',
+                        icon: Icons.access_time_rounded,
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18.0),
+
+                // Filter Tabs (Standard 36.0 Height)
+                FilterTabBar(
+                  height: 36.0,
+                  tabs: _filterTabs,
+                  selectedId: _statusFilter,
+                  onTabSelected: (String tabId) {
+                    setState(() {
+                      _statusFilter = tabId;
+                      _currentPage = 1;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12.0),
+
+                // Search & Language Dropdown Controls Row
+                Row(
+                  children: <Widget>[
+                    // Search Input
+                    Expanded(
+                      child: Container(
+                        height: 38.0,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkSurfaceCard
+                              : AppColors.lightSurfaceCard,
+                          borderRadius: BorderRadius.circular(10.0),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (String val) {
+                            setState(() {
+                              _searchQuery = val;
+                              _currentPage = 1;
+                            });
+                          },
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            color: textPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10.0,
+                              vertical: 9.0,
+                            ),
+                            hintText: 'Search submissions...',
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.0,
+                              color: textSecondary,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search_rounded,
+                              size: 17.0,
+                              color: textSecondary,
+                            ),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: Icon(
+                                      Icons.close_rounded,
+                                      size: 15.0,
+                                      color: textSecondary,
+                                    ),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                        _currentPage = 1;
+                                      });
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
                           ),
                         ),
-                        const SizedBox(width: 10.0),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: <Widget>[
-                            Text(
-                              '${item.score}%',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 13.0,
-                                fontWeight: FontWeight.w800,
-                                color: item.score >= 90
-                                    ? const Color(0xFF3ECF8E)
-                                    : const Color(0xFFF59E0B),
-                              ),
-                            ),
-                            const SizedBox(height: 2.0),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6.0,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: (isPassed
-                                        ? const Color(0xFF3ECF8E)
-                                        : const Color(0xFFF59E0B))
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6.0),
-                              ),
-                              child: Text(
-                                item.status,
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: isPassed
-                                      ? const Color(0xFF3ECF8E)
-                                      : const Color(0xFFF59E0B),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 32.0),
-            ],
+                    const SizedBox(width: 8.0),
+
+                    // Language Filter Dropdown
+                    _buildLanguageDropdown(
+                      isDark: isDark,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16.0),
+
+                // Content Section: Skeleton | Empty | Submissions List
+                if (_isLoading && _submissions.isEmpty)
+                  _buildLoadingSkeleton(isDark)
+                else if (_filteredSubmissions.isEmpty)
+                  _buildEmptyState(
+                    isDark: isDark,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                    borderColor: borderColor,
+                  )
+                else ...<Widget>[
+                  // List of Submission Cards
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _visibleSubmissions.length,
+                    separatorBuilder: (BuildContext context, int index) =>
+                        const SizedBox(height: 10.0),
+                    itemBuilder: (BuildContext context, int index) {
+                      final DashboardSubmission sub = _visibleSubmissions[index];
+                      return _buildSubmissionCard(
+                        sub: sub,
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                        borderColor: borderColor,
+                      );
+                    },
+                  ),
+
+                  // Pagination Footer (Jakob's Law Pattern)
+                  _buildPaginationBar(
+                    isDark: isDark,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                    borderColor: borderColor,
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -291,15 +496,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Widget _buildMetricBox({
     required String label,
     required String value,
+    required IconData icon,
     required bool isDark,
     required Color textPrimary,
     required Color textSecondary,
+    Color? accentColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 12.0),
+      padding: const EdgeInsets.symmetric(vertical: 11.0, horizontal: 10.0),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-        borderRadius: BorderRadius.circular(16.0),
+        borderRadius: BorderRadius.circular(14.0),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
         ),
@@ -307,21 +514,896 @@ class _ActivityScreenState extends State<ActivityScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(
+                icon,
+                size: 13.0,
+                color: accentColor ?? textSecondary,
+              ),
+              const SizedBox(width: 4.0),
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5.0),
           Text(
-            label,
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 15.0,
+              fontWeight: FontWeight.w800,
+              color: accentColor ?? textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildLanguageDropdown({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final Map<String, int> counts = _languageCounts;
+    final String currentLabel = _langFilter == 'all'
+        ? 'All Languages'
+        : '${_langFilter[0].toUpperCase()}${_langFilter.substring(1)} (${counts[_langFilter] ?? 0})';
+
+    return PopupMenuButton<String>(
+      onSelected: (String val) {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _langFilter = val;
+          _currentPage = 1;
+        });
+      },
+      color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        side: BorderSide(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'all',
+          child: Text(
+            'All Languages',
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 11.0,
+              fontSize: 12.0,
+              fontWeight:
+                  _langFilter == 'all' ? FontWeight.w700 : FontWeight.w500,
+              color: _langFilter == 'all' ? AppColors.primary : textPrimary,
+            ),
+          ),
+        ),
+        ...counts.entries.map((MapEntry<String, int> entry) {
+          final String lang = entry.key;
+          final int count = entry.value;
+          final String capLang =
+              lang.isNotEmpty ? '${lang[0].toUpperCase()}${lang.substring(1)}' : lang;
+
+          return PopupMenuItem<String>(
+            value: lang,
+            child: Row(
+              children: <Widget>[
+                LanguageIcon(language: lang, size: 14.0),
+                const SizedBox(width: 8.0),
+                Text(
+                  '$capLang ($count)',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.0,
+                    fontWeight:
+                        _langFilter == lang ? FontWeight.w700 : FontWeight.w500,
+                    color: _langFilter == lang ? AppColors.primary : textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+      child: Container(
+        height: 38.0,
+        padding: const EdgeInsets.symmetric(horizontal: 10.0),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+          borderRadius: BorderRadius.circular(10.0),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              currentLabel,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(width: 4.0),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16.0,
+              color: textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmissionCard({
+    required DashboardSubmission sub,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: borderColor),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openSubmissionReviewSheet(sub),
+          borderRadius: BorderRadius.circular(16.0),
+          child: Padding(
+            padding: const EdgeInsets.all(14.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Row 1: Status Badge, Score, and Relative Timestamp
+                Row(
+                  children: <Widget>[
+                    _buildStatusBadge(sub.status),
+                    const SizedBox(width: 8.0),
+                    if (sub.score != null)
+                      Text(
+                        '${sub.score}%',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: sub.score! >= 90
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFF59E0B),
+                        ),
+                      )
+                    else
+                      Text(
+                        '—',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12.0,
+                          color: textSecondary.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    const Spacer(),
+                    Text(
+                      sub.timeAgoFormatted,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 11.0,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10.0),
+
+                // Row 2: Challenge Title & Module Name
+                Text(
+                  sub.title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3.0),
+                Text(
+                  sub.module,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    color: textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12.0),
+
+                // Row 3: Language Icon + Name, Difficulty Badge, Review CTA
+                Row(
+                  children: <Widget>[
+                    LanguageIcon(language: sub.language, size: 16.0),
+                    const SizedBox(width: 6.0),
+                    Text(
+                      sub.language.isNotEmpty
+                          ? '${sub.language[0].toUpperCase()}${sub.language.substring(1)}'
+                          : sub.language,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 8.0),
+                    _buildDifficultyBadge(sub.difficulty),
+                    const Spacer(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          'Review',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 3.0),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 13.0,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openSubmissionReviewSheet(DashboardSubmission sub) {
+    HapticFeedback.selectionClick();
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textPrimary =
+        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final Color textSecondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color surfaceColor =
+        isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard;
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.90,
+          ),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20.0)),
+            border: Border.all(color: borderColor),
+          ),
+          child: SafeArea(
+            top: false,
+            bottom: true,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // Drag handle
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10.0, bottom: 4.0),
+                    width: 36.0,
+                    height: 4.0,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2.0),
+                    ),
+                  ),
+                ),
+
+                // Header
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  child: Row(
+                    children: <Widget>[
+                      LanguageIcon(language: sub.language, size: 22.0),
+                      const SizedBox(width: 10.0),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                Flexible(
+                                  child: Text(
+                                    sub.title,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6.0),
+                                _buildDifficultyBadge(sub.difficulty),
+                              ],
+                            ),
+                            const SizedBox(height: 2.0),
+                            Text(
+                              '${sub.module} · ${sub.timeAgoFormatted}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                color: textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 20.0,
+                          color: textSecondary,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32.0, minHeight: 32.0),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(color: borderColor, height: 1.0),
+
+                // Body content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        // Evaluation Banner (1:1 Web Parity)
+                        Container(
+                          padding: const EdgeInsets.all(12.0),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12.0),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  _buildStatusBadge(sub.status),
+                                  if (sub.score != null) ...<Widget>[
+                                    const SizedBox(width: 8.0),
+                                    Text(
+                                      '·',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14.0,
+                                        color: textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8.0),
+                                    Text(
+                                      'Score: ${sub.score}%',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 12.0,
+                                        fontWeight: FontWeight.w700,
+                                        color: textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                  const Spacer(),
+                                  if (sub.moduleId.isNotEmpty)
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(sheetContext).pop();
+                                        context.push('/modules/${sub.moduleId}');
+                                      },
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8.0,
+                                          vertical: 4.0,
+                                        ),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.open_in_new_rounded,
+                                        size: 13.0,
+                                      ),
+                                      label: Text(
+                                        'Open Module',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6.0),
+                              Text(
+                                sub.verdict.isNotEmpty
+                                    ? sub.verdict
+                                    : 'Evaluation complete.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.0,
+                                  color: textSecondary,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16.0),
+
+                        // Submitted Code Section
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            Text(
+                              'SUBMITTED SOLUTION',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                                color: textSecondary,
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(
+                                  ClipboardData(text: sub.code),
+                                );
+                                HapticFeedback.lightImpact();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Code copied to clipboard',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12.0,
+                                      ),
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(6.0),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6.0,
+                                  vertical: 2.0,
+                                ),
+                                child: Row(
+                                  children: <Widget>[
+                                    Icon(
+                                      Icons.copy_rounded,
+                                      size: 12.0,
+                                      color: AppColors.primary,
+                                    ),
+                                    const SizedBox(width: 4.0),
+                                    Text(
+                                      'Copy Code',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.0,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8.0),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12.0),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF090D16),
+                            borderRadius: BorderRadius.circular(12.0),
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.darkBorder
+                                  : const Color(0xFF1E293B),
+                            ),
+                          ),
+                          child: SelectableText(
+                            sub.code.trim().isNotEmpty
+                                ? sub.code
+                                : '// No code available for this submission.',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11.5,
+                              height: 1.45,
+                              color: const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                        ),
+
+                        // AI Mentorship Feedback
+                        if (sub.feedbackTips.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 16.0),
+                          Text(
+                            'MENTOR FEEDBACK & INSIGHTS',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 8.0),
+                          ...sub.feedbackTips.map((String tip) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8.0),
+                              padding: const EdgeInsets.all(12.0),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12.0),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  const Icon(
+                                    Icons.lightbulb_outline_rounded,
+                                    size: 15.0,
+                                    color: Color(0xFFF59E0B),
+                                  ),
+                                  const SizedBox(width: 8.0),
+                                  Expanded(
+                                    child: Text(
+                                      tip,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12.0,
+                                        color: textPrimary,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Footer
+                Divider(color: borderColor, height: 1.0),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      OutlinedButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: borderColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 10.0,
+                          ),
+                        ),
+                        child: Text(
+                          'Close Review',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            fontWeight: FontWeight.w700,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPaginationBar({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    if (_filteredSubmissions.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12.0, bottom: 24.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          Text(
+            'Showing ${_filteredSubmissions.isEmpty ? 0 : _startIndex + 1}–$_endIndex of ${_filteredSubmissions.length}',
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: textSecondary,
             ),
           ),
-          const SizedBox(height: 6.0),
-          Text(
-            value,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 17.0,
-              fontWeight: FontWeight.w800,
-              color: textPrimary,
+          if (_totalPages > 1)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  onPressed: _currentPage > 1
+                      ? () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _currentPage--;
+                          });
+                        }
+                      : null,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  iconSize: 20.0,
+                  color: textPrimary,
+                  disabledColor: textSecondary.withValues(alpha: 0.3),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32.0, minHeight: 32.0),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Text(
+                    '$_currentPage / $_totalPages',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _currentPage < _totalPages
+                      ? () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _currentPage++;
+                          });
+                        }
+                      : null,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  iconSize: 20.0,
+                  color: textPrimary,
+                  disabledColor: textSecondary.withValues(alpha: 0.3),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32.0, minHeight: 32.0),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    final bool hasNoTotal = _submissions.isEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 56.0,
+              height: 56.0,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor),
+              ),
+              child: Icon(
+                hasNoTotal ? Icons.code_rounded : Icons.filter_alt_off_rounded,
+                size: 26.0,
+                color: textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16.0),
+            Text(
+              hasNoTotal
+                  ? 'No submissions yet'
+                  : 'No submissions match your filters',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16.0,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6.0),
+            Text(
+              hasNoTotal
+                  ? 'Complete challenges inside any enrolled module to see your submission history here.'
+                  : 'Try adjusting the filters or clearing your search.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: textSecondary,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16.0),
+            if (hasNoTotal)
+              ElevatedButton.icon(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  context.push('/modules');
+                },
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14.0),
+                label: Text(
+                  'Browse Modules',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor:
+                      isDark ? AppColors.onPrimaryDark : Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  elevation: 0,
+                ),
+              )
+            else
+              OutlinedButton(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _statusFilter = 'all';
+                    _langFilter = 'all';
+                    _searchQuery = '';
+                    _searchController.clear();
+                    _currentPage = 1;
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: borderColor),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+                child: Text(
+                  'Clear Filters',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton(bool isDark) {
+    return ShimmerLoading(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // Skeleton metrics
+          const Row(
+            children: <Widget>[
+              Expanded(child: SkeletonBox(height: 58.0, borderRadius: 14.0)),
+              SizedBox(width: 8.0),
+              Expanded(child: SkeletonBox(height: 58.0, borderRadius: 14.0)),
+              SizedBox(width: 8.0),
+              Expanded(child: SkeletonBox(height: 58.0, borderRadius: 14.0)),
+              SizedBox(width: 8.0),
+              Expanded(child: SkeletonBox(height: 58.0, borderRadius: 14.0)),
+            ],
+          ),
+          const SizedBox(height: 16.0),
+          // Skeleton filter tabs
+          const Row(
+            children: <Widget>[
+              SkeletonBox(width: 60.0, height: 32.0, borderRadius: 10.0),
+              SizedBox(width: 8.0),
+              SkeletonBox(width: 80.0, height: 32.0, borderRadius: 10.0),
+              SizedBox(width: 8.0),
+              SkeletonBox(width: 100.0, height: 32.0, borderRadius: 10.0),
+            ],
+          ),
+          const SizedBox(height: 12.0),
+          // Skeleton search
+          const SkeletonBox(
+            width: double.infinity,
+            height: 38.0,
+            borderRadius: 10.0,
+          ),
+          const SizedBox(height: 16.0),
+          // Skeleton cards
+          ...List<Widget>.generate(
+            3,
+            (int index) => const Padding(
+              padding: EdgeInsets.only(bottom: 10.0),
+              child: SkeletonBox(
+                width: double.infinity,
+                height: 104.0,
+                borderRadius: 16.0,
+              ),
             ),
           ),
         ],

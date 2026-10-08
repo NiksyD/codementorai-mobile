@@ -40,6 +40,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _streakReminders = true;
   bool _moduleUpdates = true;
 
+  User? _getAuthUser() {
+    try {
+      return Supabase.instance.client.auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _fetchProfile() async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = _getAuthUser();
     if (user != null) {
       final ProfileModel? profile = await widget.profileRepository.getProfile(user.id);
       final metadata = user.userMetadata ?? <String, dynamic>{};
@@ -80,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (image == null) return;
 
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = _getAuthUser();
     if (user == null) return;
 
     setState(() {
@@ -203,7 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         if (newFirst.isEmpty) return;
 
                         Navigator.pop(ctx);
-                        final user = Supabase.instance.client.auth.currentUser;
+                        final user = _getAuthUser();
                         if (user != null) {
                           final ProfileModel updated = ProfileModel(
                             userId: user.id,
@@ -366,13 +374,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isDark ? AppColors.darkBackground : AppColors.lightBackground;
     final Color textPrimary =
         isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color slateColor =
+    final Color textSecondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color iconColor =
         isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final Color cardBg =
+        isDark ? AppColors.darkSurfaceCard : Colors.white;
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
+    final User? authUser = _getAuthUser();
     final String displayName = _profile?.fullName ??
-        (Supabase.instance.client.auth.currentUser?.email?.split('@').first ?? 'Developer');
+        (authUser?.email?.split('@').first ?? 'Developer');
     final String email = _profile?.email ??
-        (Supabase.instance.client.auth.currentUser?.email ?? '');
+        (authUser?.email ?? '');
     final String avatarUrl = _profile?.avatarUrl?.isNotEmpty == true
         ? _profile!.avatarUrl!
         : 'https://api.dicebear.com/7.x/avataaars/png?seed=$displayName';
@@ -407,15 +422,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       padding: const EdgeInsets.all(16.0),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkSurfaceCard
-                            : AppColors.lightSurfaceCard,
+                        color: cardBg,
                         borderRadius: BorderRadius.circular(20.0),
-                        border: Border.all(
-                          color: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder,
-                        ),
+                        border: Border.all(color: borderColor),
                       ),
                       child: Row(
                         children: <Widget>[
@@ -429,9 +438,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: isDark
-                                          ? AppColors.darkBorder
-                                          : AppColors.lightBorder,
+                                      color: borderColor,
                                       width: 1.5,
                                     ),
                                   ),
@@ -455,7 +462,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                     Icon(
                                               Icons.person_rounded,
                                               size: 30.0,
-                                              color: slateColor,
+                                              color: iconColor,
                                             ),
                                           ),
                                   ),
@@ -468,15 +475,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     decoration: BoxDecoration(
                                       color: isDark
                                           ? const Color(0xFF334155)
-                                          : const Color(0xFFE2E8F0),
+                                          : const Color(0xFFF1F5F9),
                                       shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: borderColor,
+                                        width: 1.0,
+                                      ),
                                     ),
                                     child: Icon(
                                       Icons.camera_alt_rounded,
                                       size: 11.0,
                                       color: isDark
                                           ? Colors.white
-                                          : const Color(0xFF475569),
+                                          : const Color(0xFF334155),
                                     ),
                                   ),
                                 ),
@@ -501,7 +512,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   email,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 12.0,
-                                    color: slateColor,
+                                    color: textSecondary,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -514,26 +525,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 20.0),
 
                     // 3. ACCOUNT DETAILS (1:1 Web /settings/account)
-                    _buildSectionHeader('ACCOUNT DETAILS', slateColor),
+                    _buildSectionHeader('ACCOUNT DETAILS', textSecondary),
                     const SizedBox(height: 8.0),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkSurfaceCard
-                            : AppColors.lightSurfaceCard,
+                    Material(
+                      color: cardBg,
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18.0),
-                        border: Border.all(
-                          color: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder,
-                        ),
+                        side: BorderSide(color: borderColor),
                       ),
+                      clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: <Widget>[
                           ListTile(
                             leading: Icon(
                               Icons.person_outline_rounded,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -552,25 +558,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w500,
-                                    color: slateColor,
+                                    color: textSecondary,
                                   ),
                                 ),
                                 const SizedBox(width: 4.0),
-                                Icon(Icons.chevron_right_rounded, size: 20.0, color: slateColor),
+                                Icon(Icons.chevron_right_rounded, size: 20.0, color: textSecondary),
                               ],
                             ),
                             onTap: _showEditNameSheet,
                           ),
                           Divider(
                             height: 1.0,
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color: borderColor,
                           ),
                           ListTile(
                             leading: Icon(
                               Icons.alternate_email_rounded,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -586,7 +590,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: GoogleFonts.jetBrainsMono(
                                 fontSize: 12.0,
                                 fontWeight: FontWeight.w500,
-                                color: slateColor,
+                                color: textSecondary,
                               ),
                             ),
                           ),
@@ -596,26 +600,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 20.0),
 
                     // 4. PREFERENCES (1:1 Web /settings/notifications + Appearance)
-                    _buildSectionHeader('PREFERENCES', slateColor),
+                    _buildSectionHeader('PREFERENCES', textSecondary),
                     const SizedBox(height: 8.0),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkSurfaceCard
-                            : AppColors.lightSurfaceCard,
+                    Material(
+                      color: cardBg,
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18.0),
-                        border: Border.all(
-                          color: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder,
-                        ),
+                        side: BorderSide(color: borderColor),
                       ),
+                      clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: <Widget>[
                           ListTile(
                             leading: Icon(
                               Icons.palette_outlined,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -630,7 +629,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               isDark ? 'Dark Theme' : 'Light Theme',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
-                                color: slateColor,
+                                color: textSecondary,
                               ),
                             ),
                             trailing: Switch.adaptive(
@@ -644,14 +643,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           Divider(
                             height: 1.0,
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color: borderColor,
                           ),
                           ListTile(
                             leading: Icon(
                               Icons.mail_outline_rounded,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -666,7 +663,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'Activity alerts & challenge verdicts',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
-                                color: slateColor,
+                                color: textSecondary,
                               ),
                             ),
                             trailing: Switch.adaptive(
@@ -682,14 +679,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           Divider(
                             height: 1.0,
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color: borderColor,
                           ),
                           ListTile(
                             leading: Icon(
                               Icons.local_fire_department_outlined,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -704,7 +699,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'Daily reminder to maintain practice streaks',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
-                                color: slateColor,
+                                color: textSecondary,
                               ),
                             ),
                             trailing: Switch.adaptive(
@@ -720,14 +715,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           Divider(
                             height: 1.0,
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color: borderColor,
                           ),
                           ListTile(
                             leading: Icon(
                               Icons.auto_stories_outlined,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -742,7 +735,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'Updates on new roadmaps and topics',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
-                                color: slateColor,
+                                color: textSecondary,
                               ),
                             ),
                             trailing: Switch.adaptive(
@@ -762,26 +755,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 20.0),
 
                     // 5. SECURITY & LEGAL (1:1 Web /settings/security)
-                    _buildSectionHeader('SECURITY & LEGAL', slateColor),
+                    _buildSectionHeader('SECURITY & LEGAL', textSecondary),
                     const SizedBox(height: 8.0),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkSurfaceCard
-                            : AppColors.lightSurfaceCard,
+                    Material(
+                      color: cardBg,
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18.0),
-                        border: Border.all(
-                          color: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder,
-                        ),
+                        side: BorderSide(color: borderColor),
                       ),
+                      clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: <Widget>[
                           ListTile(
                             leading: Icon(
                               Icons.lock_outline_rounded,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -792,19 +780,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: textPrimary,
                               ),
                             ),
-                            trailing: Icon(Icons.chevron_right_rounded, size: 20.0, color: slateColor),
+                            trailing: Icon(Icons.chevron_right_rounded, size: 20.0, color: textSecondary),
                             onTap: _showChangePasswordSheet,
                           ),
                           Divider(
                             height: 1.0,
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color: borderColor,
                           ),
                           ListTile(
                             leading: Icon(
                               Icons.description_outlined,
-                              color: slateColor,
+                              color: iconColor,
                               size: 20.0,
                             ),
                             title: Text(
@@ -815,7 +801,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: textPrimary,
                               ),
                             ),
-                            trailing: Icon(Icons.chevron_right_rounded, size: 20.0, color: slateColor),
+                            trailing: Icon(Icons.chevron_right_rounded, size: 20.0, color: textSecondary),
                             onTap: () => _showLegalDialog(
                               'Privacy & Terms',
                               'CodeMentor AI respects your data privacy. Code submissions and practice progress are securely stored in your personal account.',
@@ -859,7 +845,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         'CodeMentor AI v1.0.0 (Build 42)',
                         style: GoogleFonts.jetBrainsMono(
                           fontSize: 11.0,
-                          color: slateColor.withValues(alpha: 0.7),
+                          color: textSecondary.withValues(alpha: 0.7),
                         ),
                       ),
                     ),
@@ -877,10 +863,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Text(
         title,
         style: GoogleFonts.jetBrainsMono(
-          fontSize: 11.0,
+          fontSize: 10.5,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.8,
-          color: color.withValues(alpha: 0.9),
+          color: color,
         ),
       ),
     );
@@ -1022,8 +1008,9 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textPrimary = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color slateColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final Color surfaceColor = isDark ? AppColors.darkSurfaceCard : Colors.white;
+    final Color borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final int score = _strengthScore;
     final Color activeStrengthColor = _strengthColors[score];
@@ -1050,7 +1037,7 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                     width: 36.0,
                     height: 4.0,
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                      color: borderColor,
                       borderRadius: BorderRadius.circular(2.0),
                     ),
                   ),
@@ -1076,7 +1063,7 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureCurrent ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: slateColor,
+                        color: textSecondary,
                         size: 20.0,
                       ),
                       onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
@@ -1095,7 +1082,7 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: slateColor,
+                        color: textSecondary,
                         size: 20.0,
                       ),
                       onPressed: () => setState(() => _obscureNew = !_obscureNew),
@@ -1135,9 +1122,9 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                   const SizedBox(height: 10.0),
 
                   // Requirements Checklist
-                  _buildRequirementItem('At least 8 characters', _hasMinLength, slateColor),
-                  _buildRequirementItem('Upper & lowercase letters', _hasUpperAndLower, slateColor),
-                  _buildRequirementItem('Number or symbol', _hasNumberOrSymbol, slateColor),
+                  _buildRequirementItem('At least 8 characters', _hasMinLength, textSecondary),
+                  _buildRequirementItem('Upper & lowercase letters', _hasUpperAndLower, textSecondary),
+                  _buildRequirementItem('Number or symbol', _hasNumberOrSymbol, textSecondary),
                 ],
 
                 const SizedBox(height: 12.0),
@@ -1152,7 +1139,7 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: slateColor,
+                        color: textSecondary,
                         size: 20.0,
                       ),
                       onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
@@ -1198,7 +1185,7 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
     );
   }
 
-  Widget _buildRequirementItem(String label, bool isMet, Color slateColor) {
+  Widget _buildRequirementItem(String label, bool isMet, Color textSecondary) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
@@ -1206,7 +1193,7 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
           Icon(
             isMet ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
             size: 13.0,
-            color: isMet ? const Color(0xFF3ECF8E) : slateColor.withValues(alpha: 0.6),
+            color: isMet ? const Color(0xFF3ECF8E) : textSecondary.withValues(alpha: 0.6),
           ),
           const SizedBox(width: 6.0),
           Text(
@@ -1214,7 +1201,7 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11.0,
               fontWeight: isMet ? FontWeight.w600 : FontWeight.w500,
-              color: isMet ? const Color(0xFF3ECF8E) : slateColor,
+              color: isMet ? const Color(0xFF3ECF8E) : textSecondary,
             ),
           ),
         ],

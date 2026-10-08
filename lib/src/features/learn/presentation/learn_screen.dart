@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
-import '../../../common_widgets/language_icon.dart';
+import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
 import '../../notifications/data/notification_repository.dart';
 import '../../notifications/data/supabase_notification_repository.dart';
@@ -97,19 +97,6 @@ class _LearnScreenState extends State<LearnScreen> {
     }
   }
 
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF3ECF8E);
-      case 'medium':
-        return const Color(0xFFF59E0B);
-      case 'hard':
-        return const Color(0xFFEF4444);
-      default:
-        return AppColors.primary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -129,11 +116,6 @@ class _LearnScreenState extends State<LearnScreen> {
         : 'https://api.dicebear.com/7.x/avataaars/png?seed=$firstName';
 
     final PathwayModel? activePathway = _dashboardData?.activePathway;
-    final List<PathwayModel> enrolledPathways = _dashboardData?.enrolledPathways ?? const <PathwayModel>[];
-    final List<PathwayModel> otherEnrolledPathways = activePathway != null
-        ? enrolledPathways.where((PathwayModel p) => p.id != activePathway.id).toList()
-        : enrolledPathways;
-    final List<LearnChallengeModel> challenges = _dashboardData?.recommendedChallenges ?? const <LearnChallengeModel>[];
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -144,9 +126,7 @@ class _LearnScreenState extends State<LearnScreen> {
           color: AppColors.primary,
           backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
           child: _isLoading && _dashboardData == null
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                )
+              ? _buildDashboardSkeleton(isDark: isDark)
               : SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics(),
@@ -155,18 +135,17 @@ class _LearnScreenState extends State<LearnScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      // 1. TOP GREETING & STREAK BAR
+                      // ── 1. Top Header Row (Matching Web shadcn Header) ──
                       _buildTopGreeting(
                         isDark: isDark,
                         textPrimary: textPrimary,
                         textSecondary: textSecondary,
                         firstName: firstName,
                         avatarUrl: avatarUrl,
-                        streak: _dashboardData?.currentStreak ?? 3,
                       ),
                       const SizedBox(height: 20.0),
 
-                      // 2. HERO ACTIVE PATHWAY CARD (LIVE DATA)
+                      // ── 2. HERO: RESUME ACTIVE LEARNING (Matching Web shadcn Card) ──
                       if (activePathway != null) ...<Widget>[
                         _buildHeroPathwayCard(
                           isDark: isDark,
@@ -177,38 +156,11 @@ class _LearnScreenState extends State<LearnScreen> {
                         const SizedBox(height: 20.0),
                       ],
 
-                      // 3. ENROLLED MODULES (LIVE DATA - Exclude active hero track to avoid duplication)
-                      if (otherEnrolledPathways.isNotEmpty) ...<Widget>[
-                        _buildPathwaysSection(
-                          isDark: isDark,
-                          textPrimary: textPrimary,
-                          textSecondary: textSecondary,
-                          pathways: otherEnrolledPathways,
-                        ),
-                        const SizedBox(height: 20.0),
-                      ],
-
-                      // 4. COLLABORATIVE ROOMS CALLOUT CARD (Matching Web 1:1)
-                      _buildCollaborativeRoomsCard(
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                      ),
-                      const SizedBox(height: 24.0),
-
-                      // 5. RECOMMENDED NEXT CHALLENGES
-                      _buildRecommendedChallenges(
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        challenges: challenges,
-                      ),
-                      const SizedBox(height: 24.0),
-
-                      // 6. FULL-WIDTH PRACTICE ACTIVITY & ANNUAL HEATMAP (Matching Web 1:1)
+                      // ── 3. FULL-WIDTH PRACTICE ACTIVITY & ANNUAL HEATMAP (Matching Web shadcn Heatmap) ──
                       ActivityHeatmap(
-                        totalActiveDays: _dashboardData?.totalActiveDays ?? 28,
-                        currentStreak: _dashboardData?.currentStreak ?? 3,
+                        submissions: _dashboardData?.submissions ?? const <DashboardSubmission>[],
+                        totalActiveDays: _dashboardData?.totalActiveDays ?? 0,
+                        currentStreak: _dashboardData?.currentStreak ?? 0,
                       ),
                       const SizedBox(height: 32.0),
                     ],
@@ -220,7 +172,7 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 
   // ===========================================================================
-  // 1. TOP GREETING & STATUS
+  // 1. TOP GREETING & NOTIFICATION HEADER (Matching Web shadcn Header 1:1)
   // ===========================================================================
   Widget _buildTopGreeting({
     required bool isDark,
@@ -228,101 +180,94 @@ class _LearnScreenState extends State<LearnScreen> {
     required Color textSecondary,
     required String firstName,
     required String avatarUrl,
-    required int streak,
   }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: <Widget>[
-        // Avatar + Greeting
-        Row(
-          children: <Widget>[
-            Container(
-              width: 46.0,
-              height: 46.0,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary, width: 2.0),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 10.0,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipOval(
-                child: Image.network(
-                  avatarUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.person_rounded,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12.0),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? AppColors.darkBorder.withValues(alpha: 0.6)
+                : AppColors.lightBorder.withValues(alpha: 0.8),
+            width: 1.0,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          // Squircle Avatar + Greeting Copy
+          Expanded(
+            child: Row(
               children: <Widget>[
-                Text(
-                  'Welcome back,',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.0,
-                    fontWeight: FontWeight.w500,
-                    color: textSecondary,
+                Container(
+                  width: 44.0,
+                  height: 44.0,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+                    borderRadius: BorderRadius.circular(14.0),
+                    border: Border.all(
+                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14.0),
+                    child: Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Center(
+                        child: Text(
+                          firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                Text(
-                  firstName,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.w800,
-                    color: textPrimary,
-                    letterSpacing: -0.3,
+                const SizedBox(width: 12.0),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Welcome back, $firstName',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                          letterSpacing: -0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2.0),
+                      Text(
+                        'Pick up where you left off or explore new challenges.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 12.0),
 
-        // Notifications & Level Pill
-        Row(
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-                borderRadius: BorderRadius.circular(14.0),
-                border: Border.all(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                ),
-              ),
-              child: Row(
-                children: <Widget>[
-                  const Icon(
-                    Icons.local_fire_department_rounded,
-                    size: 16.0,
-                    color: Color(0xFFF59E0B),
-                  ),
-                  const SizedBox(width: 4.0),
-                  Text(
-                    '$streak Day Streak',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            _buildNotificationBell(isDark, textPrimary, textSecondary),
-          ],
-        ),
-      ],
+          // Notification Bell
+          _buildNotificationBell(isDark, textPrimary, textSecondary),
+        ],
+      ),
     );
   }
 
@@ -336,17 +281,18 @@ class _LearnScreenState extends State<LearnScreen> {
 
     return InkWell(
       onTap: _handleOpenNotifications,
-      borderRadius: BorderRadius.circular(14.0),
+      borderRadius: BorderRadius.circular(12.0),
       child: Container(
         width: 38.0,
         height: 38.0,
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-          borderRadius: BorderRadius.circular(14.0),
+          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+          borderRadius: BorderRadius.circular(12.0),
           border: Border.all(
             color: unreadCount > 0
                 ? AppColors.primary.withValues(alpha: 0.4)
                 : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            width: 1.0,
           ),
         ),
         child: Stack(
@@ -356,7 +302,7 @@ class _LearnScreenState extends State<LearnScreen> {
               unreadCount > 0
                   ? Icons.notifications_rounded
                   : Icons.notifications_none_rounded,
-              size: 20.0,
+              size: 19.0,
               color: unreadCount > 0 ? textPrimary : textSecondary,
             ),
             if (unreadCount > 0)
@@ -364,8 +310,8 @@ class _LearnScreenState extends State<LearnScreen> {
                 top: 8.0,
                 right: 8.0,
                 child: Container(
-                  width: 8.0,
-                  height: 8.0,
+                  width: 7.0,
+                  height: 7.0,
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     shape: BoxShape.circle,
@@ -402,7 +348,7 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 
   // ===========================================================================
-  // 2. HERO ACTIVE PATHWAY CARD
+  // 2. HERO ACTIVE PATHWAY CARD (Matching Web shadcn Card 1:1)
   // ===========================================================================
   Widget _buildHeroPathwayCard({
     required bool isDark,
@@ -410,103 +356,81 @@ class _LearnScreenState extends State<LearnScreen> {
     required Color textSecondary,
     required PathwayModel pathway,
   }) {
+    // Strict 0% Handling per AGENTS.md rule 2.3
+    final double progressValue = pathway.completion <= 0
+        ? 0.0
+        : (pathway.completion / 100.0).clamp(0.0, 1.0);
+
+    final String ctaLabel = pathway.completion >= 100
+        ? 'Review Track'
+        : pathway.completion > 0
+            ? 'Continue Learning'
+            : 'Start Learning';
+
     return Container(
       padding: const EdgeInsets.all(18.0),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? <Color>[
-                  AppColors.darkSurfaceCard,
-                  AppColors.darkSurface,
-                ]
-              : <Color>[
-                  Colors.white,
-                  AppColors.lightSurfaceCard,
-                ],
-        ),
-        borderRadius: BorderRadius.circular(22.0),
+        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+        borderRadius: BorderRadius.circular(20.0),
         border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.35),
-          width: 1.2,
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          width: 1.0,
         ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            blurRadius: 18.0,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Header: Stack & Completion %
+          // Header Row: Minimalist LanguageAvatarStack on left, {completion}% Complete on right per AGENTS.md
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               LanguageAvatarStack(
                 languages: pathway.stack.isNotEmpty
                     ? pathway.stack
                     : <String>[pathway.language],
-                size: 28.0,
+                size: 32.0,
               ),
-              Text(
-                '${pathway.completion}% Complete',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 12.0,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+              const SizedBox(width: 12.0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      pathway.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16.0,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2.0),
+                    Text(
+                      pathway.description.isNotEmpty
+                          ? pathway.description
+                          : 'Continue practicing structured lessons and algorithmic problems.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w400,
+                        height: 1.4,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14.0),
-
-          // Title & Description (Matching Web 1:1)
-          Text(
-            pathway.title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 17.0,
-              fontWeight: FontWeight.w800,
-              color: textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 4.0),
-          Text(
-            pathway.description.isNotEmpty
-                ? pathway.description
-                : 'Continue practicing structured lessons and algorithmic problems.',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              fontWeight: FontWeight.w500,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 14.0),
-
-          // Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6.0),
-            child: LinearProgressIndicator(
-              value: (pathway.completion / 100.0).clamp(0.0, 1.0),
-              minHeight: 6.0,
-              backgroundColor: isDark
-                  ? AppColors.darkBorder
-                  : AppColors.lightBorder,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-            ),
-          ),
           const SizedBox(height: 16.0),
 
-          // Action Button: Continue Learning
+          // Action Button: Full-width shadcn button
           SizedBox(
             width: double.infinity,
-            height: 48.0,
+            height: 44.0,
             child: ElevatedButton(
               onPressed: () {
                 HapticFeedback.lightImpact();
@@ -519,6 +443,7 @@ class _LearnScreenState extends State<LearnScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                 ),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -529,9 +454,9 @@ class _LearnScreenState extends State<LearnScreen> {
                   ),
                   const SizedBox(width: 6.0),
                   Text(
-                    pathway.completion > 0 ? 'Continue Learning' : 'Start Learning',
+                    ctaLabel,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13.5,
+                      fontSize: 13.0,
                       fontWeight: FontWeight.w700,
                       color: isDark ? AppColors.onPrimaryDark : Colors.white,
                     ),
@@ -539,11 +464,54 @@ class _LearnScreenState extends State<LearnScreen> {
                   const SizedBox(width: 6.0),
                   const Icon(
                     Icons.arrow_forward_rounded,
-                    size: 15.0,
+                    size: 14.0,
                   ),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 14.0),
+
+          // Progress with Inline Percentage
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    'Progress',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w600,
+                      color: textSecondary,
+                    ),
+                  ),
+                  Text(
+                    '${pathway.completion}% Complete',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6.0),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999.0),
+                child: SizedBox(
+                  height: 6.0,
+                  child: LinearProgressIndicator(
+                    value: progressValue,
+                    backgroundColor: isDark
+                        ? AppColors.darkSurface
+                        : AppColors.lightBorder,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -551,385 +519,118 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 
   // ===========================================================================
-  // 3. PROBLEM SOLVING METRICS
-
-
+  // 3. SKELETON LOADING STATE (Matching Web shadcn LearnDashboardSkeleton 1:1)
   // ===========================================================================
-  // 4. ENROLLED & RECOMMENDED PATHWAYS
-  // ===========================================================================
-  Widget _buildPathwaysSection({
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    required List<PathwayModel> pathways,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _buildDashboardSkeleton({required bool isDark}) {
+    return ShimmerLoading(
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Enrolled Modules',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14.0,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2.0),
-                Text(
-                  'Your active learning curriculum and progress',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.0,
-                    color: textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                context.push('/modules');
-              },
-              behavior: HitTestBehavior.opaque,
+            // Top Header Skeleton
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Text(
-                    'Explore Modules',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
+                  const SkeletonBox(
+                    width: 44.0,
+                    height: 44.0,
+                    borderRadius: 14.0,
                   ),
-                  const SizedBox(width: 4.0),
-                  const Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 13.0,
-                    color: AppColors.primary,
+                  const SizedBox(width: 12.0),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const <Widget>[
+                      SkeletonBox(width: 150.0, height: 16.0, borderRadius: 4.0),
+                      SizedBox(height: 6.0),
+                      SkeletonBox(width: 220.0, height: 12.0, borderRadius: 4.0),
+                    ],
                   ),
+                  const Spacer(),
+                  const SkeletonBox(width: 38.0, height: 38.0, borderRadius: 12.0),
                 ],
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 12.0),
-        SizedBox(
-          height: 140.0,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: pathways.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 12.0),
-            itemBuilder: (BuildContext context, int index) {
-              final PathwayModel p = pathways[index];
-              return Container(
-                width: 240.0,
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-                  borderRadius: BorderRadius.circular(18.0),
-                  border: Border.all(
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    context.push('/modules/${p.id}');
-                  },
-                  borderRadius: BorderRadius.circular(18.0),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: <Widget>[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            LanguageAvatarStack(
-                              languages: p.stack.isNotEmpty
-                                  ? p.stack
-                                  : <String>[p.language],
-                              size: 22.0,
-                            ),
-                            Text(
-                              '${p.completion}%',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: p.completion > 0
-                                    ? AppColors.primary
-                                    : textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          p.title,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.0,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4.0),
-                          child: LinearProgressIndicator(
-                            value: (p.completion / 100.0).clamp(0.0, 1.0),
-                            minHeight: 4.0,
-                            backgroundColor: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                          ),
-                        ),
-                        Text(
-                          '${p.totalModules} Topics',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10.5,
-                            color: textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
+            const SizedBox(height: 20.0),
 
-  // ===========================================================================
-  // 5. RECOMMENDED NEXT CHALLENGES
-  // ===========================================================================
-  Widget _buildRecommendedChallenges({
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    required List<LearnChallengeModel> challenges,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Recommended Challenges',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14.0,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2.0),
-                Text(
-                  'Hand-picked problems to build algorithmic mastery',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.0,
-                    color: textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                context.push('/modules');
-              },
-              behavior: HitTestBehavior.opaque,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    'Browse All',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 4.0),
-                  const Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 13.0,
-                    color: AppColors.primary,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12.0),
-        Column(
-          children: challenges.map((LearnChallengeModel ch) {
-            final Color diffColor = _getDifficultyColor(ch.difficulty);
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10.0),
-              padding: const EdgeInsets.all(14.0),
+            // Hero Card Skeleton
+            Container(
+              padding: const EdgeInsets.all(18.0),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-                borderRadius: BorderRadius.circular(16.0),
+                color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+                borderRadius: BorderRadius.circular(20.0),
                 border: Border.all(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  width: 1.0,
                 ),
               ),
-              child: Row(
-                children: <Widget>[
-                  LanguageIcon(language: ch.language, size: 20.0),
-                  const SizedBox(width: 12.0),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          ch.title,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.0,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4.0),
-                        Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const <Widget>[
+                  Row(
+                    children: <Widget>[
+                      SkeletonBox(width: 64.0, height: 32.0, borderRadius: 16.0),
+                      SizedBox(width: 12.0),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: diffColor.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6.0),
-                              ),
-                              child: Text(
-                                ch.difficulty,
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: diffColor,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8.0),
-                            Text(
-                              ch.category,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.0,
-                                color: textSecondary,
-                              ),
-                            ),
+                            SkeletonBox(width: 180.0, height: 16.0, borderRadius: 4.0),
+                            SizedBox(height: 6.0),
+                            SkeletonBox(width: double.infinity, height: 12.0, borderRadius: 4.0),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8.0),
-                  IconButton(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                    },
-                    icon: const Icon(Icons.chevron_right_rounded),
-                    color: textSecondary,
+                  SizedBox(height: 16.0),
+                  SkeletonBox(width: double.infinity, height: 44.0, borderRadius: 12.0),
+                  SizedBox(height: 14.0),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      SkeletonBox(width: 60.0, height: 12.0, borderRadius: 4.0),
+                      SkeletonBox(width: 80.0, height: 12.0, borderRadius: 4.0),
+                    ],
                   ),
+                  SizedBox(height: 6.0),
+                  SkeletonBox(width: double.infinity, height: 6.0, borderRadius: 999.0),
                 ],
               ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // COLLABORATIVE ROOMS CALLOUT CARD (Matching Web 1:1)
-  // ===========================================================================
-  Widget _buildCollaborativeRoomsCard({
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            context.push('/rooms');
-          },
-          borderRadius: BorderRadius.circular(20.0),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Text(
-                      'Collaborative Rooms',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Text(
-                          'My Rooms',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 4.0),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 13.0,
-                          color: AppColors.primary,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6.0),
-                Text(
-                  'Collaborate with mentors, practice room modules, and track progress with peers.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
-                    height: 1.45,
-                    color: textSecondary,
-                  ),
-                ),
-              ],
             ),
-          ),
+            const SizedBox(height: 20.0),
+
+            // Heatmap Card Skeleton
+            Container(
+              padding: const EdgeInsets.all(18.0),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+                borderRadius: BorderRadius.circular(20.0),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  width: 1.0,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const <Widget>[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      SkeletonBox(width: 120.0, height: 15.0, borderRadius: 4.0),
+                      SkeletonBox(width: 110.0, height: 13.0, borderRadius: 4.0),
+                    ],
+                  ),
+                  SizedBox(height: 8.0),
+                  SkeletonBox(width: 160.0, height: 11.0, borderRadius: 4.0),
+                  SizedBox(height: 18.0),
+                  SkeletonBox(width: double.infinity, height: 100.0, borderRadius: 8.0),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

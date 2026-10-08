@@ -14,6 +14,7 @@ class PathwayModel {
     this.coachName,
     this.coachAvatar,
     this.rating = 5.0,
+    this.price = 0.0,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class PathwayModel {
   final String? coachName;
   final String? coachAvatar;
   final double rating;
+  final double price;
 
   PathwayModel copyWith({
     String? id,
@@ -46,6 +48,7 @@ class PathwayModel {
     String? coachName,
     String? coachAvatar,
     double? rating,
+    double? price,
   }) {
     return PathwayModel(
       id: id ?? this.id,
@@ -62,6 +65,7 @@ class PathwayModel {
       coachName: coachName ?? this.coachName,
       coachAvatar: coachAvatar ?? this.coachAvatar,
       rating: rating ?? this.rating,
+      price: price ?? this.price,
     );
   }
 
@@ -119,6 +123,7 @@ class PathwayModel {
       coachName: moduleData['coach_name'] as String?,
       coachAvatar: moduleData['coach_avatar'] as String?,
       rating: (moduleData['mod_rating'] as num?)?.toDouble() ?? 5.0,
+      price: (moduleData['mod_price'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

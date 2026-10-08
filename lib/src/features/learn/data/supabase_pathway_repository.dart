@@ -92,11 +92,25 @@ class SupabasePathwayRepository implements PathwayRepository {
     final Map<String, String> actIdToTrackId = <String, String>{};
     // trackId -> total practice activity count
     final Map<String, int> moduleTotalPractice = <String, int>{};
+    final Map<String, String> actIdToTitle = <String, String>{};
+    final Map<String, String> actIdToDifficulty = <String, String>{};
+    final Map<String, String> trackIdToTitle = <String, String>{};
+
+    for (final dynamic m in rawModules) {
+      if (m is Map<String, dynamic>) {
+        final String modId = m['mod_id']?.toString() ?? '';
+        final String modTitle = m['mod_title']?.toString() ?? '';
+        if (modId.isNotEmpty && modTitle.isNotEmpty) {
+          trackIdToTitle[modId] = modTitle;
+        }
+      }
+    }
+
     if (allTopicIds.isNotEmpty) {
       try {
         final List<Map<String, dynamic>> allActivities = await _supabase
             .from('activities')
-            .select('act_id, topic_id, track_id, act_type, act_category, act_status')
+            .select('act_id, topic_id, track_id, act_type, act_category, act_status, act_title')
             .filter('topic_id', 'in', allTopicIds);
 
         for (final Map<String, dynamic> a in allActivities) {
@@ -106,6 +120,12 @@ class SupabasePathwayRepository implements PathwayRepository {
           final String actId = a['act_id'] as String? ?? '';
           final String tId = a['topic_id'] as String? ?? '';
           final String trackId = topicIdToTrackId[tId] ?? '';
+          final String actTitle = a['act_title'] as String? ?? '';
+          final String actCat = a['act_category'] as String? ?? 'Medium';
+          if (actId.isNotEmpty) {
+            if (actTitle.isNotEmpty) actIdToTitle[actId] = actTitle;
+            actIdToDifficulty[actId] = actCat;
+          }
           if (actId.isEmpty || trackId.isEmpty) continue;
           actIdToTrackId[actId] = trackId;
           moduleTotalPractice[trackId] =
@@ -121,7 +141,7 @@ class SupabasePathwayRepository implements PathwayRepository {
         if (allModIds.isNotEmpty) {
           final List<Map<String, dynamic>> directActs = await _supabase
               .from('activities')
-              .select('act_id, track_id, act_status')
+              .select('act_id, track_id, act_status, act_title, act_category')
               .filter('track_id', 'in', allModIds);
 
           for (final Map<String, dynamic> a in directActs) {
@@ -130,6 +150,16 @@ class SupabasePathwayRepository implements PathwayRepository {
             if (actStatus == 'hidden') continue;
             final String actId = a['act_id'] as String? ?? '';
             final String trackId = a['track_id'] as String? ?? '';
+            final String actTitle = a['act_title'] as String? ?? '';
+            final String actCat = a['act_category'] as String? ?? 'Medium';
+            if (actId.isNotEmpty) {
+              if (actTitle.isNotEmpty && !actIdToTitle.containsKey(actId)) {
+                actIdToTitle[actId] = actTitle;
+              }
+              if (!actIdToDifficulty.containsKey(actId)) {
+                actIdToDifficulty[actId] = actCat;
+              }
+            }
             if (actId.isEmpty || trackId.isEmpty || actIdToTrackId.containsKey(actId)) continue;
             actIdToTrackId[actId] = trackId;
             moduleTotalPractice[trackId] =
@@ -217,25 +247,72 @@ class SupabasePathwayRepository implements PathwayRepository {
       // Non-blocking
     }
 
-    // 6. Fetch Submissions stats
+    // 6. Fetch Submissions stats and recent activity submissions
     int easySolved = 0;
     int mediumSolved = 0;
     int hardSolved = 0;
+    final List<DashboardSubmission> dashboardSubmissions = <DashboardSubmission>[];
     try {
       final List<Map<String, dynamic>> subRows = await _supabase
           .from('submissions')
-          .select('sub_status, sub_verdict')
-          .eq('user_id', userId);
+          .select('sub_id, item_id, sub_language, sub_code, sub_status, sub_verdict, sub_submitted_at')
+          .eq('user_id', userId)
+          .order('sub_submitted_at', ascending: false)
+          .limit(100);
 
       for (final Map<String, dynamic> s in subRows) {
         final String status = s['sub_status'] as String? ?? '';
-        if (status.toLowerCase() == 'accepted' || status.toLowerCase() == 'solved') {
+        final String normStatus = DashboardSubmission.normalizeStatus(status);
+        if (normStatus == 'Passed') {
           easySolved++;
         }
+        final String itemId = s['item_id']?.toString() ?? '';
+        final String actTitle = actIdToTitle[itemId] ?? 'Practice Challenge';
+        final String trackId = actIdToTrackId[itemId] ?? '';
+        final String modTitle = trackIdToTitle[trackId] ?? 'Practice Module';
+        final String diff = actIdToDifficulty[itemId] ?? 'Medium';
+
+        dashboardSubmissions.add(
+          DashboardSubmission.fromDatabase(
+            row: s,
+            title: actTitle,
+            moduleId: trackId,
+            moduleTitle: modTitle,
+            difficulty: diff,
+          ),
+        );
       }
     } catch (_) {
       // Non-blocking
     }
+
+    // If streak was 0 from table, compute live streak from submissions (matching Web 1:1)
+    if (currentStreak == 0 && dashboardSubmissions.isNotEmpty) {
+      final Set<String> daySet = dashboardSubmissions
+          .where((DashboardSubmission s) => s.rawDate.isNotEmpty)
+          .map((DashboardSubmission s) => s.rawDate)
+          .toSet();
+
+      final DateTime today = DateTime.now();
+      for (int i = 0; i < 365; i++) {
+        final DateTime checkDate = today.subtract(Duration(days: i));
+        final String dateKey =
+            '${checkDate.year}-${checkDate.month.toString().padLeft(2, '0')}-${checkDate.day.toString().padLeft(2, '0')}';
+        if (daySet.contains(dateKey)) {
+          currentStreak++;
+        } else if (i == 0) {
+          continue;
+        } else {
+          break;
+        }
+      }
+    }
+
+    final int calculatedActiveDays = dashboardSubmissions
+        .map((DashboardSubmission s) => s.rawDate)
+        .where((String d) => d.isNotEmpty)
+        .toSet()
+        .length;
 
     // 7. Map to PathwayModel list with dynamically computed live progress
     final List<PathwayModel> mappedPathways = <PathwayModel>[];
@@ -281,44 +358,16 @@ class SupabasePathwayRepository implements PathwayRepository {
             orElse: () => enrolledPathways.first,
           );
 
-    // Default recommended challenges
-    const List<LearnChallengeModel> recommended = <LearnChallengeModel>[
-      LearnChallengeModel(
-        id: 'ch-1',
-        title: 'LRU Cache with O(1) Eviction',
-        language: 'python',
-        difficulty: 'Medium',
-        category: 'Data Structures',
-        acceptanceRate: '78%',
-      ),
-      LearnChallengeModel(
-        id: 'ch-2',
-        title: 'Valid Palindrome II (Deletions)',
-        language: 'javascript',
-        difficulty: 'Easy',
-        category: 'Two Pointers',
-        acceptanceRate: '92%',
-      ),
-      LearnChallengeModel(
-        id: 'ch-3',
-        title: 'Deadlock Detection Graph Algorithm',
-        language: 'java',
-        difficulty: 'Hard',
-        category: 'Concurrency',
-        acceptanceRate: '54%',
-      ),
-    ];
-
     final LearnDashboardData result = LearnDashboardData(
       activePathway: activePathway,
       enrolledPathways: enrolledPathways,
       allPathways: mappedPathways,
-      currentStreak: currentStreak > 0 ? currentStreak : 3,
-      totalActiveDays: currentStreak > 0 ? currentStreak * 5 : 28,
-      easySolved: easySolved > 0 ? easySolved : 18,
-      mediumSolved: mediumSolved > 0 ? mediumSolved : 9,
-      hardSolved: hardSolved > 0 ? hardSolved : 2,
-      recommendedChallenges: recommended,
+      currentStreak: currentStreak,
+      totalActiveDays: calculatedActiveDays > 0 ? calculatedActiveDays : (currentStreak > 0 ? currentStreak : 0),
+      easySolved: easySolved,
+      mediumSolved: mediumSolved,
+      hardSolved: hardSolved,
+      submissions: dashboardSubmissions,
     );
 
     cachedData = result;
@@ -353,6 +402,7 @@ class SupabasePathwayRepository implements PathwayRepository {
           mediumSolved: cachedData!.mediumSolved,
           hardSolved: cachedData!.hardSolved,
           recommendedChallenges: cachedData!.recommendedChallenges,
+          submissions: cachedData!.submissions,
         );
       }
       return true;
@@ -650,6 +700,7 @@ class SupabasePathwayRepository implements PathwayRepository {
         mediumSolved: cachedData!.mediumSolved,
         hardSolved: cachedData!.hardSolved,
         recommendedChallenges: cachedData!.recommendedChallenges,
+        submissions: cachedData!.submissions,
       );
     }
 
@@ -900,16 +951,7 @@ class SupabasePathwayRepository implements PathwayRepository {
           .map((Map<String, dynamic> r) => TestCaseModel.fromJson(r))
           .toList();
 
-      if (testCases.isEmpty) {
-        testCases = <TestCaseModel>[
-          const TestCaseModel(
-            input: 'Main.main()',
-            expectedOutput: '42',
-            isSample: true,
-            orderIndex: 1,
-          ),
-        ];
-      }
+      // testCases stays empty when none exist in DB — UI handles the sandbox/empty state
 
       final String rawDesc = actData?['act_description'] as String? ?? '';
       final String richDescription = rawDesc.isNotEmpty
@@ -1080,6 +1122,7 @@ Your program must compile without syntax errors and pass the validation test cas
               mediumSolved: cachedData!.mediumSolved,
               hardSolved: cachedData!.hardSolved,
               recommendedChallenges: cachedData!.recommendedChallenges,
+              submissions: cachedData!.submissions,
             );
           }
         } catch (_) {}
@@ -1309,16 +1352,7 @@ Your program must compile without syntax errors and pass the validation test cas
           .map((Map<String, dynamic> r) => TestCaseModel.fromJson(r))
           .toList();
 
-      if (testCases.isEmpty) {
-        testCases = <TestCaseModel>[
-          const TestCaseModel(
-            input: 'Main.main()',
-            expectedOutput: '42',
-            isSample: true,
-            orderIndex: 1,
-          ),
-        ];
-      }
+      // testCases stays empty when none exist in DB — UI handles the sandbox/empty state
 
       final String rawDesc = actData?['act_description'] as String? ?? '';
       final String richDescription = rawDesc.isNotEmpty
@@ -1411,6 +1445,19 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
           .toList();
     } catch (_) {
       return <SubmissionHistoryModel>[];
+    }
+  }
+
+  @override
+  Future<List<DashboardSubmission>> getUserSubmissions(String userId) async {
+    if (cachedData != null && cachedData!.submissions.isNotEmpty) {
+      return cachedData!.submissions;
+    }
+    try {
+      final LearnDashboardData dashData = await getLearnDashboardData(userId);
+      return dashData.submissions;
+    } catch (_) {
+      return const <DashboardSubmission>[];
     }
   }
 
@@ -1555,8 +1602,8 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
     try {
       // 1. Fetch memberships where user is an enrolled learner (active or pending)
       final List<Map<String, dynamic>> memberships = await _supabase
-          .from('room_members')
-          .select('room_id, status, enrolled_at, requested_at, joined_via, role')
+          .from('hub_members')
+          .select('hub_id, status, enrolled_at, requested_at, joined_via, role')
           .eq('learner_id', userId)
           .neq('status', 'rejected')
           .order('enrolled_at', ascending: false);
@@ -1564,15 +1611,15 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       final Map<String, Map<String, dynamic>> membershipByRoomId =
           <String, Map<String, dynamic>>{};
       for (final Map<String, dynamic> m in memberships) {
-        final String rId = m['room_id'] as String? ?? '';
+        final String rId = m['hub_id'] as String? ?? '';
         if (rId.isNotEmpty) {
           membershipByRoomId[rId] = m;
         }
       }
 
-      // 2. Fetch rooms created by this user as a mentor
+      // 2. Fetch hubs created by this user as a mentor
       final List<Map<String, dynamic>> mentorRooms = await _supabase
-          .from('rooms')
+          .from('hubs')
           .select(
             'id, name, section, join_code, target_language, primary_module_id, description, is_archived, created_at, mentor_id',
           )
@@ -1580,7 +1627,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
           .eq('is_archived', false)
           .order('created_at', ascending: false);
 
-      // 3. Fetch rooms where user is an enrolled learner (if not already fetched as mentor)
+      // 3. Fetch hubs where user is an enrolled learner (if not already fetched as mentor)
       final Set<String> enrolledRoomIds = membershipByRoomId.keys.toSet();
       final Set<String> mentorRoomIds =
           mentorRooms.map((Map<String, dynamic> r) => r['id'] as String).toSet();
@@ -1590,7 +1637,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       List<Map<String, dynamic>> enrolledRooms = <Map<String, dynamic>>[];
       if (neededEnrolledIds.isNotEmpty) {
         enrolledRooms = await _supabase
-            .from('rooms')
+            .from('hubs')
             .select(
               'id, name, section, join_code, target_language, primary_module_id, description, is_archived, created_at, mentor_id',
             )
@@ -1598,7 +1645,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
             .eq('is_archived', false);
       }
 
-      // Combine all rooms (mentor-managed rooms + enrolled rooms)
+      // Combine all hubs (mentor-managed hubs + enrolled hubs)
       final List<Map<String, dynamic>> allRooms = <Map<String, dynamic>>[
         ...mentorRooms,
         ...enrolledRooms,
@@ -1613,11 +1660,11 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
           .where((String id) => id.isNotEmpty)
           .toList();
 
-      // 4. Fetch attached modules via room_modules
+      // 4. Fetch attached modules via hub_modules
       final List<Map<String, dynamic>> rmRows = await _supabase
-          .from('room_modules')
+          .from('hub_modules')
           .select('''
-            room_id,
+            hub_id,
             display_order,
             module_id,
             modules (
@@ -1628,7 +1675,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
               mod_status
             )
           ''')
-          .inFilter('room_id', allRoomIds)
+          .inFilter('hub_id', allRoomIds)
           .order('display_order', ascending: true);
 
       final List<String> attachedModIds = rmRows
@@ -1671,11 +1718,11 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         }
       }
 
-      // Group modules by room_id
+      // Group modules by hub_id
       final Map<String, List<RoomModuleSummary>> modulesMap =
           <String, List<RoomModuleSummary>>{};
       for (final Map<String, dynamic> r in rmRows) {
-        final String rId = r['room_id'] as String? ?? '';
+        final String rId = r['hub_id'] as String? ?? '';
         final dynamic rawMod = r['modules'];
         final Map<String, dynamic>? modData = rawMod is List
             ? (rawMod.isNotEmpty ? rawMod.first as Map<String, dynamic> : null)
@@ -1825,7 +1872,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
     // 2. Direct Supabase Fallback
     try {
       final List<Map<String, dynamic>> rooms = await _supabase
-          .from('rooms')
+          .from('hubs')
           .select('id, name, section, join_code, target_language, mentor_id, is_archived')
           .eq('join_code', cleanCode)
           .limit(1);
@@ -1854,9 +1901,9 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
 
       // Check existing membership
       final List<Map<String, dynamic>> existing = await _supabase
-          .from('room_members')
+          .from('hub_members')
           .select('id, status')
-          .eq('room_id', room['id'] as String)
+          .eq('hub_id', room['id'] as String)
           .eq('learner_id', userId)
           .limit(1);
 
@@ -1883,8 +1930,8 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       }
 
       // Insert pending membership request
-      await _supabase.from('room_members').insert(<String, dynamic>{
-        'room_id': room['id'],
+      await _supabase.from('hub_members').insert(<String, dynamic>{
+        'hub_id': room['id'],
         'learner_id': userId,
         'role': 'learner',
         'joined_via': 'code',
