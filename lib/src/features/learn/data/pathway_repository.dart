@@ -1,3 +1,4 @@
+import '../domain/activity_submission_review_model.dart';
 import '../domain/learn_dashboard_data.dart';
 import '../domain/module_detail_model.dart';
 import '../domain/pathway_model.dart';
@@ -65,4 +66,11 @@ abstract class PathwayRepository {
     required String code,
     required String userId,
   });
+  Future<ActivitySubmissionReviewModel?> getSubmissionReview(
+    String submissionId, {
+    DashboardSubmission? cachedSubmission,
+  }) async =>
+      cachedSubmission != null
+          ? ActivitySubmissionReviewModel.fromCachedSubmission(cachedSubmission)
+          : null;
 }

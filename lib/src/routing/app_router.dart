@@ -7,7 +7,9 @@ import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/verify_otp_screen.dart';
 import '../features/dashboard/presentation/main_shell_screen.dart';
+import '../features/learn/domain/dashboard_submission.dart';
 import '../features/learn/presentation/activity_screen.dart';
+import '../features/learn/presentation/activity_submission_review_screen.dart';
 import '../features/learn/presentation/assessment_attempt_screen.dart';
 import '../features/learn/presentation/assessments_screen.dart';
 import '../features/learn/presentation/challenge_screen.dart';
@@ -92,6 +94,28 @@ final GoRouter appRouter = GoRouter(
       path: '/learn/activity',
       builder: (BuildContext context, GoRouterState state) =>
           const ActivityScreen(showBackButton: true),
+    ),
+    GoRoute(
+      path: '/activity/:id',
+      builder: (BuildContext context, GoRouterState state) {
+        final String submissionId = state.pathParameters['id'] ?? '';
+        final DashboardSubmission? sub = state.extra as DashboardSubmission?;
+        return ActivitySubmissionReviewScreen(
+          submissionId: submissionId,
+          initialSubmission: sub,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/learn/activity/:id',
+      builder: (BuildContext context, GoRouterState state) {
+        final String submissionId = state.pathParameters['id'] ?? '';
+        final DashboardSubmission? sub = state.extra as DashboardSubmission?;
+        return ActivitySubmissionReviewScreen(
+          submissionId: submissionId,
+          initialSubmission: sub,
+        );
+      },
     ),
     GoRoute(
       path: '/',

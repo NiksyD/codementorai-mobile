@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:codementorai_mobile/src/features/learn/data/pathway_repository.dart';
+import 'package:codementorai_mobile/src/features/learn/domain/activity_submission_review_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/learn_dashboard_data.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/module_detail_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/module_review_model.dart';
@@ -8,6 +9,8 @@ import 'package:codementorai_mobile/src/features/learn/domain/pathway_model.dart
 import 'package:codementorai_mobile/src/features/learn/domain/practice_exercise_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/submission_history_model.dart';
 import 'package:codementorai_mobile/src/features/learn/presentation/activity_screen.dart';
+import 'package:codementorai_mobile/src/features/learn/presentation/activity_submission_review_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class FakeActivityPathwayRepository implements PathwayRepository {
   FakeActivityPathwayRepository(this.submissions);
@@ -131,6 +134,15 @@ class FakeActivityPathwayRepository implements PathwayRepository {
     required String code,
     required String userId,
   }) async => const <String, dynamic>{};
+
+  @override
+  Future<ActivitySubmissionReviewModel?> getSubmissionReview(
+    String submissionId, {
+    DashboardSubmission? cachedSubmission,
+  }) async =>
+      cachedSubmission != null
+          ? ActivitySubmissionReviewModel.fromCachedSubmission(cachedSubmission)
+          : null;
 }
 
 void main() {
@@ -324,41 +336,58 @@ void main() {
       expect(find.text('Deadlock Detection in Java'), findsOneWidget);
     });
 
-    testWidgets('Tapping submission opens review sheet with code and verdict', (
-      WidgetTester tester,
-    ) async {
-      final FakeActivityPathwayRepository repository =
-          FakeActivityPathwayRepository(testSubmissions);
+    testWidgets(
+      'Tapping submission navigates to dedicated review screen',
+      (WidgetTester tester) async {
+        final FakeActivityPathwayRepository repository =
+            FakeActivityPathwayRepository(testSubmissions);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ActivityScreen(
-            pathwayRepository: repository,
+        final GoRouter router = GoRouter(
+          initialLocation: '/learn/activity',
+          routes: <RouteBase>[
+            GoRoute(
+              path: '/learn/activity',
+              builder: (BuildContext context, GoRouterState state) =>
+                  ActivityScreen(pathwayRepository: repository),
+            ),
+            GoRoute(
+              path: '/learn/activity/:id',
+              builder: (BuildContext context, GoRouterState state) {
+                final String id = state.pathParameters['id'] ?? '';
+                final DashboardSubmission? sub =
+                    state.extra as DashboardSubmission?;
+                return ActivitySubmissionReviewScreen(
+                  submissionId: id,
+                  initialSubmission: sub,
+                  pathwayRepository: repository,
+                );
+              },
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          MaterialApp.router(
+            routerConfig: router,
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Tap Two Sum card
-      await tester.tap(find.text('Two Sum in Python'));
-      await tester.pumpAndSettle();
+        // Tap Two Sum card
+        await tester.tap(find.text('Two Sum in Python'));
+        await tester.pumpAndSettle();
 
-      // Review modal / sheet is open
-      expect(find.text('SUBMITTED SOLUTION'), findsOneWidget);
-      expect(find.text('Copy Code'), findsOneWidget);
-      expect(find.text('MENTOR FEEDBACK & INSIGHTS'), findsOneWidget);
-      expect(
-        find.text('Excellent use of hash map for O(N) lookup.'),
-        findsOneWidget,
-      );
-      expect(find.text('Close Review'), findsOneWidget);
-
-      // Close the review sheet
-      await tester.tap(find.text('Close Review'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('SUBMITTED SOLUTION'), findsNothing);
-    });
+        // Dedicated review screen is mounted
+        expect(find.text('Verified Submission'), findsOneWidget);
+        expect(find.text('All Tests Passed'), findsOneWidget);
+        expect(find.text('AUTOMATED CODE FEEDBACK (ACF)'), findsOneWidget);
+        expect(find.text('Correctness'), findsOneWidget);
+        expect(find.text('Readability'), findsOneWidget);
+        expect(find.text('Maintainability'), findsOneWidget);
+        expect(find.text('Efficiency'), findsOneWidget);
+        expect(find.text('Back to Activity'), findsOneWidget);
+      },
+    );
 
     testWidgets('Shows empty state with Browse Modules when repository has no submissions', (
       WidgetTester tester,

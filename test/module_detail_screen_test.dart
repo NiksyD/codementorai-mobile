@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:codementorai_mobile/src/features/learn/data/pathway_repository.dart';
+import 'package:codementorai_mobile/src/features/learn/domain/activity_submission_review_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/learn_dashboard_data.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/module_detail_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/module_review_model.dart';
@@ -85,6 +86,15 @@ class FakeDetailPathwayRepository implements PathwayRepository {
 
   @override
   Future<Map<String, dynamic>> joinRoom({required String code, required String userId}) async => <String, dynamic>{'success': true};
+
+  @override
+  Future<ActivitySubmissionReviewModel?> getSubmissionReview(
+    String submissionId, {
+    DashboardSubmission? cachedSubmission,
+  }) async =>
+      cachedSubmission != null
+          ? ActivitySubmissionReviewModel.fromCachedSubmission(cachedSubmission)
+          : null;
 }
 
 void main() {

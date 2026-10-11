@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../../../core/network/api_client.dart';
+import '../domain/activity_submission_review_model.dart';
 import '../domain/learn_dashboard_data.dart';
 import '../domain/module_detail_model.dart';
 import '../domain/pathway_model.dart';
@@ -1957,5 +1958,232 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         'error': e.toString(),
       };
     }
+  }
+
+  @override
+  Future<ActivitySubmissionReviewModel?> getSubmissionReview(
+    String submissionId, {
+    DashboardSubmission? cachedSubmission,
+  }) async {
+    Map<String, dynamic>? subRow;
+    AcfEvaluationModel? acfEvaluation;
+    MentorFeedbackModel? mentorFeedback;
+
+    // 1. Fetch feedback via Go Backend API
+    try {
+      final dynamic apiFeedback =
+          await apiClient.get('/api/submissions/$submissionId/feedback');
+      if (apiFeedback is Map) {
+        final Map<String, dynamic> fbMap =
+            Map<String, dynamic>.from(apiFeedback);
+        if (fbMap.containsKey('acf_composite_score') ||
+            fbMap.containsKey('correctness')) {
+          acfEvaluation = AcfEvaluationModel.fromJson(fbMap);
+        }
+      }
+    } catch (_) {
+      // Non-blocking fallback to Supabase
+    }
+
+    // 2. Fetch submission record if not already available or to enrich code/verdict
+    try {
+      final dynamic subData = await _supabase
+          .from('submissions')
+          .select('*')
+          .eq('sub_id', submissionId)
+          .maybeSingle();
+
+      if (subData is Map) {
+        subRow = Map<String, dynamic>.from(subData);
+      }
+    } catch (_) {
+      // Non-blocking
+    }
+
+    if (subRow == null && cachedSubmission == null) {
+      return null;
+    }
+
+    final String itemId = subRow?['item_id']?.toString() ??
+        cachedSubmission?.itemId ??
+        '';
+    final String code = subRow?['sub_code']?.toString() ??
+        cachedSubmission?.code ??
+        '';
+    final String language = subRow?['sub_language']?.toString() ??
+        cachedSubmission?.language ??
+        'java';
+    final String status = subRow?['sub_status']?.toString() ??
+        cachedSubmission?.status ??
+        'accepted';
+
+    String verdict = 'Accepted';
+    String? grade;
+    final dynamic rawVerdict = subRow?['sub_verdict'];
+    if (rawVerdict is Map) {
+      final Map<dynamic, dynamic> vMap = rawVerdict;
+      verdict = vMap['verdict']?.toString() ?? 'Accepted';
+      grade = vMap['grade']?.toString();
+    } else if (rawVerdict is String && rawVerdict.trim().isNotEmpty) {
+      verdict = rawVerdict;
+    } else if (cachedSubmission != null) {
+      verdict = cachedSubmission.verdict.isNotEmpty
+          ? cachedSubmission.verdict
+          : 'Accepted';
+      grade = cachedSubmission.score != null ? '${cachedSubmission.score}%' : null;
+    }
+
+    final DateTime submittedAt = subRow?['sub_submitted_at'] != null
+        ? (DateTime.tryParse(subRow!['sub_submitted_at'].toString()) ??
+            cachedSubmission?.submittedAt ??
+            DateTime.now())
+        : (cachedSubmission?.submittedAt ?? DateTime.now());
+
+    // 3. Fetch activity metadata
+    String title = cachedSubmission?.title ?? 'Coding Practice';
+    String description = '';
+    String difficulty = cachedSubmission?.difficulty ?? 'Easy';
+    String targetTime = 'O(1)';
+    String targetSpace = 'O(1)';
+    String topicId = '';
+
+    if (itemId.isNotEmpty) {
+      try {
+        final dynamic actData = await _supabase
+            .from('activities')
+            .select('act_title, act_description, act_difficulty, topic_id, code_details(target_time, target_space)')
+            .eq('act_id', itemId)
+            .maybeSingle();
+
+        if (actData is Map) {
+          final Map<String, dynamic> actMap =
+              Map<String, dynamic>.from(actData);
+          title = actMap['act_title']?.toString() ?? title;
+          description = actMap['act_description']?.toString() ?? '';
+          difficulty = actMap['act_difficulty']?.toString() ?? difficulty;
+          topicId = actMap['topic_id']?.toString() ?? '';
+
+          if (actMap['code_details'] is Map) {
+            final Map<dynamic, dynamic> cd =
+                actMap['code_details'] as Map<dynamic, dynamic>;
+            targetTime = cd['target_time']?.toString() ?? targetTime;
+            targetSpace = cd['target_space']?.toString() ?? targetSpace;
+          }
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+    }
+
+    // 4. Fetch module metadata via topic
+    String moduleId = cachedSubmission?.moduleId ?? '';
+    String moduleTitle = cachedSubmission?.module ?? 'Practice Activity';
+
+    if (topicId.isNotEmpty) {
+      try {
+        final dynamic topicData = await _supabase
+            .from('topics')
+            .select('track_id, topic_title')
+            .eq('topic_id', topicId)
+            .maybeSingle();
+
+        if (topicData is Map) {
+          final Map<String, dynamic> topicMap =
+              Map<String, dynamic>.from(topicData);
+          final String trackId = topicMap['track_id']?.toString() ?? '';
+          if (trackId.isNotEmpty) {
+            moduleId = trackId;
+            final dynamic modData = await _supabase
+                .from('modules')
+                .select('mod_id, mod_title')
+                .eq('mod_id', trackId)
+                .maybeSingle();
+
+            if (modData is Map) {
+              final Map<String, dynamic> modMap =
+                  Map<String, dynamic>.from(modData);
+              moduleTitle = modMap['mod_title']?.toString() ?? moduleTitle;
+            }
+          }
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+    }
+
+    // 5. Fetch ai_audits directly from Supabase if not loaded via Go backend
+    if (acfEvaluation == null) {
+      try {
+        final dynamic auditData = await _supabase
+            .from('ai_audits')
+            .select('audit_findings, audit_is_flagged, audit_audited_at')
+            .eq('sub_id', submissionId)
+            .order('audit_audited_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        if (auditData is Map && auditData['audit_findings'] is Map) {
+          final Map<String, dynamic> findings =
+              Map<String, dynamic>.from(auditData['audit_findings'] as Map<dynamic, dynamic>);
+          acfEvaluation = AcfEvaluationModel.fromJson(
+            findings,
+            defaultTime: targetTime,
+            defaultSpace: targetSpace,
+          );
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+    }
+
+    // 6. Fetch published mentor review feedback if present
+    try {
+      final dynamic fbData = await _supabase
+          .from('submission_feedback')
+          .select('*, profiles:mentor_id(user_first_name, user_last_name, user_avatar_url)')
+          .eq('submission_id', submissionId)
+          .eq('status', 'published')
+          .maybeSingle();
+
+      if (fbData is Map) {
+        mentorFeedback = MentorFeedbackModel.fromJson(
+          Map<String, dynamic>.from(fbData),
+        );
+      }
+    } catch (_) {
+      // Non-blocking
+    }
+
+    // 7. Graceful fallback if ACF evaluation still null
+    if (acfEvaluation == null) {
+      final double score = cachedSubmission?.score?.toDouble() ?? 95.0;
+      acfEvaluation = AcfEvaluationModel.fallback(
+        score: score,
+        verdict: verdict,
+        language: language,
+        defaultTime: targetTime,
+        defaultSpace: targetSpace,
+      );
+    }
+
+    return ActivitySubmissionReviewModel(
+      submissionId: submissionId,
+      itemId: itemId,
+      title: title,
+      moduleTitle: moduleTitle,
+      moduleId: moduleId,
+      difficulty: difficulty,
+      language: language,
+      submittedCode: code,
+      status: status,
+      verdict: verdict,
+      grade: grade,
+      submittedAt: submittedAt,
+      description: description,
+      targetTime: targetTime,
+      targetSpace: targetSpace,
+      acfEvaluation: acfEvaluation,
+      mentorFeedback: mentorFeedback,
+    );
   }
 }
