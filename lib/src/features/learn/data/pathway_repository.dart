@@ -18,7 +18,7 @@ abstract class PathwayRepository {
     String exerciseId,
     String userId,
   );
-  Future<bool> submitPracticeExercise(
+  Future<String?> submitPracticeExercise(
     String userId,
     String moduleId,
     String exerciseId,
@@ -30,7 +30,7 @@ abstract class PathwayRepository {
     String challengeId,
     String userId,
   );
-  Future<bool> submitChallengeExercise(
+  Future<String?> submitChallengeExercise(
     String userId,
     String moduleId,
     String challengeId,

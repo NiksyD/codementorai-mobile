@@ -677,14 +677,32 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     _buildStatusBadge(sub.status),
                     const SizedBox(width: 8.0),
                     if (sub.score != null)
-                      Text(
-                        '${sub.score}%',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: sub.score! >= 90
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFF59E0B),
+                      RichText(
+                        text: TextSpan(
+                          children: <TextSpan>[
+                            TextSpan(
+                              text: '${sub.score}',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 13.0,
+                                fontWeight: FontWeight.w800,
+                                color: sub.score! >= 85
+                                    ? const Color(0xFF10B981)
+                                    : sub.score! >= 70
+                                    ? const Color(0xFF2DD4BF)
+                                    : sub.score! >= 50
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFFF43F5E),
+                              ),
+                            ),
+                            TextSpan(
+                              text: ' / 100',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: textSecondary.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     else

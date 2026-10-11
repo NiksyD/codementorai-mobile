@@ -50,4 +50,30 @@ class LearnDashboardData {
   final List<DashboardSubmission> submissions;
 
   int get totalSolved => easySolved + mediumSolved + hardSolved;
+
+  LearnDashboardData copyWith({
+    PathwayModel? activePathway,
+    List<PathwayModel>? enrolledPathways,
+    List<PathwayModel>? allPathways,
+    int? currentStreak,
+    int? totalActiveDays,
+    int? easySolved,
+    int? mediumSolved,
+    int? hardSolved,
+    List<LearnChallengeModel>? recommendedChallenges,
+    List<DashboardSubmission>? submissions,
+  }) {
+    return LearnDashboardData(
+      activePathway: activePathway ?? this.activePathway,
+      enrolledPathways: enrolledPathways ?? this.enrolledPathways,
+      allPathways: allPathways ?? this.allPathways,
+      currentStreak: currentStreak ?? this.currentStreak,
+      totalActiveDays: totalActiveDays ?? this.totalActiveDays,
+      easySolved: easySolved ?? this.easySolved,
+      mediumSolved: mediumSolved ?? this.mediumSolved,
+      hardSolved: hardSolved ?? this.hardSolved,
+      recommendedChallenges: recommendedChallenges ?? this.recommendedChallenges,
+      submissions: submissions ?? this.submissions,
+    );
+  }
 }

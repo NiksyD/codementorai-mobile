@@ -70,14 +70,14 @@ class _ActivitySubmissionReviewScreenState
     }
   }
 
-  void _handleCopyCode(String code) {
+  void _handleCopyCode(String code, {required String label}) {
     if (code.trim().isEmpty) return;
     Clipboard.setData(ClipboardData(text: code));
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Code copied to clipboard',
+          '$label copied to clipboard',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12.0,
             fontWeight: FontWeight.w600,
@@ -224,18 +224,7 @@ class _ActivitySubmissionReviewScreenState
             color: textPrimary,
           ),
         ),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'Copy Code',
-            icon: Icon(
-              Icons.copy_rounded,
-              size: 18.0,
-              color: textSecondary,
-            ),
-            onPressed: () => _handleCopyCode(currentCode),
-          ),
-          const SizedBox(width: 6.0),
-        ],
+
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(
@@ -1237,6 +1226,51 @@ class _ActivitySubmissionReviewScreenState
                     ),
                   ),
                 ],
+                const Spacer(),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _handleCopyCode(
+                      currentCode,
+                      label: _activeCodeTab == 'refinement'
+                          ? 'Mentor refinement'
+                          : 'Submission code',
+                    ),
+                    borderRadius: BorderRadius.circular(6.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF090D16),
+                        borderRadius: BorderRadius.circular(6.0),
+                        border: Border.all(
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(
+                            Icons.copy_rounded,
+                            size: 12.0,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          const SizedBox(width: 4.5),
+                          Text(
+                            'Copy',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

@@ -70,14 +70,14 @@ class MockReviewPathwayRepository implements PathwayRepository {
       null;
 
   @override
-  Future<bool> submitPracticeExercise(
+  Future<String?> submitPracticeExercise(
     String userId,
     String moduleId,
     String exerciseId,
     String code,
     String language,
   ) async =>
-      true;
+      'test-submission-id';
 
   @override
   Future<PracticeExerciseModel?> getChallengeExercise(
@@ -88,14 +88,14 @@ class MockReviewPathwayRepository implements PathwayRepository {
       null;
 
   @override
-  Future<bool> submitChallengeExercise(
+  Future<String?> submitChallengeExercise(
     String userId,
     String moduleId,
     String challengeId,
     String code,
     String language,
   ) async =>
-      true;
+      'test-submission-id';
 
   @override
   Future<List<SubmissionHistoryModel>> getExerciseSubmissions({

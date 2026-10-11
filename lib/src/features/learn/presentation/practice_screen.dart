@@ -46,7 +46,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
   List<SubmissionHistoryModel> _submissions = <SubmissionHistoryModel>[];
   bool _isLoadingSubmissions = false;
 
-  final TextEditingController _codeController = TextEditingController();
+  final SyntaxHighlightingTextEditingController _codeController =
+      SyntaxHighlightingTextEditingController(language: 'java');
   final Map<String, String> _userCodeByLanguage = <String, String>{};
   String _initialCodeForCurrentLang = '';
 
@@ -99,6 +100,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
         if (ex != null) {
           final String initialLang = ex.languages.isNotEmpty ? ex.languages.first : 'java';
           _selectedLanguage = initialLang;
+          _codeController.language = initialLang;
           final String starter = ex.starterCodes[initialLang] ?? '';
           _codeController.text = starter;
           _initialCodeForCurrentLang = starter;
@@ -111,6 +113,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   void _restoreHistoricalCode(String code, String language) {
     setState(() {
       _selectedLanguage = language.toLowerCase();
+      _codeController.language = _selectedLanguage;
       _codeController.text = code;
       _userCodeByLanguage[_selectedLanguage] = code;
       _activeTab = 'editor';
@@ -140,6 +143,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
 
     setState(() {
       _selectedLanguage = newLang;
+      _codeController.language = newLang;
       _codeController.text = nextCode;
       _initialCodeForCurrentLang = _exercise?.starterCodes[newLang] ?? '';
     });
@@ -235,20 +239,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
     HapticFeedback.lightImpact();
     setState(() => _isExecuting = true);
 
-    final TestCaseModel? primaryCase = (_exercise?.testCases.isNotEmpty == true)
-        ? _exercise!.testCases.first
-        : null;
-
-    final String stdin = primaryCase?.input ?? '';
-    final String expectedOutput = primaryCase?.expectedOutput ?? '42';
-    final int totalCases = _exercise?.testCases.length ?? 1;
+    final List<TestCaseModel> testCases =
+        _exercise?.testCases ?? const <TestCaseModel>[];
 
     final ExecutionResultModel result = await CodeExecutionService.execute(
       code: _codeController.text,
       language: _selectedLanguage,
-      stdin: stdin,
-      expectedOutput: expectedOutput,
-      totalTestCases: totalCases,
+      testCases: testCases,
       apiBaseUrl: dotenv.env['API_BASE_URL'],
     );
 
@@ -260,8 +257,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
       PracticeConsoleSheet.show(
         context,
         result: result,
-        testCases: _exercise?.testCases ?? const <TestCaseModel>[],
+        testCases: testCases,
         onRunCode: _handleRunCode,
+        onSubmitSolution: _handleSubmitSolution,
       );
     }
   }
@@ -271,20 +269,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
     HapticFeedback.mediumImpact();
     setState(() => _isExecuting = true);
 
-    final TestCaseModel? primaryCase = (_exercise?.testCases.isNotEmpty == true)
-        ? _exercise!.testCases.first
-        : null;
-
-    final String stdin = primaryCase?.input ?? '';
-    final String expectedOutput = primaryCase?.expectedOutput ?? '42';
-    final int totalCases = _exercise?.testCases.length ?? 1;
+    final List<TestCaseModel> testCases =
+        _exercise?.testCases ?? const <TestCaseModel>[];
 
     final ExecutionResultModel result = await CodeExecutionService.execute(
       code: _codeController.text,
       language: _selectedLanguage,
-      stdin: stdin,
-      expectedOutput: expectedOutput,
-      totalTestCases: totalCases,
+      testCases: testCases,
       apiBaseUrl: dotenv.env['API_BASE_URL'],
     );
 
@@ -298,8 +289,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
       PracticeConsoleSheet.show(
         context,
         result: result,
-        testCases: _exercise?.testCases ?? const <TestCaseModel>[],
+        testCases: testCases,
         onRunCode: _handleRunCode,
+        onSubmitSolution: _handleSubmitSolution,
       );
       return;
     }
@@ -307,7 +299,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     final String userId = user?.id ?? '';
 
-    await widget.pathwayRepository.submitPracticeExercise(
+    final String? createdSubId =
+        await widget.pathwayRepository.submitPracticeExercise(
       userId,
       widget.moduleId,
       widget.exerciseId,
@@ -322,6 +315,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
       PracticeCompletionModal.show(
         context,
         exerciseTitle: _exercise?.title ?? 'Practice Exercise',
+        onViewAiReview: createdSubId != null && createdSubId.isNotEmpty && createdSubId != 'success'
+            ? () {
+                Navigator.of(context).pop(); // Dismiss sheet
+                context.push('/learn/activity/$createdSubId');
+              }
+            : null,
         onBackToModule: () {
           Navigator.of(context).pop(); // Dismiss sheet
           context.pop(); // Return to module detail
@@ -478,6 +477,30 @@ class _PracticeScreenState extends State<PracticeScreen> {
               }).toList(),
             ),
 
+          // Copy code button (1:1 Web parity)
+          IconButton(
+            icon: const Icon(Icons.copy_rounded, size: 20.0),
+            color: textSecondary,
+            tooltip: 'Copy solution code',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _codeController.text));
+              HapticFeedback.lightImpact();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: const <Widget>[
+                      Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18.0),
+                      SizedBox(width: 8.0),
+                      Text('Code copied to clipboard'),
+                    ],
+                  ),
+                  duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+
           // Reset code button
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -604,6 +627,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                             result: _lastResult,
                             testCases: ex.testCases,
                             onRunCode: _handleRunCode,
+                            onSubmitSolution: _handleSubmitSolution,
                           );
                         },
                         style: OutlinedButton.styleFrom(
@@ -920,12 +944,26 @@ class _PracticeScreenState extends State<PracticeScreen> {
     final TestCaseModel tc = ex.testCases[safeIdx];
     final bool hasRun = _lastResult != null;
 
+    final TestCaseResultModel? activeCr = hasRun && _lastResult!.caseResults.length > safeIdx
+        ? _lastResult!.caseResults[safeIdx]
+        : null;
+
+    final bool currentCasePassed = activeCr != null
+        ? activeCr.passed
+        : (hasRun ? _lastResult!.isSuccess : false);
+
+    final String actualOutputText = activeCr != null
+        ? activeCr.actual
+        : (hasRun
+            ? (_lastResult!.stdout.isNotEmpty ? _lastResult!.stdout.join('\n') : (_lastResult!.isSuccess ? tc.expectedOutput : 'No stdout recorded'))
+            : '');
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Header info
+          // Header info & status badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
@@ -942,17 +980,22 @@ class _PracticeScreenState extends State<PracticeScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
                   decoration: BoxDecoration(
-                    color: (_lastResult!.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error).withValues(alpha: 0.15),
+                    color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6.0),
+                    border: Border.all(
+                      color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     _lastResult!.isSuccess
                         ? 'Passed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'
-                        : 'Failed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})',
+                        : (_lastResult!.isCompileError
+                            ? 'Compilation Error'
+                            : 'Failed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'),
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 11.0,
                       fontWeight: FontWeight.w700,
-                      color: _lastResult!.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
+                      color: _lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error,
                     ),
                   ),
                 ),
@@ -960,30 +1003,94 @@ class _PracticeScreenState extends State<PracticeScreen> {
           ),
           const SizedBox(height: 12.0),
 
-          // Case Selector Chips
+          // Submit prompt if all passed
+          if (hasRun && _lastResult!.isSuccess) ...<Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+              margin: const EdgeInsets.only(bottom: 14.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10.0),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18.0),
+                  const SizedBox(width: 8.0),
+                  Expanded(
+                    child: Text(
+                      'All tests passed! Ready to submit solution.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF10B981),
+                      ),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _handleSubmitSolution,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+                    ),
+                    child: const Text('Submit Solution →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Case Selector Chips with status dots
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: List<Widget>.generate(ex.testCases.length, (int idx) {
                 final bool isSelected = safeIdx == idx;
+                final TestCaseResultModel? cr = hasRun && _lastResult!.caseResults.length > idx
+                    ? _lastResult!.caseResults[idx]
+                    : null;
+                final bool? thisPassed = cr?.passed ?? (hasRun ? _lastResult!.isSuccess : null);
+
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: ChoiceChip(
+                    showCheckmark: false,
+                    avatar: hasRun && thisPassed != null
+                        ? Container(
+                            width: 8.0,
+                            height: 8.0,
+                            margin: const EdgeInsets.only(left: 4.0),
+                            decoration: BoxDecoration(
+                              color: thisPassed ? const Color(0xFF10B981) : AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                          )
+                        : null,
                     label: Text('Case ${idx + 1}'),
                     selected: isSelected,
                     onSelected: (bool val) {
                       if (val) setState(() => _selectedTestCaseIdx = idx);
                     },
                     labelStyle: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.0,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected ? Colors.white : textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      color: isSelected
+                          ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                          : textSecondary,
                     ),
-                    selectedColor: AppColors.primary,
+                    selectedColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                     backgroundColor: cardBg,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
-                      side: BorderSide(color: borderColor),
+                      side: BorderSide(
+                        color: isSelected
+                            ? (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1))
+                            : borderColor,
+                        width: isSelected ? 1.5 : 1.0,
+                      ),
                     ),
                   ),
                 );
@@ -1042,7 +1149,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
               tc.expectedOutput,
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 12.0,
-                color: const Color(0xFF3ECF8E),
+                color: const Color(0xFF10B981),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1064,21 +1171,63 @@ class _PracticeScreenState extends State<PracticeScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12.0),
               decoration: BoxDecoration(
-                color: cardBg,
+                color: currentCasePassed
+                    ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                    : AppColors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10.0),
-                border: Border.all(color: borderColor),
+                border: Border.all(
+                  color: currentCasePassed
+                      ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                      : AppColors.error.withValues(alpha: 0.3),
+                ),
               ),
               child: SelectableText(
-                _lastResult!.stdout.isNotEmpty
-                    ? _lastResult!.stdout.join('\n')
-                    : (_lastResult!.isSuccess ? tc.expectedOutput : 'No stdout recorded'),
+                actualOutputText,
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: 12.0,
-                  color: _lastResult!.isSuccess ? const Color(0xFF3ECF8E) : AppColors.error,
+                  color: currentCasePassed ? const Color(0xFF10B981) : AppColors.error,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
+
+            if (!currentCasePassed) ...<Widget>[
+              const SizedBox(height: 14.0),
+              Container(
+                padding: const EdgeInsets.all(12.0),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10.0),
+                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Icon(Icons.lightbulb_outline_rounded, color: Color(0xFF10B981), size: 18.0),
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'Socratic AI Mentor Hint',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12.0, fontWeight: FontWeight.w800, color: const Color(0xFF10B981)),
+                          ),
+                          const SizedBox(height: 3.0),
+                          Text(
+                            activeCr?.error ??
+                                (_lastResult!.socraticHint != null && _lastResult!.socraticHint!.isNotEmpty
+                                    ? _lastResult!.socraticHint!
+                                    : 'Your program did not produce the expected output. Review constraints and assertions.'),
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ] else ...<Widget>[
             Container(
               width: double.infinity,
@@ -1098,7 +1247,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                   const SizedBox(width: 10.0),
                   Expanded(
                     child: Text(
-                      'Ready to validate. Tap "Run Code" below to run your code against this case.',
+                      'Ready to validate. Tap "Run Code" below to test your code against this case.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12.0,
                         fontWeight: FontWeight.w500,

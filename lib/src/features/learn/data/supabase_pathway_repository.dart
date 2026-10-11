@@ -254,14 +254,76 @@ class SupabasePathwayRepository implements PathwayRepository {
     int hardSolved = 0;
     final List<DashboardSubmission> dashboardSubmissions = <DashboardSubmission>[];
     try {
-      final List<Map<String, dynamic>> subRows = await _supabase
-          .from('submissions')
-          .select('sub_id, item_id, sub_language, sub_code, sub_status, sub_verdict, sub_submitted_at')
-          .eq('user_id', userId)
-          .order('sub_submitted_at', ascending: false)
-          .limit(100);
+      List<Map<String, dynamic>> subRows = <Map<String, dynamic>>[];
+      try {
+        subRows = await _supabase
+            .from('submissions')
+            .select(
+              'sub_id, item_id, sub_language, sub_code, sub_status, sub_verdict, sub_submitted_at, ai_audits(audit_findings)',
+            )
+            .eq('user_id', userId)
+            .order('sub_submitted_at', ascending: false)
+            .limit(100);
+      } catch (_) {
+        // Fallback without embedded relation if join fails
+        subRows = await _supabase
+            .from('submissions')
+            .select(
+              'sub_id, item_id, sub_language, sub_code, sub_status, sub_verdict, sub_submitted_at',
+            )
+            .eq('user_id', userId)
+            .order('sub_submitted_at', ascending: false)
+            .limit(100);
+      }
+
+      final Map<String, dynamic> auditScoresBySubId = <String, dynamic>{};
+      final List<String> subIdsNeedingAudit = <String>[];
+      for (final Map<String, dynamic> s in subRows) {
+        final String sId = s['sub_id']?.toString() ?? '';
+        final dynamic audits = s['ai_audits'];
+        dynamic score;
+        if (audits is List && audits.isNotEmpty && audits.first is Map) {
+          final dynamic findings = (audits.first as Map)['audit_findings'];
+          if (findings is Map) {
+            score = findings['acf_composite_score'] ?? findings['score'];
+          }
+        } else if (audits is Map && audits['audit_findings'] is Map) {
+          final dynamic findings = audits['audit_findings'];
+          if (findings is Map) {
+            score = findings['acf_composite_score'] ?? findings['score'];
+          }
+        }
+        if (score != null) {
+          auditScoresBySubId[sId] = score;
+        } else if (sId.isNotEmpty) {
+          subIdsNeedingAudit.add(sId);
+        }
+      }
+
+      if (subIdsNeedingAudit.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> audits = await _supabase
+              .from('ai_audits')
+              .select('sub_id, audit_findings')
+              .inFilter('sub_id', subIdsNeedingAudit);
+          for (final Map<String, dynamic> a in audits) {
+            final String aSubId = a['sub_id']?.toString() ?? '';
+            final dynamic findings = a['audit_findings'];
+            if (findings is Map) {
+              final dynamic sc =
+                  findings['acf_composite_score'] ?? findings['score'];
+              if (sc != null) {
+                auditScoresBySubId[aSubId] = sc;
+              }
+            }
+          }
+        } catch (_) {
+          // Non-blocking
+        }
+      }
 
       for (final Map<String, dynamic> s in subRows) {
+        final String sId = s['sub_id']?.toString() ?? '';
         final String status = s['sub_status'] as String? ?? '';
         final String normStatus = DashboardSubmission.normalizeStatus(status);
         if (normStatus == 'Passed') {
@@ -280,6 +342,7 @@ class SupabasePathwayRepository implements PathwayRepository {
             moduleId: trackId,
             moduleTitle: modTitle,
             difficulty: diff,
+            acfScore: auditScoresBySubId[sId],
           ),
         );
       }
@@ -993,7 +1056,7 @@ Your program must compile without syntax errors and pass the validation test cas
   }
 
   @override
-  Future<bool> submitPracticeExercise(
+  Future<String?> submitPracticeExercise(
     String userId,
     String moduleId,
     String exerciseId,
@@ -1001,22 +1064,41 @@ Your program must compile without syntax errors and pass the validation test cas
     String language,
   ) async {
     try {
-      // 1. Insert into submissions table (using live schema: item_id, sub_status, sub_verdict jsonb)
+      String? createdSubId;
+
+      // 1. Insert into submissions table and retrieve generated sub_id
       if (userId.isNotEmpty) {
         try {
-          await _supabase.from('submissions').insert(<String, dynamic>{
-            'user_id': userId,
-            'item_id': exerciseId,
-            'sub_code': code,
-            'sub_language': language.toLowerCase(),
-            'sub_status': 'accepted',
-            'sub_verdict': <String, dynamic>{
-              'verdict': 'Accepted',
-              'grade': 'A+',
-            },
-            'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
-          });
+          final dynamic inserted = await _supabase
+              .from('submissions')
+              .insert(<String, dynamic>{
+                'user_id': userId,
+                'item_id': exerciseId,
+                'sub_code': code,
+                'sub_language': language.toLowerCase(),
+                'sub_status': 'accepted',
+                'sub_verdict': <String, dynamic>{
+                  'verdict': 'Accepted',
+                  'grade': 'A+',
+                },
+                'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .select('sub_id')
+              .maybeSingle();
+
+          if (inserted is Map && inserted['sub_id'] != null) {
+            createdSubId = inserted['sub_id'].toString();
+          }
         } catch (_) {}
+      }
+
+      // 2. Trigger asynchronous on-demand AI ACF evaluation via Go Backend
+      if (createdSubId != null && createdSubId.isNotEmpty) {
+        // Fire-and-forget: Go backend runs EvaluateSubmission (Gemini Flash CoT)
+        // and persists findings to ai_audits table and Redis.
+        apiClient
+            .get('/api/submissions/$createdSubId/feedback')
+            .catchError((dynamic _) => null);
       }
 
       // 2. Compute accurate completion based on total practice activities (1:1 with Web)
@@ -1132,9 +1214,9 @@ Your program must compile without syntax errors and pass the validation test cas
       // Signal all cached catalog/dashboard screens to reload fresh progress
       catalogRefreshNotifier.value++;
 
-      return true;
+      return createdSubId ?? 'success';
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
@@ -1388,7 +1470,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
   }
 
   @override
-  Future<bool> submitChallengeExercise(
+  Future<String?> submitChallengeExercise(
     String userId,
     String moduleId,
     String challengeId,
@@ -1396,32 +1478,49 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
     String language,
   ) async {
     try {
+      String? createdSubId;
+
       // 1. Insert into submissions table (using live schema: item_id, sub_status, sub_verdict jsonb)
       if (userId.isNotEmpty) {
         try {
-          await _supabase.from('submissions').insert(<String, dynamic>{
-            'user_id': userId,
-            'item_id': challengeId,
-            'sub_code': code,
-            'sub_language': language.toLowerCase(),
-            'sub_status': 'accepted',
-            'sub_verdict': <String, dynamic>{
-              'verdict': 'Accepted',
-              'grade': 'A+',
-            },
-            'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
-          });
+          final dynamic inserted = await _supabase
+              .from('submissions')
+              .insert(<String, dynamic>{
+                'user_id': userId,
+                'item_id': challengeId,
+                'sub_code': code,
+                'sub_language': language.toLowerCase(),
+                'sub_status': 'accepted',
+                'sub_verdict': <String, dynamic>{
+                  'verdict': 'Accepted',
+                  'grade': 'A+',
+                },
+                'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .select('sub_id')
+              .maybeSingle();
+
+          if (inserted is Map && inserted['sub_id'] != null) {
+            createdSubId = inserted['sub_id'].toString();
+          }
         } catch (_) {}
       }
 
-      // 2. Invalidate cache so module detail recomputes immediately
+      // 2. Trigger asynchronous on-demand AI ACF evaluation via Go Backend
+      if (createdSubId != null && createdSubId.isNotEmpty) {
+        apiClient
+            .get('/api/submissions/$createdSubId/feedback')
+            .catchError((dynamic _) => null);
+      }
+
+      // 3. Invalidate cache so module detail recomputes immediately
       if (moduleId.isNotEmpty) {
         _moduleDetailsCache.remove(moduleId);
       }
 
-      return true;
+      return createdSubId ?? 'success';
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
@@ -1451,14 +1550,47 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
 
   @override
   Future<List<DashboardSubmission>> getUserSubmissions(String userId) async {
-    if (cachedData != null && cachedData!.submissions.isNotEmpty) {
-      return cachedData!.submissions;
+    // 1. Query Go Backend API first (joined with activities, modules, and ai_audits acf_score)
+    try {
+      final dynamic apiResult = await apiClient.get('/api/submissions');
+      final dynamic items =
+          apiResult is Map ? (apiResult['data'] ?? apiResult) : apiResult;
+      if (items is List && items.isNotEmpty) {
+        final List<DashboardSubmission> list = <DashboardSubmission>[];
+        for (final dynamic item in items) {
+          if (item is Map) {
+            final Map<String, dynamic> row = Map<String, dynamic>.from(item);
+            list.add(
+              DashboardSubmission.fromDatabase(
+                row: row,
+                title: row['challenge_title']?.toString(),
+                moduleId: row['module_id']?.toString(),
+                moduleTitle: row['module_title']?.toString(),
+                difficulty: row['challenge_difficulty']?.toString(),
+                acfScore: row['acf_score'],
+              ),
+            );
+          }
+        }
+        if (list.isNotEmpty) {
+          if (cachedData != null) {
+            cachedData = cachedData!.copyWith(submissions: list);
+          }
+          return list;
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        'apiClient.get /api/submissions failed, using Supabase fallback: $e',
+      );
     }
+
+    // 2. Direct Supabase query fallback (with joined ai_audits)
     try {
       final LearnDashboardData dashData = await getLearnDashboardData(userId);
       return dashData.submissions;
     } catch (_) {
-      return const <DashboardSubmission>[];
+      return cachedData?.submissions ?? const <DashboardSubmission>[];
     }
   }
 

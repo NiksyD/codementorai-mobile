@@ -61,13 +61,13 @@ class FakeDetailPathwayRepository implements PathwayRepository {
   Future<PracticeExerciseModel?> getPracticeExercise(String moduleId, String exerciseId, String userId) async => null;
 
   @override
-  Future<bool> submitPracticeExercise(String userId, String moduleId, String exerciseId, String code, String language) async => true;
+  Future<String?> submitPracticeExercise(String userId, String moduleId, String exerciseId, String code, String language) async => 'sub-practice-123';
 
   @override
   Future<PracticeExerciseModel?> getChallengeExercise(String moduleId, String challengeId, String userId) async => null;
 
   @override
-  Future<bool> submitChallengeExercise(String userId, String moduleId, String challengeId, String code, String language) async => true;
+  Future<String?> submitChallengeExercise(String userId, String moduleId, String challengeId, String code, String language) async => 'sub-challenge-123';
 
   @override
   Future<List<SubmissionHistoryModel>> getExerciseSubmissions({required String userId, required String moduleId, required String exerciseId}) async => <SubmissionHistoryModel>[];

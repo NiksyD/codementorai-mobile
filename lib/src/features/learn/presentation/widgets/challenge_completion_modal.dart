@@ -10,6 +10,7 @@ class ChallengeCompletionModal extends StatelessWidget {
     required this.targetTime,
     required this.targetSpace,
     required this.onBackToModule,
+    this.onViewAiReview,
     this.onRateModule,
   });
 
@@ -17,6 +18,7 @@ class ChallengeCompletionModal extends StatelessWidget {
   final String targetTime;
   final String targetSpace;
   final VoidCallback onBackToModule;
+  final VoidCallback? onViewAiReview;
   final VoidCallback? onRateModule;
 
   static Future<void> show(
@@ -25,6 +27,7 @@ class ChallengeCompletionModal extends StatelessWidget {
     required String targetTime,
     required String targetSpace,
     required VoidCallback onBackToModule,
+    VoidCallback? onViewAiReview,
     VoidCallback? onRateModule,
   }) {
     HapticFeedback.heavyImpact();
@@ -38,6 +41,7 @@ class ChallengeCompletionModal extends StatelessWidget {
         targetTime: targetTime,
         targetSpace: targetSpace,
         onBackToModule: onBackToModule,
+        onViewAiReview: onViewAiReview,
         onRateModule: onRateModule,
       ),
     );
@@ -214,29 +218,77 @@ class ChallengeCompletionModal extends StatelessWidget {
             ),
             const SizedBox(height: 22.0),
 
-            // Return button
-            SizedBox(
-              width: double.infinity,
-              height: 48.0,
-              child: ElevatedButton(
-                onPressed: onBackToModule,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14.0),
+            // Action buttons
+            if (onViewAiReview != null) ...<Widget>[
+              SizedBox(
+                width: double.infinity,
+                height: 48.0,
+                child: ElevatedButton.icon(
+                  onPressed: onViewAiReview,
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 18.0),
+                  label: Text(
+                    'View AI Review',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'Back to Module',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.0),
+                    ),
+                    elevation: 0,
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 10.0),
+              SizedBox(
+                width: double.infinity,
+                height: 44.0,
+                child: TextButton(
+                  onPressed: onBackToModule,
+                  style: TextButton.styleFrom(
+                    foregroundColor: textSecondary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                  ),
+                  child: Text(
+                    'Back to Module',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...<Widget>[
+              // Return button
+              SizedBox(
+                width: double.infinity,
+                height: 48.0,
+                child: ElevatedButton(
+                  onPressed: onBackToModule,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.0),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Back to Module',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
 
             if (onRateModule != null) ...<Widget>[
               const SizedBox(height: 10.0),

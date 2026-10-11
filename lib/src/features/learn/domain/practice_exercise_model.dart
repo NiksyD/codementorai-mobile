@@ -93,6 +93,26 @@ class PracticeExerciseModel {
   }
 }
 
+class TestCaseResultModel {
+  const TestCaseResultModel({
+    required this.index,
+    required this.input,
+    required this.expected,
+    required this.actual,
+    required this.passed,
+    this.runtime,
+    this.error,
+  });
+
+  final int index;
+  final String input;
+  final String expected;
+  final String actual;
+  final bool passed;
+  final String? runtime;
+  final String? error;
+}
+
 class ExecutionResultModel {
   const ExecutionResultModel({
     required this.isSuccess,
@@ -104,6 +124,10 @@ class ExecutionResultModel {
     this.passedTestCases = 0,
     this.totalTestCases = 0,
     this.stdout = const <String>[],
+    this.caseResults = const <TestCaseResultModel>[],
+    this.runtime,
+    this.isCompileError = false,
+    this.isRuntimeError = false,
   });
 
   final bool isSuccess;
@@ -115,4 +139,8 @@ class ExecutionResultModel {
   final int passedTestCases;
   final int totalTestCases;
   final List<String> stdout;
+  final List<TestCaseResultModel> caseResults;
+  final String? runtime;
+  final bool isCompileError;
+  final bool isRuntimeError;
 }

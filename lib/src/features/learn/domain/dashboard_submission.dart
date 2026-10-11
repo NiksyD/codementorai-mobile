@@ -75,26 +75,128 @@ class DashboardSubmission {
     return streak;
   }
 
-  static int? extractScore(dynamic verdict) {
+  DashboardSubmission copyWith({
+    String? id,
+    String? itemId,
+    String? moduleId,
+    String? title,
+    String? module,
+    String? difficulty,
+    String? language,
+    String? status,
+    int? score,
+    DateTime? submittedAt,
+    String? rawDate,
+    String? code,
+    String? verdict,
+    List<String>? feedbackTips,
+  }) {
+    return DashboardSubmission(
+      id: id ?? this.id,
+      itemId: itemId ?? this.itemId,
+      moduleId: moduleId ?? this.moduleId,
+      title: title ?? this.title,
+      module: module ?? this.module,
+      difficulty: difficulty ?? this.difficulty,
+      language: language ?? this.language,
+      status: status ?? this.status,
+      score: score ?? this.score,
+      submittedAt: submittedAt ?? this.submittedAt,
+      rawDate: rawDate ?? this.rawDate,
+      code: code ?? this.code,
+      verdict: verdict ?? this.verdict,
+      feedbackTips: feedbackTips ?? this.feedbackTips,
+    );
+  }
+
+  static int? _letterGradeToScore(String grade) {
+    switch (grade.trim().toUpperCase()) {
+      case 'A+':
+        return 98;
+      case 'A':
+        return 95;
+      case 'A-':
+        return 91;
+      case 'B+':
+        return 88;
+      case 'B':
+        return 85;
+      case 'B-':
+        return 81;
+      case 'C+':
+        return 78;
+      case 'C':
+        return 75;
+      case 'D':
+        return 65;
+      case 'F':
+        return 50;
+      default:
+        return null;
+    }
+  }
+
+  static int? extractScore(dynamic verdict, [dynamic acfScore]) {
+    if (acfScore != null && acfScore.toString().trim().isNotEmpty) {
+      if (acfScore is int) return acfScore;
+      if (acfScore is double) return acfScore.round();
+      if (acfScore is num) return acfScore.toInt();
+      if (acfScore is String) {
+        final double? parsed = double.tryParse(acfScore.trim());
+        if (parsed != null) return parsed.round();
+      }
+    }
     if (verdict == null) return null;
     if (verdict is int) return verdict;
     if (verdict is double) return verdict.round();
+    if (verdict is num) return verdict.toInt();
     if (verdict is Map) {
+      final dynamic acf = verdict['acf_composite_score'] ?? verdict['composite_score'];
+      if (acf is int) return acf;
+      if (acf is double) return acf.round();
+      if (acf is num) return acf.toInt();
+      if (acf is String) {
+        final double? parsed = double.tryParse(acf.trim());
+        if (parsed != null) return parsed.round();
+      }
       final dynamic s = verdict['score'] ?? verdict['grade'];
       if (s is int) return s;
       if (s is double) return s.round();
-      if (s is String) return int.tryParse(s);
+      if (s is num) return s.toInt();
+      if (s is String) {
+        final double? parsed = double.tryParse(s.trim());
+        if (parsed != null) return parsed.round();
+        final int? fromGrade = _letterGradeToScore(s);
+        if (fromGrade != null) return fromGrade;
+      }
     } else if (verdict is String && verdict.trim().isNotEmpty) {
       try {
         final dynamic decoded = jsonDecode(verdict);
         if (decoded is Map) {
+          final dynamic acf = decoded['acf_composite_score'] ?? decoded['composite_score'];
+          if (acf is int) return acf;
+          if (acf is double) return acf.round();
+          if (acf is num) return acf.toInt();
+          if (acf is String) {
+            final double? parsed = double.tryParse(acf.trim());
+            if (parsed != null) return parsed.round();
+          }
           final dynamic s = decoded['score'] ?? decoded['grade'];
           if (s is int) return s;
           if (s is double) return s.round();
-          if (s is String) return int.tryParse(s);
+          if (s is num) return s.toInt();
+          if (s is String) {
+            final double? parsed = double.tryParse(s.trim());
+            if (parsed != null) return parsed.round();
+            final int? fromGrade = _letterGradeToScore(s);
+            if (fromGrade != null) return fromGrade;
+          }
         }
       } catch (_) {
-        return int.tryParse(verdict);
+        final double? parsed = double.tryParse(verdict.trim());
+        if (parsed != null) return parsed.round();
+        final int? fromGrade = _letterGradeToScore(verdict);
+        if (fromGrade != null) return fromGrade;
       }
     }
     return null;
@@ -176,6 +278,7 @@ class DashboardSubmission {
     String? moduleId,
     String? moduleTitle,
     String? difficulty,
+    dynamic acfScore,
   }) {
     final String id = row['sub_id']?.toString() ?? '';
     final String itemId = row['item_id']?.toString() ?? '';
@@ -189,7 +292,22 @@ class DashboardSubmission {
     final String rawDate =
         '${submittedAt.year}-${submittedAt.month.toString().padLeft(2, '0')}-${submittedAt.day.toString().padLeft(2, '0')}';
 
-    final int? score = extractScore(row['sub_verdict']);
+    dynamic extractedAcf = acfScore ?? row['acf_score'];
+    if (extractedAcf == null && row['ai_audits'] != null) {
+      final dynamic audits = row['ai_audits'];
+      if (audits is List && audits.isNotEmpty && audits.first is Map) {
+        final Map<dynamic, dynamic> firstAudit = audits.first as Map<dynamic, dynamic>;
+        if (firstAudit['audit_findings'] is Map) {
+          final Map<dynamic, dynamic> findings = firstAudit['audit_findings'] as Map<dynamic, dynamic>;
+          extractedAcf = findings['acf_composite_score'] ?? findings['score'];
+        }
+      } else if (audits is Map && audits['audit_findings'] is Map) {
+        final Map<dynamic, dynamic> findings = audits['audit_findings'] as Map<dynamic, dynamic>;
+        extractedAcf = findings['acf_composite_score'] ?? findings['score'];
+      }
+    }
+
+    final int? score = extractScore(row['sub_verdict'], extractedAcf);
     final String code = row['sub_code']?.toString() ?? '';
     final String verdict = extractVerdictText(row['sub_verdict'], status);
     final List<String> feedbackTips = extractFeedbackTips(row['sub_verdict']);
@@ -197,7 +315,7 @@ class DashboardSubmission {
     return DashboardSubmission(
       id: id,
       itemId: itemId,
-      moduleId: moduleId ?? '',
+      moduleId: moduleId ?? (row['module_id']?.toString() ?? ''),
       title: title ?? (row['challenge_title']?.toString() ?? 'Practice Challenge'),
       module: moduleTitle ?? (row['module_title']?.toString() ?? 'Active Module'),
       difficulty: normalizeDifficulty(difficulty ?? row['challenge_difficulty']?.toString() ?? 'Medium'),

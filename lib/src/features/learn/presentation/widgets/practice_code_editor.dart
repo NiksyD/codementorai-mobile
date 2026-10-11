@@ -3,6 +3,110 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../constants/app_colors.dart';
 
+/// Specialized controller providing syntax highlighting (Monaco/VS Code parity)
+class SyntaxHighlightingTextEditingController extends TextEditingController {
+  SyntaxHighlightingTextEditingController({
+    super.text,
+    this.language = 'java',
+    this.isDark = true,
+  });
+
+  String language;
+  bool isDark;
+
+  static final RegExp _tokenRegex = RegExp(
+    r'(//[^\n]*|/\*[\s\S]*?\*/|#[^\n]*)' // Group 1: Comments
+    r'|("(?:\\.|[^"\\])*"|' r"'(?:\\.|[^'\\])*')" // Group 2: Strings
+    r'|\b(\d+(?:\.\d+)?)\b' // Group 3: Numbers
+    r'|\b(public|private|protected|class|interface|enum|extends|implements|static|final|abstract|void|return|if|else|switch|case|default|for|while|do|break|continue|new|try|catch|finally|throw|throws|import|package|def|lambda|from|as|async|await|yield|function|const|let|var|typeof|instanceof|struct|typedef)\b' // Group 4: Keywords
+    r'|\b(int|boolean|bool|char|float|double|long|short|byte|String|Integer|Boolean|Character|Double|Float|Long|List|Map|Set|ArrayList|HashMap|System|Math|Arrays|Scanner|Console|Object|true|false|True|False|None|null|nil|this|super)\b', // Group 5: Types / Built-ins
+  );
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final TextStyle baseStyle = style ??
+        GoogleFonts.jetBrainsMono(
+          fontSize: 13.0,
+          height: 22.0 / 13.0,
+          color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1E293B),
+        );
+
+    final String text = value.text;
+    if (text.isEmpty) {
+      return TextSpan(text: '', style: baseStyle);
+    }
+
+    final Color commentColor = isDark ? const Color(0xFF6E7681) : const Color(0xFF64748B);
+    final Color stringColor = isDark ? const Color(0xFFA5D6FF) : const Color(0xFF0284C7);
+    final Color numberColor = isDark ? const Color(0xFF79C0FF) : const Color(0xFF2563EB);
+    final Color keywordColor = isDark ? const Color(0xFF3ECF8E) : const Color(0xFF059669);
+    final Color typeColor = isDark ? const Color(0xFFFFA657) : const Color(0xFFD97706);
+
+    final List<TextSpan> spans = <TextSpan>[];
+    int lastEnd = 0;
+
+    for (final Match match in _tokenRegex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, match.start),
+          style: baseStyle,
+        ));
+      }
+
+      TextStyle tokenStyle = baseStyle;
+      if (match.group(1) != null) {
+        // Comment
+        tokenStyle = baseStyle.copyWith(
+          color: commentColor,
+          fontStyle: FontStyle.italic,
+        );
+      } else if (match.group(2) != null) {
+        // String
+        tokenStyle = baseStyle.copyWith(
+          color: stringColor,
+        );
+      } else if (match.group(3) != null) {
+        // Number
+        tokenStyle = baseStyle.copyWith(
+          color: numberColor,
+        );
+      } else if (match.group(4) != null) {
+        // Keyword
+        tokenStyle = baseStyle.copyWith(
+          color: keywordColor,
+          fontWeight: FontWeight.w700,
+        );
+      } else if (match.group(5) != null) {
+        // Type / Built-in
+        tokenStyle = baseStyle.copyWith(
+          color: typeColor,
+          fontWeight: FontWeight.w600,
+        );
+      }
+
+      spans.add(TextSpan(
+        text: match.group(0),
+        style: tokenStyle,
+      ));
+
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd),
+        style: baseStyle,
+      ));
+    }
+
+    return TextSpan(children: spans, style: baseStyle);
+  }
+}
+
 class PracticeCodeEditor extends StatefulWidget {
   const PracticeCodeEditor({
     super.key,
@@ -161,6 +265,14 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
     final Color textColor = isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1E293B);
     final Color toolbarBg = isDark ? const Color(0xFF161B22) : const Color(0xFFE2E8F0);
 
+    // Sync theme & language to controller if using SyntaxHighlightingTextEditingController
+    if (widget.controller is SyntaxHighlightingTextEditingController) {
+      final SyntaxHighlightingTextEditingController ctrl =
+          widget.controller as SyntaxHighlightingTextEditingController;
+      ctrl.isDark = isDark;
+      ctrl.language = widget.language;
+    }
+
     return Column(
       children: <Widget>[
         // Editor workspace with line numbers gutter
@@ -195,32 +307,42 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
                     ),
                   ),
 
-                  // Code input area
+                  // Code input area with horizontal scrolling support
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: _focusNode,
-                        maxLines: null,
-                        keyboardType: TextInputType.multiline,
-                        inputFormatters: const <TextInputFormatter>[
-                          AutoIndentTextInputFormatter(),
-                        ],
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 13.0,
-                          height: 22.0 / 13.0,
-                          color: textColor,
-                          fontWeight: FontWeight.w500,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: MediaQuery.of(context).size.width - 58.0,
                         ),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.only(top: 14.0, bottom: 20.0),
-                          isDense: true,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                          child: IntrinsicWidth(
+                            child: TextField(
+                              controller: widget.controller,
+                              focusNode: _focusNode,
+                              maxLines: null,
+                              keyboardType: TextInputType.multiline,
+                              inputFormatters: const <TextInputFormatter>[
+                                AutoIndentTextInputFormatter(),
+                              ],
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 13.0,
+                                height: 22.0 / 13.0,
+                                color: textColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.only(top: 14.0, bottom: 20.0),
+                                isDense: true,
+                              ),
+                              onChanged: widget.onChanged,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                            ),
+                          ),
                         ),
-                        onChanged: widget.onChanged,
-                        autocorrect: false,
-                        enableSuggestions: false,
                       ),
                     ),
                   ),

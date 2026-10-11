@@ -68,13 +68,13 @@ class FakeActivityPathwayRepository implements PathwayRepository {
   ) async => null;
 
   @override
-  Future<bool> submitPracticeExercise(
+  Future<String?> submitPracticeExercise(
     String userId,
     String moduleId,
     String exerciseId,
     String code,
     String language,
-  ) async => true;
+  ) async => 'sub-practice-123';
 
   @override
   Future<PracticeExerciseModel?> getChallengeExercise(
@@ -84,13 +84,13 @@ class FakeActivityPathwayRepository implements PathwayRepository {
   ) async => null;
 
   @override
-  Future<bool> submitChallengeExercise(
+  Future<String?> submitChallengeExercise(
     String userId,
     String moduleId,
     String challengeId,
     String code,
     String language,
-  ) async => true;
+  ) async => 'sub-challenge-123';
 
   @override
   Future<List<SubmissionHistoryModel>> getExerciseSubmissions({

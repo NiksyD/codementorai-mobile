@@ -8,15 +8,18 @@ class PracticeCompletionModal extends StatelessWidget {
     super.key,
     required this.exerciseTitle,
     required this.onBackToModule,
+    this.onViewAiReview,
   });
 
   final String exerciseTitle;
   final VoidCallback onBackToModule;
+  final VoidCallback? onViewAiReview;
 
   static Future<void> show(
     BuildContext context, {
     required String exerciseTitle,
     required VoidCallback onBackToModule,
+    VoidCallback? onViewAiReview,
   }) {
     HapticFeedback.heavyImpact();
     return showModalBottomSheet<void>(
@@ -27,6 +30,7 @@ class PracticeCompletionModal extends StatelessWidget {
       builder: (BuildContext ctx) => PracticeCompletionModal(
         exerciseTitle: exerciseTitle,
         onBackToModule: onBackToModule,
+        onViewAiReview: onViewAiReview,
       ),
     );
   }
@@ -202,29 +206,77 @@ class PracticeCompletionModal extends StatelessWidget {
             ),
             const SizedBox(height: 22.0),
 
-            // Return button
-            SizedBox(
-              width: double.infinity,
-              height: 48.0,
-              child: ElevatedButton(
-                onPressed: onBackToModule,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14.0),
+            // Action buttons
+            if (onViewAiReview != null) ...<Widget>[
+              SizedBox(
+                width: double.infinity,
+                height: 48.0,
+                child: ElevatedButton.icon(
+                  onPressed: onViewAiReview,
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 18.0),
+                  label: Text(
+                    'View AI Review',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'Back to Module',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.0),
+                    ),
+                    elevation: 0,
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 10.0),
+              SizedBox(
+                width: double.infinity,
+                height: 44.0,
+                child: TextButton(
+                  onPressed: onBackToModule,
+                  style: TextButton.styleFrom(
+                    foregroundColor: textSecondary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                  ),
+                  child: Text(
+                    'Back to Module',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...<Widget>[
+              // Return button fallback
+              SizedBox(
+                width: double.infinity,
+                height: 48.0,
+                child: ElevatedButton(
+                  onPressed: onBackToModule,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.0),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Back to Module',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
