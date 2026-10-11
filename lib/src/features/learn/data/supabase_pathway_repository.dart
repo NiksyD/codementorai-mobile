@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../../../core/network/api_client.dart';
@@ -111,7 +112,7 @@ class SupabasePathwayRepository implements PathwayRepository {
       try {
         final List<Map<String, dynamic>> allActivities = await _supabase
             .from('activities')
-            .select('act_id, topic_id, track_id, act_type, act_category, act_status, act_title')
+            .select('act_id, topic_id, track_id, act_type, act_category, act_difficulty, act_status, act_title')
             .filter('topic_id', 'in', allTopicIds);
 
         for (final Map<String, dynamic> a in allActivities) {
@@ -122,10 +123,13 @@ class SupabasePathwayRepository implements PathwayRepository {
           final String tId = a['topic_id'] as String? ?? '';
           final String trackId = topicIdToTrackId[tId] ?? '';
           final String actTitle = a['act_title'] as String? ?? '';
-          final String actCat = a['act_category'] as String? ?? 'Medium';
+          final String cat = (a['act_category'] as String? ?? '').toLowerCase();
+          final String? rawDiff = a['act_difficulty'] as String?;
+          final String diff = cat == 'challenge' ? (rawDiff ?? 'Medium') : '';
+
           if (actId.isNotEmpty) {
             if (actTitle.isNotEmpty) actIdToTitle[actId] = actTitle;
-            actIdToDifficulty[actId] = actCat;
+            actIdToDifficulty[actId] = diff;
           }
           if (actId.isEmpty || trackId.isEmpty) continue;
           actIdToTrackId[actId] = trackId;
@@ -142,7 +146,7 @@ class SupabasePathwayRepository implements PathwayRepository {
         if (allModIds.isNotEmpty) {
           final List<Map<String, dynamic>> directActs = await _supabase
               .from('activities')
-              .select('act_id, track_id, act_status, act_title, act_category')
+              .select('act_id, track_id, act_status, act_title, act_category, act_difficulty')
               .filter('track_id', 'in', allModIds);
 
           for (final Map<String, dynamic> a in directActs) {
@@ -152,13 +156,16 @@ class SupabasePathwayRepository implements PathwayRepository {
             final String actId = a['act_id'] as String? ?? '';
             final String trackId = a['track_id'] as String? ?? '';
             final String actTitle = a['act_title'] as String? ?? '';
-            final String actCat = a['act_category'] as String? ?? 'Medium';
+            final String cat = (a['act_category'] as String? ?? '').toLowerCase();
+            final String? rawDiff = a['act_difficulty'] as String?;
+            final String diff = cat == 'challenge' ? (rawDiff ?? 'Medium') : '';
+
             if (actId.isNotEmpty) {
               if (actTitle.isNotEmpty && !actIdToTitle.containsKey(actId)) {
                 actIdToTitle[actId] = actTitle;
               }
               if (!actIdToDifficulty.containsKey(actId)) {
-                actIdToDifficulty[actId] = actCat;
+                actIdToDifficulty[actId] = diff;
               }
             }
             if (actId.isEmpty || trackId.isEmpty || actIdToTrackId.containsKey(actId)) continue;
@@ -322,6 +329,92 @@ class SupabasePathwayRepository implements PathwayRepository {
         }
       }
 
+      // Batch resolve missing activities for submissions if any item_id is missing from actIdToTitle
+      final List<String> missingActIds = subRows
+          .map((Map<String, dynamic> s) => s['item_id']?.toString() ?? '')
+          .where((String id) => id.isNotEmpty && !actIdToTitle.containsKey(id))
+          .toSet()
+          .toList();
+
+      if (missingActIds.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> missingActs = await _supabase
+              .from('activities')
+              .select('act_id, act_title, act_category, act_difficulty, topic_id, track_id')
+              .inFilter('act_id', missingActIds);
+
+          final Set<String> neededTopicIds = <String>{};
+          for (final Map<String, dynamic> a in missingActs) {
+            final String aId = a['act_id']?.toString() ?? '';
+            if (aId.isEmpty) continue;
+            final String aTitle = a['act_title'] as String? ?? '';
+            final String cat = (a['act_category'] as String? ?? '').toLowerCase();
+            final String? rawDiff = a['act_difficulty'] as String?;
+            final String diff = cat == 'challenge' ? (rawDiff ?? 'Medium') : '';
+
+            if (aTitle.isNotEmpty) actIdToTitle[aId] = aTitle;
+            actIdToDifficulty[aId] = diff;
+
+            final String directTrackId = a['track_id'] as String? ?? '';
+            if (directTrackId.isNotEmpty) {
+              actIdToTrackId[aId] = directTrackId;
+            } else {
+              final String topId = a['topic_id'] as String? ?? '';
+              if (topId.isNotEmpty) {
+                if (topicIdToTrackId.containsKey(topId)) {
+                  actIdToTrackId[aId] = topicIdToTrackId[topId]!;
+                } else {
+                  neededTopicIds.add(topId);
+                }
+              }
+            }
+          }
+
+          if (neededTopicIds.isNotEmpty) {
+            final List<Map<String, dynamic>> missingTopics = await _supabase
+                .from('topics')
+                .select('topic_id, track_id')
+                .inFilter('topic_id', neededTopicIds.toList());
+
+            final Set<String> neededModIds = <String>{};
+            for (final Map<String, dynamic> t in missingTopics) {
+              final String topId = t['topic_id']?.toString() ?? '';
+              final String trkId = t['track_id']?.toString() ?? '';
+              if (topId.isNotEmpty && trkId.isNotEmpty) {
+                topicIdToTrackId[topId] = trkId;
+                if (!trackIdToTitle.containsKey(trkId)) {
+                  neededModIds.add(trkId);
+                }
+              }
+            }
+
+            for (final Map<String, dynamic> a in missingActs) {
+              final String aId = a['act_id']?.toString() ?? '';
+              final String topId = a['topic_id'] as String? ?? '';
+              if (!actIdToTrackId.containsKey(aId) && topicIdToTrackId.containsKey(topId)) {
+                actIdToTrackId[aId] = topicIdToTrackId[topId]!;
+              }
+            }
+
+            if (neededModIds.isNotEmpty) {
+              final List<Map<String, dynamic>> missingMods = await _supabase
+                  .from('modules')
+                  .select('mod_id, mod_title')
+                  .inFilter('mod_id', neededModIds.toList());
+              for (final Map<String, dynamic> m in missingMods) {
+                final String mId = m['mod_id']?.toString() ?? '';
+                final String mTitle = m['mod_title'] as String? ?? '';
+                if (mId.isNotEmpty && mTitle.isNotEmpty) {
+                  trackIdToTitle[mId] = mTitle;
+                }
+              }
+            }
+          }
+        } catch (_) {
+          // Non-blocking
+        }
+      }
+
       for (final Map<String, dynamic> s in subRows) {
         final String sId = s['sub_id']?.toString() ?? '';
         final String status = s['sub_status'] as String? ?? '';
@@ -333,7 +426,7 @@ class SupabasePathwayRepository implements PathwayRepository {
         final String actTitle = actIdToTitle[itemId] ?? 'Practice Challenge';
         final String trackId = actIdToTrackId[itemId] ?? '';
         final String modTitle = trackIdToTitle[trackId] ?? 'Practice Module';
-        final String diff = actIdToDifficulty[itemId] ?? 'Medium';
+        final String diff = actIdToDifficulty[itemId] ?? '';
 
         dashboardSubmissions.add(
           DashboardSubmission.fromDatabase(
@@ -1092,13 +1185,9 @@ Your program must compile without syntax errors and pass the validation test cas
         } catch (_) {}
       }
 
-      // 2. Trigger asynchronous on-demand AI ACF evaluation via Go Backend
+      // 2. Trigger asynchronous on-demand AI ACF evaluation (Go backend -> Web fallback)
       if (createdSubId != null && createdSubId.isNotEmpty) {
-        // Fire-and-forget: Go backend runs EvaluateSubmission (Gemini Flash CoT)
-        // and persists findings to ai_audits table and Redis.
-        apiClient
-            .get('/api/submissions/$createdSubId/feedback')
-            .catchError((dynamic _) => null);
+        _triggerAcfEvaluationAsync(createdSubId);
       }
 
       // 2. Compute accurate completion based on total practice activities (1:1 with Web)
@@ -1506,11 +1595,9 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         } catch (_) {}
       }
 
-      // 2. Trigger asynchronous on-demand AI ACF evaluation via Go Backend
+      // 2. Trigger asynchronous on-demand AI ACF evaluation (Go backend -> Web fallback)
       if (createdSubId != null && createdSubId.isNotEmpty) {
-        apiClient
-            .get('/api/submissions/$createdSubId/feedback')
-            .catchError((dynamic _) => null);
+        _triggerAcfEvaluationAsync(createdSubId);
       }
 
       // 3. Invalidate cache so module detail recomputes immediately
@@ -2268,6 +2355,28 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       }
     }
 
+    // 5.5. On-Demand Fallback: Request feedback from Web API (evaluates via Gemini and persists to ai_audits)
+    if (acfEvaluation == null) {
+      try {
+        final dynamic webFeedback =
+            await apiClient.getWeb('/api/submissions/$submissionId/feedback');
+        if (webFeedback is Map) {
+          final Map<String, dynamic> fbMap =
+              Map<String, dynamic>.from(webFeedback);
+          if (fbMap.containsKey('acf_composite_score') ||
+              fbMap.containsKey('correctness')) {
+            acfEvaluation = AcfEvaluationModel.fromJson(
+              fbMap,
+              defaultTime: targetTime,
+              defaultSpace: targetSpace,
+            );
+          }
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+    }
+
     // 6. Fetch published mentor review feedback if present
     try {
       final dynamic fbData = await _supabase
@@ -2317,5 +2426,30 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       acfEvaluation: acfEvaluation,
       mentorFeedback: mentorFeedback,
     );
+  }
+
+  /// Triggers asynchronous ACF evaluation: first trying Go gateway, then falling back to Web API
+  /// (which runs Gemini Flash CoT and persists findings directly to public.ai_audits in Supabase).
+  void _triggerAcfEvaluationAsync(String subId) {
+    unawaited(() async {
+      try {
+        final dynamic res = await apiClient.get(
+          '/api/submissions/$subId/feedback',
+          timeout: const Duration(seconds: 10),
+        );
+        if (res is Map &&
+            (res.containsKey('acf_composite_score') ||
+                res.containsKey('correctness'))) {
+          return;
+        }
+      } catch (_) {}
+
+      try {
+        await apiClient.getWeb(
+          '/api/submissions/$subId/feedback',
+          timeout: const Duration(seconds: 30),
+        );
+      } catch (_) {}
+    }());
   }
 }

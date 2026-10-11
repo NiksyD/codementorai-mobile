@@ -70,6 +70,17 @@ class _ActivitySubmissionReviewScreenState
     }
   }
 
+  void _handleBack() {
+    final String? modId = _review?.moduleId;
+    if (modId != null && modId.isNotEmpty) {
+      context.go('/modules/$modId');
+    } else if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      context.go('/learn/activity');
+    }
+  }
+
   void _handleCopyCode(String code, {required String label}) {
     if (code.trim().isEmpty) return;
     Clipboard.setData(ClipboardData(text: code));
@@ -146,13 +157,7 @@ class _ActivitySubmissionReviewScreenState
           elevation: 0,
           leading: IconButton(
             icon: Icon(Icons.arrow_back_rounded, color: textPrimary),
-            onPressed: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              } else {
-                context.go('/learn/activity');
-              }
-            },
+            onPressed: _handleBack,
           ),
           title: Text(
             'Submission Review',
@@ -208,13 +213,7 @@ class _ActivitySubmissionReviewScreenState
         centerTitle: false,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: textPrimary, size: 20.0),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              context.go('/learn/activity');
-            }
-          },
+          onPressed: _handleBack,
         ),
         title: Text(
           'Submission Review',
@@ -1464,11 +1463,7 @@ class _ActivitySubmissionReviewScreenState
         Expanded(
           child: OutlinedButton(
             onPressed: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              } else {
-                context.go('/learn/activity');
-              }
+              context.go('/learn/activity');
             },
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14.0),
@@ -1492,10 +1487,10 @@ class _ActivitySubmissionReviewScreenState
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () {
-                context.push('/modules/${review.moduleId}');
+                context.go('/modules/${review.moduleId}');
               },
               icon: const Icon(
-                Icons.open_in_new_rounded,
+                Icons.arrow_forward_rounded,
                 size: 15.0,
                 color: Color(0xFF121316),
               ),

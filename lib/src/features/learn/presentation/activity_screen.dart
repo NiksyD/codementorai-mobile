@@ -764,8 +764,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
                         color: textPrimary,
                       ),
                     ),
-                    const SizedBox(width: 8.0),
-                    _buildDifficultyBadge(sub.difficulty),
+                    if (sub.difficulty.isNotEmpty) ...<Widget>[
+                      const SizedBox(width: 8.0),
+                      _buildDifficultyBadge(sub.difficulty),
+                    ],
                     const Spacer(),
                     Row(
                       mainAxisSize: MainAxisSize.min,

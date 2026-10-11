@@ -215,9 +215,11 @@ class DashboardSubmission {
 
   static String normalizeDifficulty(String raw) {
     final String s = raw.toLowerCase().trim();
+    if (s.isEmpty || s == 'practice' || s == 'exercise') return '';
     if (s == 'easy') return 'Easy';
     if (s == 'hard') return 'Hard';
-    return 'Medium';
+    if (s == 'medium') return 'Medium';
+    return '';
   }
 
   static List<String> extractFeedbackTips(dynamic verdict) {
@@ -318,7 +320,7 @@ class DashboardSubmission {
       moduleId: moduleId ?? (row['module_id']?.toString() ?? ''),
       title: title ?? (row['challenge_title']?.toString() ?? 'Practice Challenge'),
       module: moduleTitle ?? (row['module_title']?.toString() ?? 'Active Module'),
-      difficulty: normalizeDifficulty(difficulty ?? row['challenge_difficulty']?.toString() ?? 'Medium'),
+      difficulty: normalizeDifficulty(difficulty ?? row['challenge_difficulty']?.toString() ?? ''),
       language: lang,
       status: status,
       score: score,

@@ -192,99 +192,69 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // ── Card Header (Matching Web shadcn CardHeader 1:1) ──
+          // ── Card Header (Mobile Optimized Clean Stack) ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Text(
-                          'Practice Activity',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                        ),
-                        if (widget.currentStreak > 0) ...<Widget>[
-                          const SizedBox(width: 8.0),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6.0),
-                              border: Border.all(
-                                color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                const Text(
-                                  '🔥',
-                                  style: TextStyle(fontSize: 11.0),
-                                ),
-                                const SizedBox(width: 4.0),
-                                Text(
-                                  '${widget.currentStreak} Day Streak',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 11.0,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFFF59E0B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3.0),
-                    Text(
-                      widget.totalActiveDays == 0
-                          ? 'No activity recorded yet · Last 12 months'
-                          : '${widget.totalActiveDays} active day${widget.totalActiveDays == 1 ? '' : 's'} · Last 12 months',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                        color: textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    context.push('/activity');
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        'Full Activity History',
+                        'Practice Activity',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 4.0),
-                      const Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 13.0,
-                        color: AppColors.primary,
+                      const SizedBox(height: 3.0),
+                      Text(
+                        widget.totalActiveDays == 0
+                            ? 'No activity recorded yet · Last 12 months'
+                            : '${widget.totalActiveDays} active day${widget.totalActiveDays == 1 ? '' : 's'} · Last 12 months',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: textSecondary,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                if (widget.currentStreak > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9.0, vertical: 4.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Text(
+                          '🔥',
+                          style: TextStyle(fontSize: 12.0),
+                        ),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          '${widget.currentStreak} Day Streak',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.0,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -731,17 +701,35 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
                     ),
                   )
                 else
-                  // ── Legend Footer (Matching Web 1:1) ──
+                  // ── Legend & Action Footer ──
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: <Widget>[
-                      Text(
-                        widget.totalActiveDays == 0
-                            ? '0 active days · Last 12 months'
-                            : '${widget.totalActiveDays} active day${widget.totalActiveDays == 1 ? '' : 's'} · Last 12 months',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.0,
-                          color: textSecondary,
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          context.push('/activity');
+                        },
+                        behavior: HitTestBehavior.opaque,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              'Full Activity History',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 4.0),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 13.0,
+                              color: AppColors.primary,
+                            ),
+                          ],
                         ),
                       ),
                       Row(
