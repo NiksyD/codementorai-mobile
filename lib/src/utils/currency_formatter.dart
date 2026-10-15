@@ -57,4 +57,16 @@ class CurrencyFormatter {
     final double effectiveRate = rate ?? _liveRate;
     return formatPHP(usdAmount * effectiveRate, showDecimals: showDecimals);
   }
+
+  /// Formats amount in CodeCoins (1 USD = 100 CodeCoins)
+  /// Example: 29.0 USD -> "2,900 CodeCoins"
+  static String formatCodeCoins(double usdAmount) {
+    if (usdAmount <= 0) return '0 Coins';
+    final int coins = (usdAmount * 100).round();
+    final String s = coins.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return '$s CodeCoins';
+  }
 }

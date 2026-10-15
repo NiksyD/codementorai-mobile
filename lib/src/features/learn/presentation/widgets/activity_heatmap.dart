@@ -227,28 +227,37 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
                 ),
                 if (widget.currentStreak > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9.0, vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 8.5, vertical: 4.0),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8.0),
                       border: Border.all(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.32),
                         width: 0.8,
                       ),
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          blurRadius: 8.0,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        const Text(
-                          '🔥',
-                          style: TextStyle(fontSize: 12.0),
+                        const Icon(
+                          Icons.local_fire_department_rounded,
+                          size: 13.5,
+                          color: Color(0xFFF59E0B),
                         ),
-                        const SizedBox(width: 4.0),
+                        const SizedBox(width: 4.5),
                         Text(
                           '${widget.currentStreak} Day Streak',
                           style: GoogleFonts.jetBrainsMono(
                             fontSize: 11.0,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
                             color: const Color(0xFFF59E0B),
                           ),
                         ),

@@ -50,7 +50,6 @@ class NotificationSheet extends StatefulWidget {
 class _NotificationSheetState extends State<NotificationSheet> {
   List<NotificationModel> _items = <NotificationModel>[];
   bool _isLoading = true;
-  String _filter = 'all'; // 'all' or 'unread'
 
   @override
   void initState() {
@@ -133,9 +132,6 @@ class _NotificationSheetState extends State<NotificationSheet> {
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     final int unreadCount = _items.where((NotificationModel n) => !n.isRead).length;
-    final List<NotificationModel> filtered = _filter == 'unread'
-        ? _items.where((NotificationModel n) => !n.isRead).toList()
-        : _items;
 
     return Container(
       constraints: BoxConstraints(
@@ -210,22 +206,60 @@ class _NotificationSheetState extends State<NotificationSheet> {
                     ),
                   ),
 
-                  // Mark All Read Button
-                  if (unreadCount > 0)
-                    IconButton(
-                      icon: const Icon(Icons.done_all_rounded, size: 20.0),
-                      color: AppColors.primary,
-                      tooltip: 'Mark all as read',
-                      onPressed: _handleMarkAllAsRead,
-                    ),
-
-                  // Clear All Button (if list has items)
+                  // More Actions Overflow Menu (Hick's Law - avoids cluttering header with 3 adjacent tool icons)
                   if (_items.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.delete_sweep_outlined, size: 20.0),
-                      color: textSecondary,
-                      tooltip: 'Clear notifications',
-                      onPressed: _handleClearAll,
+                    PopupMenuButton<String>(
+                      icon: Icon(Icons.more_horiz_rounded, size: 20.0, color: textSecondary),
+                      tooltip: 'More options',
+                      color: cardColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                        side: BorderSide(color: borderColor, width: 0.8),
+                      ),
+                      onSelected: (String action) {
+                        if (action == 'mark_read') {
+                          _handleMarkAllAsRead();
+                        } else if (action == 'clear_all') {
+                          _handleClearAll();
+                        }
+                      },
+                      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                        if (unreadCount > 0)
+                          PopupMenuItem<String>(
+                            value: 'mark_read',
+                            child: Row(
+                              children: <Widget>[
+                                const Icon(Icons.done_all_rounded, size: 18.0, color: AppColors.primary),
+                                const SizedBox(width: 10.0),
+                                Text(
+                                  'Mark all as read',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13.0,
+                                    fontWeight: FontWeight.w600,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        PopupMenuItem<String>(
+                          value: 'clear_all',
+                          child: Row(
+                            children: <Widget>[
+                              Icon(Icons.delete_sweep_outlined, size: 18.0, color: Colors.red.shade400),
+                              const SizedBox(width: 10.0),
+                              Text(
+                                'Clear all',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.0,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red.shade400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
 
                   IconButton(
@@ -237,40 +271,7 @@ class _NotificationSheetState extends State<NotificationSheet> {
               ),
             ),
 
-            // 3. Filter Segmented Row
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 4.0),
-              child: Row(
-                children: <Widget>[
-                  _buildFilterTab(
-                    id: 'all',
-                    label: 'All',
-                    count: _items.length,
-                    isSelected: _filter == 'all',
-                    cardColor: cardColor,
-                    borderColor: borderColor,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                  const SizedBox(width: 8.0),
-                  _buildFilterTab(
-                    id: 'unread',
-                    label: 'Unread',
-                    count: unreadCount,
-                    isSelected: _filter == 'unread',
-                    cardColor: cardColor,
-                    borderColor: borderColor,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8.0),
-            const Divider(height: 1.0, thickness: 0.8),
-
-            // 4. Notification List Content
+            // 3. Notification List Content (Clean single feed matching Web 1:1)
             Flexible(
               child: _isLoading
                   ? const Center(
@@ -279,19 +280,19 @@ class _NotificationSheetState extends State<NotificationSheet> {
                         child: CircularProgressIndicator(color: AppColors.primary),
                       ),
                     )
-                  : filtered.isEmpty
+                  : _items.isEmpty
                       ? _buildEmptyState(textPrimary, textSecondary)
                       : ListView.separated(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16.0,
-                            vertical: 12.0,
+                            vertical: 8.0,
                           ),
                           physics: const BouncingScrollPhysics(),
-                          itemCount: filtered.length,
+                          itemCount: _items.length,
                           separatorBuilder: (BuildContext ctx, int i) =>
                               const SizedBox(height: 8.0),
                           itemBuilder: (BuildContext ctx, int i) {
-                            final NotificationModel item = filtered[i];
+                            final NotificationModel item = _items[i];
                             return _buildNotificationItem(
                               item: item,
                               isDark: isDark,
@@ -302,68 +303,6 @@ class _NotificationSheetState extends State<NotificationSheet> {
                             );
                           },
                         ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterTab({
-    required String id,
-    required String label,
-    required int count,
-    required bool isSelected,
-    required Color cardColor,
-    required Color borderColor,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return InkWell(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _filter = id);
-      },
-      borderRadius: BorderRadius.circular(10.0),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : cardColor,
-          borderRadius: BorderRadius.circular(10.0),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : borderColor,
-            width: 0.8,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.0,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                color: isSelected ? AppColors.onPrimaryDark : textSecondary,
-              ),
-            ),
-            const SizedBox(width: 6.0),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.onPrimaryDark.withValues(alpha: 0.2)
-                    : Colors.black.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(6.0),
-              ),
-              child: Text(
-                '$count',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 10.0,
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? AppColors.onPrimaryDark : textSecondary,
-                ),
-              ),
             ),
           ],
         ),
@@ -464,29 +403,6 @@ class _NotificationSheetState extends State<NotificationSheet> {
                       height: 1.35,
                     ),
                   ),
-
-                  // Action Deep Link Pill
-                  if (item.actionText != null && item.actionText!.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 8.0),
-                    Row(
-                      children: <Widget>[
-                        Text(
-                          item.actionText!,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.0,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 4.0),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 12.0,
-                          color: AppColors.primary,
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -498,16 +414,26 @@ class _NotificationSheetState extends State<NotificationSheet> {
 
   (IconData, Color) _getTypeStyle(String type) {
     switch (type) {
+      case 'room_member':
+      case 'hub_member':
+        return (Icons.school_outlined, const Color(0xFF94A3B8));
+      case 'room_submission':
+      case 'hub_submission':
+        return (Icons.code_rounded, const Color(0xFF94A3B8));
       case 'ai':
-        return (Icons.auto_awesome_rounded, AppColors.primary);
+        return (Icons.diamond_outlined, AppColors.primary);
       case 'streak':
         return (Icons.local_fire_department_rounded, const Color(0xFFF59E0B));
-      case 'report':
-        return (Icons.flag_rounded, const Color(0xFFF43F5E));
       case 'achievement':
-        return (Icons.emoji_events_rounded, const Color(0xFFA855F7));
+        return (Icons.check_circle_outline_rounded, const Color(0xFF10B981));
+      case 'assessment':
+        return (Icons.emoji_events_outlined, const Color(0xFFF59E0B));
+      case 'report':
+        return (Icons.flag_outlined, const Color(0xFFF43F5E));
+      case 'revenue':
+        return (Icons.monetization_on_outlined, const Color(0xFF10B981));
       default:
-        return (Icons.info_outline_rounded, const Color(0xFF64748B));
+        return (Icons.terminal_rounded, const Color(0xFF94A3B8));
     }
   }
 
@@ -534,9 +460,7 @@ class _NotificationSheetState extends State<NotificationSheet> {
             ),
             const SizedBox(height: 4.0),
             Text(
-              _filter == 'unread'
-                  ? 'You\'re caught up on all new alerts.'
-                  : 'Activity updates and AI reviews will appear here.',
+              'Activity updates and challenge alerts will appear here.',
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12.0,

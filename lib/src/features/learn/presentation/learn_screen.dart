@@ -49,6 +49,8 @@ class _LearnScreenState extends State<LearnScreen> {
     _isLoading = _dashboardData == null;
     SupabasePathwayRepository.catalogRefreshNotifier
         .addListener(_onCatalogRefresh);
+    SupabaseProfileRepository.profileChangeNotifier
+        .addListener(_onProfileChange);
     _loadData();
   }
 
@@ -56,7 +58,18 @@ class _LearnScreenState extends State<LearnScreen> {
   void dispose() {
     SupabasePathwayRepository.catalogRefreshNotifier
         .removeListener(_onCatalogRefresh);
+    SupabaseProfileRepository.profileChangeNotifier
+        .removeListener(_onProfileChange);
     super.dispose();
+  }
+
+  void _onProfileChange() {
+    final ProfileModel? updated = SupabaseProfileRepository.profileChangeNotifier.value;
+    if (updated != null && mounted) {
+      setState(() {
+        _profile = updated;
+      });
+    }
   }
 
   void _onCatalogRefresh() {
@@ -107,13 +120,23 @@ class _LearnScreenState extends State<LearnScreen> {
     final Color textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
+    final User? authUser = Supabase.instance.client.auth.currentUser;
+    final Map<String, dynamic> authMeta = authUser?.userMetadata ?? <String, dynamic>{};
+
     final String firstName = _profile?.firstName?.isNotEmpty == true
         ? _profile!.firstName!
-        : (Supabase.instance.client.auth.currentUser?.email?.split('@').first ?? 'Developer');
+        : ((authMeta['first_name'] as String?) ??
+            (authMeta['full_name'] as String?)?.split(' ').first ??
+            authUser?.email?.split('@').first ??
+            'Developer');
 
-    final String avatarUrl = _profile?.avatarUrl?.isNotEmpty == true
-        ? _profile!.avatarUrl!
-        : 'https://api.dicebear.com/7.x/avataaars/png?seed=$firstName';
+    final String? resolvedAvatar = (_profile?.avatarUrl?.isNotEmpty == true)
+        ? _profile!.avatarUrl
+        : ((authMeta['avatar_url'] as String?) ?? (authMeta['picture'] as String?));
+
+    final String avatarUrl = (resolvedAvatar != null && resolvedAvatar.trim().isNotEmpty)
+        ? resolvedAvatar.trim()
+        : '';
 
     final PathwayModel? activePathway = _dashboardData?.activePathway;
 
@@ -213,20 +236,45 @@ class _LearnScreenState extends State<LearnScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14.0),
-                    child: Image.network(
-                      avatarUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Center(
-                        child: Text(
-                          firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16.0,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
+                    child: avatarUrl.isNotEmpty
+                        ? Image.network(
+                            avatarUrl,
+                            key: ValueKey<String>(avatarUrl),
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: Text(
+                                  firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) => Center(
+                              child: Text(
+                                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 16.0,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16.0,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
                   ),
                 ),
                 const SizedBox(width: 12.0),

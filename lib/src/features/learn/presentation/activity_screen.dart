@@ -6,29 +6,43 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../common_widgets/filter_tab_bar.dart';
+import '../../../common_widgets/language_avatar_stack.dart';
 import '../../../common_widgets/language_icon.dart';
 import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
+import '../data/assessment_repository.dart';
 import '../data/pathway_repository.dart';
+import '../data/supabase_assessment_repository.dart';
 import '../data/supabase_pathway_repository.dart';
-import '../domain/dashboard_submission.dart';
+import '../domain/learn_dashboard_data.dart';
+import '../domain/pathway_model.dart';
+import 'widgets/competency_profile_view.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({
     super.key,
     this.showBackButton = false,
     this.pathwayRepository = const SupabasePathwayRepository(),
+    this.assessmentRepository = const SupabaseAssessmentRepository(),
   });
 
   final bool showBackButton;
   final PathwayRepository pathwayRepository;
+  final AssessmentRepository assessmentRepository;
 
   @override
   State<ActivityScreen> createState() => _ActivityScreenState();
 }
 
 class _ActivityScreenState extends State<ActivityScreen> {
+  int _activeSegment = 1; // 0 = Enrolled & Active, 1 = Submissions
+  List<PathwayModel> _enrolledModules = <PathwayModel>[];
+  String _curriculumFilter = 'all'; // 'all', 'in-progress', 'completed'
+  String _curriculumSearch = '';
+  final TextEditingController _curriculumSearchController = TextEditingController();
+
   List<DashboardSubmission> _submissions = <DashboardSubmission>[];
+  List<Map<String, dynamic>> _assessmentAttempts = <Map<String, dynamic>>[];
   bool _isLoading = true;
 
   String _statusFilter = 'all'; // 'all', 'passed', 'needs-review', 'pending'
@@ -42,10 +56,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
   @override
   void initState() {
     super.initState();
-    if (SupabasePathwayRepository.cachedData != null &&
-        SupabasePathwayRepository.cachedData!.submissions.isNotEmpty) {
-      _submissions = SupabasePathwayRepository.cachedData!.submissions;
-      _isLoading = false;
+    if (SupabasePathwayRepository.cachedData != null) {
+      if (SupabasePathwayRepository.cachedData!.submissions.isNotEmpty) {
+        _submissions = SupabasePathwayRepository.cachedData!.submissions;
+      }
+      if (SupabasePathwayRepository.cachedData!.enrolledPathways.isNotEmpty) {
+        _enrolledModules = SupabasePathwayRepository.cachedData!.enrolledPathways;
+      }
+      if (_enrolledModules.isNotEmpty) {
+        _activeSegment = 0;
+      } else if (_submissions.isNotEmpty) {
+        _activeSegment = 1;
+      }
+      if (_submissions.isNotEmpty || _enrolledModules.isNotEmpty) {
+        _isLoading = false;
+      }
     }
     _fetchSubmissions();
   }
@@ -53,11 +78,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _curriculumSearchController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchSubmissions({bool force = false}) async {
-    if (_submissions.isEmpty) {
+    if (_submissions.isEmpty && _enrolledModules.isEmpty) {
       setState(() {
         _isLoading = true;
       });
@@ -71,12 +97,32 @@ class _ActivityScreenState extends State<ActivityScreen> {
         // Fallback for tests or unauthenticated session
       }
 
-      final List<DashboardSubmission> data =
-          await widget.pathwayRepository.getUserSubmissions(userId);
+      final LearnDashboardData dashData =
+          await widget.pathwayRepository.getLearnDashboardData(userId);
+      final List<DashboardSubmission> subs = dashData.submissions.isNotEmpty
+          ? dashData.submissions
+          : await widget.pathwayRepository.getUserSubmissions(userId);
+      final List<PathwayModel> enrolled = dashData.enrolledPathways;
+
+      List<Map<String, dynamic>> attempts = <Map<String, dynamic>>[];
+      if (userId.isNotEmpty) {
+        try {
+          attempts = await widget.assessmentRepository.getUserAssessmentAttempts(userId);
+        } catch (_) {
+          attempts = <Map<String, dynamic>>[];
+        }
+      }
 
       if (mounted) {
         setState(() {
-          _submissions = data;
+          _submissions = subs;
+          _enrolledModules = enrolled;
+          _assessmentAttempts = attempts;
+          if (_enrolledModules.isNotEmpty && _activeSegment == 1 && _submissions.isEmpty) {
+            _activeSegment = 0;
+          } else if (_enrolledModules.isEmpty && _submissions.isNotEmpty) {
+            _activeSegment = 1;
+          }
           _isLoading = false;
         });
       }
@@ -87,6 +133,40 @@ class _ActivityScreenState extends State<ActivityScreen> {
         });
       }
     }
+  }
+
+  int get _completedModulesCount =>
+      _enrolledModules.where((PathwayModel p) => p.completion >= 100).length;
+
+  int get _inProgressModulesCount =>
+      _enrolledModules.where((PathwayModel p) => p.completion > 0 && p.completion < 100).length;
+
+  int get _avgCompletion {
+    if (_enrolledModules.isEmpty) return 0;
+    final int sum = _enrolledModules.fold<int>(0, (int acc, PathwayModel p) => acc + p.completion);
+    return (sum / _enrolledModules.length).round();
+  }
+
+  List<FilterTabItem> get _curriculumFilterTabs => <FilterTabItem>[
+    FilterTabItem(id: 'all', label: 'All Items', count: _enrolledModules.length),
+    FilterTabItem(id: 'in-progress', label: 'In Progress', count: _inProgressModulesCount),
+    FilterTabItem(id: 'completed', label: 'Mastered', count: _completedModulesCount),
+  ];
+
+  List<PathwayModel> get _filteredEnrolledModules {
+    return _enrolledModules.where((PathwayModel p) {
+      if (_curriculumFilter == 'in-progress' && (p.completion <= 0 || p.completion >= 100)) return false;
+      if (_curriculumFilter == 'completed' && p.completion < 100) return false;
+      if (_curriculumSearch.trim().isNotEmpty) {
+        final String q = _curriculumSearch.trim().toLowerCase();
+        if (!p.title.toLowerCase().contains(q) &&
+            !p.description.toLowerCase().contains(q) &&
+            !p.stack.any((String s) => s.toLowerCase().contains(q))) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
   }
 
   int get _passedCount =>
@@ -304,192 +384,784 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 ),
                 const SizedBox(height: 16.0),
 
-                // Metrics Overview Row
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: _buildMetricBox(
-                        label: 'Submissions',
-                        value: '${_submissions.length}',
-                        icon: Icons.layers_outlined,
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 8.0),
-                    Expanded(
-                      child: _buildMetricBox(
-                        label: 'Pass Rate',
-                        value: '$_passRate%',
-                        icon: Icons.check_circle_outline_rounded,
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        accentColor: _passRate >= 70
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
-                      ),
-                    ),
-                    const SizedBox(width: 8.0),
-                    Expanded(
-                      child: _buildMetricBox(
-                        label: 'Streak',
-                        value: '${_streak}d',
-                        icon: Icons.local_fire_department_rounded,
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        accentColor: const Color(0xFFF59E0B),
-                      ),
-                    ),
-                    const SizedBox(width: 8.0),
-                    Expanded(
-                      child: _buildMetricBox(
-                        label: 'Review',
-                        value: '$_needsReviewCount',
-                        icon: Icons.access_time_rounded,
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18.0),
-
-                // Filter Tabs (Standard 36.0 Height)
-                FilterTabBar(
-                  height: 36.0,
-                  tabs: _filterTabs,
-                  selectedId: _statusFilter,
-                  onTabSelected: (String tabId) {
-                    setState(() {
-                      _statusFilter = tabId;
-                      _currentPage = 1;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12.0),
-
-                // Search & Language Dropdown Controls Row
-                Row(
-                  children: <Widget>[
-                    // Search Input
-                    Expanded(
-                      child: Container(
-                        height: 38.0,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.darkSurfaceCard
-                              : AppColors.lightSurfaceCard,
-                          borderRadius: BorderRadius.circular(10.0),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: (String val) {
-                            setState(() {
-                              _searchQuery = val;
-                              _currentPage = 1;
-                            });
-                          },
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            color: textPrimary,
-                          ),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10.0,
-                              vertical: 9.0,
-                            ),
-                            hintText: 'Search submissions...',
-                            hintStyle: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.0,
-                              color: textSecondary,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.search_rounded,
-                              size: 17.0,
-                              color: textSecondary,
-                            ),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: Icon(
-                                      Icons.close_rounded,
-                                      size: 15.0,
-                                      color: textSecondary,
-                                    ),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() {
-                                        _searchQuery = '';
-                                        _currentPage = 1;
-                                      });
-                                    },
-                                  )
-                                : null,
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8.0),
-
-                    // Language Filter Dropdown
-                    _buildLanguageDropdown(
-                      isDark: isDark,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ],
+                // Segmented Switcher (Enrolled vs Submissions vs Competency Profile)
+                _buildSegmentSwitcher(
+                  isDark: isDark,
+                  borderColor: borderColor,
+                  textPrimary: textPrimary,
+                  textSecondary: textSecondary,
                 ),
                 const SizedBox(height: 16.0),
 
-                // Content Section: Skeleton | Empty | Submissions List
-                if (_isLoading && _submissions.isEmpty)
-                  _buildLoadingSkeleton(isDark)
-                else if (_filteredSubmissions.isEmpty)
-                  _buildEmptyState(
+                if (_activeSegment == 0)
+                  _buildCurriculumDesk(
                     isDark: isDark,
                     textPrimary: textPrimary,
                     textSecondary: textSecondary,
                     borderColor: borderColor,
                   )
-                else ...<Widget>[
-                  // List of Submission Cards
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _visibleSubmissions.length,
-                    separatorBuilder: (BuildContext context, int index) =>
-                        const SizedBox(height: 10.0),
-                    itemBuilder: (BuildContext context, int index) {
-                      final DashboardSubmission sub = _visibleSubmissions[index];
-                      return _buildSubmissionCard(
-                        sub: sub,
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        borderColor: borderColor,
-                      );
-                    },
-                  ),
-
-                  // Pagination Footer (Jakob's Law Pattern)
-                  _buildPaginationBar(
+                else if (_activeSegment == 1)
+                  _buildSubmissionsLog(
                     isDark: isDark,
                     textPrimary: textPrimary,
                     textSecondary: textSecondary,
                     borderColor: borderColor,
+                  )
+                else
+                  CompetencyProfileView(
+                    submissions: _submissions,
+                    assessmentAttempts: _assessmentAttempts,
+                    isLoading: _isLoading,
+                    isDark: isDark,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                    borderColor: borderColor,
+                    onExploreAssessments: () => context.push('/learn/assessments'),
                   ),
-                ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSegmentSwitcher({
+    required bool isDark,
+    required Color borderColor,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(3.0),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: _buildSegmentButton(
+              index: 0,
+              icon: Icons.school_outlined,
+              label: 'Enrolled',
+              count: _enrolledModules.length,
+              isDark: isDark,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+            ),
+          ),
+          const SizedBox(width: 3.0),
+          Expanded(
+            child: _buildSegmentButton(
+              index: 1,
+              icon: Icons.code_rounded,
+              label: 'Submissions',
+              count: _submissions.length,
+              isDark: isDark,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+            ),
+          ),
+          const SizedBox(width: 3.0),
+          Expanded(
+            child: _buildSegmentButton(
+              index: 2,
+              icon: Icons.insights_rounded,
+              label: 'Competency',
+              count: null,
+              isDark: isDark,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentButton({
+    required int index,
+    required IconData icon,
+    required String label,
+    required int? count,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final bool isSelected = _activeSegment == index;
+    final Color selectedBg =
+        isDark ? AppColors.darkSurface : Colors.white;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _activeSegment = index;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+        decoration: BoxDecoration(
+          color: isSelected ? selectedBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(9.0),
+          boxShadow: isSelected
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                    blurRadius: 4.0,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(
+              icon,
+              size: 14.0,
+              color: isSelected ? AppColors.primary : textSecondary,
+            ),
+            const SizedBox(width: 4.0),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.0,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? textPrimary : textSecondary,
+                ),
+              ),
+            ),
+            if (count != null) ...<Widget>[
+              const SizedBox(width: 4.0),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.0),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withValues(alpha: 0.12)
+                      : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
+                  borderRadius: BorderRadius.circular(999.0),
+                ),
+                child: Text(
+                  '$count',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? AppColors.primary : textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurriculumDesk({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // Metrics Overview Row
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Enrolled',
+                value: '${_enrolledModules.length}',
+                icon: Icons.school_outlined,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Mastered',
+                value: '$_completedModulesCount',
+                icon: Icons.check_circle_outline_rounded,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                accentColor: const Color(0xFF10B981),
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Streak',
+                value: '${_streak}d',
+                icon: Icons.local_fire_department_rounded,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                accentColor: const Color(0xFFF59E0B),
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Avg Progress',
+                value: '$_avgCompletion%',
+                icon: Icons.insights_rounded,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18.0),
+
+        // Filter Tabs
+        FilterTabBar(
+          height: 36.0,
+          tabs: _curriculumFilterTabs,
+          selectedId: _curriculumFilter,
+          onTabSelected: (String tabId) {
+            setState(() {
+              _curriculumFilter = tabId;
+            });
+          },
+        ),
+        const SizedBox(height: 12.0),
+
+        // Search Input
+        Container(
+          height: 38.0,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+            borderRadius: BorderRadius.circular(10.0),
+            border: Border.all(color: borderColor),
+          ),
+          child: TextField(
+            controller: _curriculumSearchController,
+            onChanged: (String val) {
+              setState(() {
+                _curriculumSearch = val;
+              });
+            },
+            style: GoogleFonts.plusJakartaSans(fontSize: 12.0, color: textPrimary),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 9.0),
+              hintText: 'Search enrolled modules...',
+              hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12.0, color: textSecondary),
+              prefixIcon: Icon(Icons.search_rounded, size: 17.0, color: textSecondary),
+              suffixIcon: _curriculumSearch.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.close_rounded, size: 15.0, color: textSecondary),
+                      onPressed: () {
+                        _curriculumSearchController.clear();
+                        setState(() {
+                          _curriculumSearch = '';
+                        });
+                      },
+                    )
+                  : null,
+              border: InputBorder.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16.0),
+
+        // Enrolled Modules List | Empty State | Skeleton
+        if (_isLoading && _enrolledModules.isEmpty)
+          _buildLoadingSkeleton(isDark)
+        else if (_filteredEnrolledModules.isEmpty)
+          _enrolledModules.isEmpty
+              ? _buildEmptyCurriculumState(isDark: isDark, textPrimary: textPrimary, textSecondary: textSecondary, borderColor: borderColor)
+              : Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40.0),
+                    child: Column(
+                      children: <Widget>[
+                        Text('No items match your filter', style: GoogleFonts.plusJakartaSans(fontSize: 14.0, fontWeight: FontWeight.w700, color: textPrimary)),
+                        const SizedBox(height: 4.0),
+                        Text('Try resetting the search or filter options.', style: GoogleFonts.plusJakartaSans(fontSize: 12.0, color: textSecondary)),
+                        const SizedBox(height: 12.0),
+                        OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _curriculumFilter = 'all';
+                              _curriculumSearch = '';
+                              _curriculumSearchController.clear();
+                            });
+                          },
+                          child: const Text('Reset Filters'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _filteredEnrolledModules.length,
+            separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12.0),
+            itemBuilder: (BuildContext context, int index) {
+              final PathwayModel mod = _filteredEnrolledModules[index];
+              return _buildEnrolledModuleCard(
+                module: mod,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                borderColor: borderColor,
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyCurriculumState({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 56.0,
+              height: 56.0,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor),
+              ),
+              child: Icon(Icons.school_outlined, size: 26.0, color: textSecondary),
+            ),
+            const SizedBox(height: 16.0),
+            Text(
+              'No Enrolled Modules Yet',
+              style: GoogleFonts.plusJakartaSans(fontSize: 16.0, fontWeight: FontWeight.w700, color: textPrimary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6.0),
+            Text(
+              'Explore curated pathways to start learning and tracking your coding progress.',
+              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: textSecondary, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16.0),
+            ElevatedButton.icon(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                context.go('/learn/modules');
+              },
+              icon: const Icon(Icons.arrow_forward_rounded, size: 14.0),
+              label: Text(
+                'Explore Modules',
+                style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnrolledModuleCard({
+    required PathwayModel module,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    final bool isMastered = module.completion >= 100;
+    final bool isStarted = module.completion > 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: borderColor),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            context.push('/learn/modules/${module.id}');
+          },
+          borderRadius: BorderRadius.circular(16.0),
+          child: Padding(
+            padding: const EdgeInsets.all(14.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Row 1: LanguageAvatarStack on left, {completion}% Complete on right (AGENTS.md)
+                Row(
+                  children: <Widget>[
+                    LanguageAvatarStack(
+                      languages: module.stack,
+                      size: 24.0,
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${module.completion}% Complete',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10.0),
+
+                // Row 2: Title & Description
+                Text(
+                  module.title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (module.description.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 3.0),
+                  Text(
+                    module.description,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      color: textSecondary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 12.0),
+
+                // Row 3: Strict Progress Bar (No clamping per AGENTS.md)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999.0),
+                  child: LinearProgressIndicator(
+                    value: module.completion / 100.0,
+                    minHeight: 5.5,
+                    backgroundColor: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isMastered ? const Color(0xFF10B981) : AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12.0),
+
+                // Row 4: Status Badge, Coach, CTA (AGENTS.md Copy Standard)
+                Row(
+                  children: <Widget>[
+                    if (isMastered)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999.0),
+                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Icon(Icons.check_circle_rounded, size: 11.0, color: Color(0xFF10B981)),
+                            const SizedBox(width: 3.0),
+                            Text(
+                              'Mastered',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF10B981),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (isStarted)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999.0),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(Icons.access_time_rounded, size: 11.0, color: AppColors.primary),
+                            const SizedBox(width: 3.0),
+                            Text(
+                              'In Progress',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
+                        decoration: BoxDecoration(
+                          color: textSecondary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(999.0),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Text(
+                          'Not Started',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ),
+                    const Spacer(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(Icons.play_arrow_rounded, size: 15.0, color: AppColors.primary),
+                        const SizedBox(width: 2.0),
+                        Text(
+                          isStarted ? 'Continue Learning' : 'Start Learning',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 2.0),
+                        Icon(Icons.arrow_forward_rounded, size: 12.0, color: AppColors.primary),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmissionsLog({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // Metrics Overview Row
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Submissions',
+                value: '${_submissions.length}',
+                icon: Icons.layers_outlined,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Pass Rate',
+                value: '$_passRate%',
+                icon: Icons.check_circle_outline_rounded,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                accentColor: _passRate >= 70
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFF59E0B),
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Streak',
+                value: '${_streak}d',
+                icon: Icons.local_fire_department_rounded,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                accentColor: const Color(0xFFF59E0B),
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: _buildMetricBox(
+                label: 'Review',
+                value: '$_needsReviewCount',
+                icon: Icons.access_time_rounded,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18.0),
+
+        // Filter Tabs (Standard 36.0 Height)
+        FilterTabBar(
+          height: 36.0,
+          tabs: _filterTabs,
+          selectedId: _statusFilter,
+          onTabSelected: (String tabId) {
+            setState(() {
+              _statusFilter = tabId;
+              _currentPage = 1;
+            });
+          },
+        ),
+        const SizedBox(height: 12.0),
+
+        // Search & Language Dropdown Controls Row
+        Row(
+          children: <Widget>[
+            // Search Input
+            Expanded(
+              child: Container(
+                height: 38.0,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppColors.darkSurfaceCard
+                      : AppColors.lightSurfaceCard,
+                  borderRadius: BorderRadius.circular(10.0),
+                  border: Border.all(color: borderColor),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (String val) {
+                    setState(() {
+                      _searchQuery = val;
+                      _currentPage = 1;
+                    });
+                  },
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.0,
+                    color: textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10.0,
+                      vertical: 9.0,
+                    ),
+                    hintText: 'Search submissions...',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      color: textSecondary,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      size: 17.0,
+                      color: textSecondary,
+                    ),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(
+                              Icons.close_rounded,
+                              size: 15.0,
+                              color: textSecondary,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                                _currentPage = 1;
+                              });
+                            },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8.0),
+
+            // Language Filter Dropdown
+            _buildLanguageDropdown(
+              isDark: isDark,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16.0),
+
+        // Content Section: Skeleton | Empty | Submissions List
+        if (_isLoading && _submissions.isEmpty)
+          _buildLoadingSkeleton(isDark)
+        else if (_filteredSubmissions.isEmpty)
+          _buildEmptyState(
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            borderColor: borderColor,
+          )
+        else ...<Widget>[
+          // List of Submission Cards
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _visibleSubmissions.length,
+            separatorBuilder: (BuildContext context, int index) =>
+                const SizedBox(height: 10.0),
+            itemBuilder: (BuildContext context, int index) {
+              final DashboardSubmission sub = _visibleSubmissions[index];
+              return _buildSubmissionCard(
+                sub: sub,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                borderColor: borderColor,
+              );
+            },
+          ),
+
+          // Pagination Footer (Jakob's Law Pattern)
+          _buildPaginationBar(
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            borderColor: borderColor,
+          ),
+        ],
+      ],
     );
   }
 

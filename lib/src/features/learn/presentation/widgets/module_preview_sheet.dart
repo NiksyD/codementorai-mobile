@@ -228,7 +228,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                         id: 'pro',
                         title: 'Complete Mastery',
                         price: CurrencyFormatter.formatConvertedPhp(proPrice),
-                        subPrice: '≈ \$${proPrice.toStringAsFixed(0)} USD',
+                        subPrice: '${CurrencyFormatter.formatCodeCoins(proPrice)} (≈ \$${proPrice.toStringAsFixed(0)} USD)',
                         badge: 'RECOMMENDED',
                         description:
                             'Unlock algorithmic challenges, unlimited AI code reviews, and certification.',
@@ -309,7 +309,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                                   children: <Widget>[
                                     Text(
                                       _selectedTier == 'pro'
-                                          ? 'Upgrade & Enroll • ${CurrencyFormatter.formatConvertedPhp(proPrice)}'
+                                          ? 'Upgrade & Enroll • ${CurrencyFormatter.formatCodeCoins(proPrice)}'
                                           : 'Enroll for Free',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 13.5,

@@ -35,11 +35,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _firstName = '';
   String _lastName = '';
 
-  // 1:1 Web Notifications Parity (/settings/notifications)
-  bool _emailNotifications = true;
-  bool _streakReminders = true;
-  bool _moduleUpdates = true;
-
   User? _getAuthUser() {
     try {
       return Supabase.instance.client.auth.currentUser;
@@ -384,12 +379,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final User? authUser = _getAuthUser();
-    final String displayName = _profile?.fullName ??
-        (authUser?.email?.split('@').first ?? 'Developer');
-    final String email = _profile?.email ??
-        (authUser?.email ?? '');
-    final String avatarUrl = _profile?.avatarUrl?.isNotEmpty == true
-        ? _profile!.avatarUrl!
+    final Map<String, dynamic> authMeta = authUser?.userMetadata ?? <String, dynamic>{};
+    final String displayName = _profile?.fullName.isNotEmpty == true
+        ? _profile!.fullName
+        : ((authMeta['full_name'] as String?) ??
+            authUser?.email?.split('@').first ??
+            'Developer');
+    final String email = _profile?.email.isNotEmpty == true
+        ? _profile!.email
+        : (authUser?.email ?? '');
+    final String? resolvedAvatar = (_profile?.avatarUrl?.isNotEmpty == true)
+        ? _profile!.avatarUrl
+        : ((authMeta['avatar_url'] as String?) ?? (authMeta['picture'] as String?));
+    final String avatarUrl = (resolvedAvatar != null && resolvedAvatar.trim().isNotEmpty)
+        ? resolvedAvatar.trim()
         : 'https://api.dicebear.com/7.x/avataaars/png?seed=$displayName';
 
     return Scaffold(
@@ -638,114 +641,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onChanged: (bool val) {
                                 HapticFeedback.selectionClick();
                                 themeModeController.toggleTheme();
-                              },
-                            ),
-                          ),
-                          Divider(
-                            height: 1.0,
-                            color: borderColor,
-                          ),
-                          ListTile(
-                            leading: Icon(
-                              Icons.mail_outline_rounded,
-                              color: iconColor,
-                              size: 20.0,
-                            ),
-                            title: Text(
-                              'Email Notifications',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'Activity alerts & challenge verdicts',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
-                                color: textSecondary,
-                              ),
-                            ),
-                            trailing: Switch.adaptive(
-                              value: _emailNotifications,
-                              activeTrackColor: AppColors.primary,
-                              onChanged: (bool val) {
-                                HapticFeedback.selectionClick();
-                                setState(() {
-                                  _emailNotifications = val;
-                                });
-                              },
-                            ),
-                          ),
-                          Divider(
-                            height: 1.0,
-                            color: borderColor,
-                          ),
-                          ListTile(
-                            leading: Icon(
-                              Icons.local_fire_department_outlined,
-                              color: iconColor,
-                              size: 20.0,
-                            ),
-                            title: Text(
-                              'Streak Reminders',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'Daily reminder to maintain practice streaks',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
-                                color: textSecondary,
-                              ),
-                            ),
-                            trailing: Switch.adaptive(
-                              value: _streakReminders,
-                              activeTrackColor: AppColors.primary,
-                              onChanged: (bool val) {
-                                HapticFeedback.selectionClick();
-                                setState(() {
-                                  _streakReminders = val;
-                                });
-                              },
-                            ),
-                          ),
-                          Divider(
-                            height: 1.0,
-                            color: borderColor,
-                          ),
-                          ListTile(
-                            leading: Icon(
-                              Icons.auto_stories_outlined,
-                              color: iconColor,
-                              size: 20.0,
-                            ),
-                            title: Text(
-                              'Module & Challenge Releases',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'Updates on new roadmaps and topics',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
-                                color: textSecondary,
-                              ),
-                            ),
-                            trailing: Switch.adaptive(
-                              value: _moduleUpdates,
-                              activeTrackColor: AppColors.primary,
-                              onChanged: (bool val) {
-                                HapticFeedback.selectionClick();
-                                setState(() {
-                                  _moduleUpdates = val;
-                                });
                               },
                             ),
                           ),

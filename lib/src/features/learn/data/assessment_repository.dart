@@ -22,4 +22,5 @@ abstract class AssessmentRepository {
     required int timeSpentSecs,
     required List<Map<String, dynamic>> challengeSubmissions,
   });
+  Future<List<Map<String, dynamic>>> getUserAssessmentAttempts(String userId);
 }

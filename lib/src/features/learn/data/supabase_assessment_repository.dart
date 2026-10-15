@@ -300,6 +300,20 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
         onConflict: 'user_id,assessment_id',
       );
 
+      // 2.5 Record in user_assessment_attempts for CRA Competency scoring
+      try {
+        await _supabase.from('user_assessment_attempts').insert(<String, dynamic>{
+          'user_id': userId,
+          'assessment_id': assessmentId,
+          'status': 'graded',
+          'score': score,
+          'submitted_at': DateTime.now().toIso8601String(),
+          'graded_at': DateTime.now().toIso8601String(),
+        });
+      } catch (attErr) {
+        debugPrint('Non-critical attempt insert error: $attErr');
+      }
+
       // 3. Insert submissions for each challenge if provided
       for (final Map<String, dynamic> item in challengeSubmissions) {
         try {
@@ -327,6 +341,44 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
     } catch (e) {
       debugPrint('Error submitting assessment attempt: $e');
       return false;
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getUserAssessmentAttempts(String userId) async {
+    if (userId.isEmpty) return <Map<String, dynamic>>[];
+
+    try {
+      final dynamic attemptsData = await _supabase
+          .from('user_assessment_attempts')
+          .select('assessment_id, status, score')
+          .eq('user_id', userId);
+
+      if (attemptsData is List && attemptsData.isNotEmpty) {
+        return attemptsData.cast<Map<String, dynamic>>();
+      }
+
+      // Fallback: check user_assessment_library best_score
+      final dynamic libData = await _supabase
+          .from('user_assessment_library')
+          .select('assessment_id, status, best_score')
+          .eq('user_id', userId);
+
+      if (libData is List && libData.isNotEmpty) {
+        return libData.map<Map<String, dynamic>>((dynamic item) {
+          final Map<String, dynamic> m = item as Map<String, dynamic>;
+          return <String, dynamic>{
+            'assessment_id': m['assessment_id'],
+            'status': m['status'] ?? 'completed',
+            'score': m['best_score'],
+          };
+        }).toList();
+      }
+
+      return <Map<String, dynamic>>[];
+    } catch (e) {
+      debugPrint('Error fetching user assessment attempts: $e');
+      return <Map<String, dynamic>>[];
     }
   }
 }

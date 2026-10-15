@@ -284,21 +284,28 @@ class SupabasePathwayRepository implements PathwayRepository {
       }
 
       final Map<String, dynamic> auditScoresBySubId = <String, dynamic>{};
+      final Map<String, Map<String, dynamic>> auditFindingsBySubId = <String, Map<String, dynamic>>{};
       final List<String> subIdsNeedingAudit = <String>[];
       for (final Map<String, dynamic> s in subRows) {
         final String sId = s['sub_id']?.toString() ?? '';
         final dynamic audits = s['ai_audits'];
         dynamic score;
+        Map<String, dynamic>? findingsMap;
         if (audits is List && audits.isNotEmpty && audits.first is Map) {
           final dynamic findings = (audits.first as Map)['audit_findings'];
           if (findings is Map) {
+            findingsMap = Map<String, dynamic>.from(findings);
             score = findings['acf_composite_score'] ?? findings['score'];
           }
         } else if (audits is Map && audits['audit_findings'] is Map) {
           final dynamic findings = audits['audit_findings'];
           if (findings is Map) {
+            findingsMap = Map<String, dynamic>.from(findings);
             score = findings['acf_composite_score'] ?? findings['score'];
           }
+        }
+        if (findingsMap != null) {
+          auditFindingsBySubId[sId] = findingsMap;
         }
         if (score != null) {
           auditScoresBySubId[sId] = score;
@@ -317,6 +324,8 @@ class SupabasePathwayRepository implements PathwayRepository {
             final String aSubId = a['sub_id']?.toString() ?? '';
             final dynamic findings = a['audit_findings'];
             if (findings is Map) {
+              final Map<String, dynamic> fMap = Map<String, dynamic>.from(findings);
+              auditFindingsBySubId[aSubId] = fMap;
               final dynamic sc =
                   findings['acf_composite_score'] ?? findings['score'];
               if (sc != null) {
@@ -427,6 +436,8 @@ class SupabasePathwayRepository implements PathwayRepository {
         final String trackId = actIdToTrackId[itemId] ?? '';
         final String modTitle = trackIdToTitle[trackId] ?? 'Practice Module';
         final String diff = actIdToDifficulty[itemId] ?? '';
+        final Map<String, dynamic>? findings = auditFindingsBySubId[sId] ??
+            (s['findings'] is Map ? Map<String, dynamic>.from(s['findings'] as Map) : null);
 
         dashboardSubmissions.add(
           DashboardSubmission.fromDatabase(
@@ -436,7 +447,7 @@ class SupabasePathwayRepository implements PathwayRepository {
             moduleTitle: modTitle,
             difficulty: diff,
             acfScore: auditScoresBySubId[sId],
-          ),
+          ).copyWith(findings: findings),
         );
       }
     } catch (_) {

@@ -16,6 +16,7 @@ class DashboardSubmission {
     this.code = '',
     this.verdict = '',
     this.feedbackTips = const <String>[],
+    this.findings,
   });
 
   final String id;
@@ -32,6 +33,7 @@ class DashboardSubmission {
   final String code;
   final String verdict;
   final List<String> feedbackTips;
+  final Map<String, dynamic>? findings;
 
   bool get isPassed => status == 'Passed' || status == 'Accepted';
   bool get isPending => status == 'Pending';
@@ -90,6 +92,7 @@ class DashboardSubmission {
     String? code,
     String? verdict,
     List<String>? feedbackTips,
+    Map<String, dynamic>? findings,
   }) {
     return DashboardSubmission(
       id: id ?? this.id,
@@ -106,6 +109,7 @@ class DashboardSubmission {
       code: code ?? this.code,
       verdict: verdict ?? this.verdict,
       feedbackTips: feedbackTips ?? this.feedbackTips,
+      findings: findings ?? this.findings,
     );
   }
 
@@ -294,19 +298,24 @@ class DashboardSubmission {
     final String rawDate =
         '${submittedAt.year}-${submittedAt.month.toString().padLeft(2, '0')}-${submittedAt.day.toString().padLeft(2, '0')}';
 
+    Map<String, dynamic>? parsedFindings;
     dynamic extractedAcf = acfScore ?? row['acf_score'];
-    if (extractedAcf == null && row['ai_audits'] != null) {
+    if (row['ai_audits'] != null) {
       final dynamic audits = row['ai_audits'];
       if (audits is List && audits.isNotEmpty && audits.first is Map) {
         final Map<dynamic, dynamic> firstAudit = audits.first as Map<dynamic, dynamic>;
         if (firstAudit['audit_findings'] is Map) {
-          final Map<dynamic, dynamic> findings = firstAudit['audit_findings'] as Map<dynamic, dynamic>;
-          extractedAcf = findings['acf_composite_score'] ?? findings['score'];
+          parsedFindings = Map<String, dynamic>.from(firstAudit['audit_findings'] as Map);
+          extractedAcf ??= parsedFindings['acf_composite_score'] ?? parsedFindings['score'];
         }
       } else if (audits is Map && audits['audit_findings'] is Map) {
-        final Map<dynamic, dynamic> findings = audits['audit_findings'] as Map<dynamic, dynamic>;
-        extractedAcf = findings['acf_composite_score'] ?? findings['score'];
+        parsedFindings = Map<String, dynamic>.from(audits['audit_findings'] as Map);
+        extractedAcf ??= parsedFindings['acf_composite_score'] ?? parsedFindings['score'];
       }
+    }
+
+    if (parsedFindings == null && row['findings'] is Map) {
+      parsedFindings = Map<String, dynamic>.from(row['findings'] as Map);
     }
 
     final int? score = extractScore(row['sub_verdict'], extractedAcf);
@@ -329,6 +338,7 @@ class DashboardSubmission {
       code: code,
       verdict: verdict,
       feedbackTips: feedbackTips,
+      findings: parsedFindings,
     );
   }
 }
