@@ -78,9 +78,9 @@ class ModuleTopicModel {
       .toList();
 
   int get solvedCount =>
-      practiceActivities.where((ModuleActivityModel a) => a.isCompleted).length;
+      activities.where((ModuleActivityModel a) => a.isCompleted).length;
 
-  int get totalCount => practiceActivities.length;
+  int get totalCount => activities.length;
 
   bool get isFullyCompleted =>
       totalCount > 0 && solvedCount == totalCount;

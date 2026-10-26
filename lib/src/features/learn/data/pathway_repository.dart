@@ -54,12 +54,14 @@ abstract class PathwayRepository {
   Future<Map<String, dynamic>?> getActiveModuleReport({
     required String moduleId,
     required String userId,
+    String? activityId,
   });
   Future<bool> submitModuleReport({
     required String moduleId,
     required String userId,
     required String reason,
     required String details,
+    String? activityId,
   });
   Future<List<dynamic>> getLearnerRooms(String userId);
   Future<Map<String, dynamic>> joinRoom({

@@ -1631,12 +1631,22 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
     try {
       if (userId.isEmpty || exerciseId.isEmpty) return <SubmissionHistoryModel>[];
 
-      final List<Map<String, dynamic>> rows = await _supabase
-          .from('submissions')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('item_id', exerciseId)
-          .order('sub_submitted_at', ascending: false);
+      List<Map<String, dynamic>> rows = <Map<String, dynamic>>[];
+      try {
+        rows = await _supabase
+            .from('submissions')
+            .select('*, ai_audits(audit_findings)')
+            .eq('user_id', userId)
+            .eq('item_id', exerciseId)
+            .order('sub_submitted_at', ascending: false);
+      } catch (_) {
+        rows = await _supabase
+            .from('submissions')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('item_id', exerciseId)
+            .order('sub_submitted_at', ascending: false);
+      }
 
       return rows
           .map((Map<String, dynamic> r) => SubmissionHistoryModel.fromJson(r))
@@ -1760,17 +1770,23 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
   Future<Map<String, dynamic>?> getActiveModuleReport({
     required String moduleId,
     required String userId,
+    String? activityId,
   }) async {
     try {
       if (moduleId.isEmpty || userId.isEmpty) return null;
 
-      final List<Map<String, dynamic>> rows = await _supabase
+      var query = _supabase
           .from('module_reports')
           .select('report_id, report_reason, report_details')
           .eq('mod_id', moduleId)
           .eq('user_id', userId)
-          .inFilter('report_status', <String>['pending', 'investigating'])
-          .limit(1);
+          .inFilter('report_status', <String>['pending', 'investigating']);
+
+      if (activityId != null && activityId.isNotEmpty) {
+        query = query.eq('act_id', activityId);
+      }
+
+      final List<Map<String, dynamic>> rows = await query.limit(1);
 
       if (rows.isNotEmpty) {
         return rows.first;
@@ -1788,6 +1804,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
     required String userId,
     required String reason,
     required String details,
+    String? activityId,
   }) async {
     try {
       if (moduleId.isEmpty || userId.isEmpty || details.trim().isEmpty) {
@@ -1795,25 +1812,32 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       }
 
       // Check if an active report already exists (idempotency / deduplication)
-      final List<Map<String, dynamic>> existing = await _supabase
+      var query = _supabase
           .from('module_reports')
           .select('report_id')
           .eq('mod_id', moduleId)
           .eq('user_id', userId)
-          .inFilter('report_status', <String>['pending', 'investigating'])
-          .limit(1);
+          .inFilter('report_status', <String>['pending', 'investigating']);
+
+      if (activityId != null && activityId.isNotEmpty) {
+        query = query.eq('act_id', activityId);
+      }
+
+      final List<Map<String, dynamic>> existing = await query.limit(1);
 
       if (existing.isNotEmpty) {
         final String reportId = existing.first['report_id'] as String;
         await _supabase.from('module_reports').update(<String, dynamic>{
           'report_reason': reason,
           'report_details': details.trim(),
+          if (activityId != null && activityId.isNotEmpty) 'act_id': activityId,
           'report_created_at': DateTime.now().toIso8601String(),
         }).eq('report_id', reportId);
       } else {
         await _supabase.from('module_reports').insert(<String, dynamic>{
           'mod_id': moduleId,
           'user_id': userId,
+          if (activityId != null && activityId.isNotEmpty) 'act_id': activityId,
           'report_reason': reason,
           'report_details': details.trim(),
           'report_status': 'pending',

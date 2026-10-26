@@ -23,17 +23,23 @@ class ReportModuleSheet extends StatefulWidget {
     super.key,
     required this.moduleId,
     required this.moduleTitle,
+    this.activityId,
+    this.activityTitle,
     required this.pathwayRepository,
   });
 
   final String moduleId;
   final String moduleTitle;
+  final String? activityId;
+  final String? activityTitle;
   final PathwayRepository pathwayRepository;
 
   static Future<bool?> show(
     BuildContext context, {
     required String moduleId,
     required String moduleTitle,
+    String? activityId,
+    String? activityTitle,
     required PathwayRepository pathwayRepository,
   }) {
     HapticFeedback.lightImpact();
@@ -45,6 +51,8 @@ class ReportModuleSheet extends StatefulWidget {
       builder: (BuildContext ctx) => ReportModuleSheet(
         moduleId: moduleId,
         moduleTitle: moduleTitle,
+        activityId: activityId,
+        activityTitle: activityTitle,
         pathwayRepository: pathwayRepository,
       ),
     );
@@ -106,7 +114,11 @@ class _ReportModuleSheetState extends State<ReportModuleSheet> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       final Map<String, dynamic>? existing = await widget.pathwayRepository
-          .getActiveModuleReport(moduleId: widget.moduleId, userId: user.id);
+          .getActiveModuleReport(
+        moduleId: widget.moduleId,
+        userId: user.id,
+        activityId: widget.activityId,
+      );
 
       if (mounted && existing != null) {
         setState(() {
@@ -146,6 +158,7 @@ class _ReportModuleSheetState extends State<ReportModuleSheet> {
       userId: user.id,
       reason: _selectedReason,
       details: details,
+      activityId: widget.activityId,
     );
 
     if (!mounted) return;
@@ -247,8 +260,8 @@ class _ReportModuleSheetState extends State<ReportModuleSheet> {
           const SizedBox(height: 8.0),
           Text(
             _isUpdating
-                ? 'Your existing report for this module has been updated with your latest description.'
-                : 'Thank you for helping keep CodeMentorAI accurate and high quality. Our curriculum team has received this report.',
+                ? 'Your existing report for this ${widget.activityTitle != null ? 'activity' : 'module'} has been updated with your latest description.'
+                : 'Thank you for helping keep CodeMentorAI accurate and high quality. Our moderation team has received this report.',
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 13.0,
@@ -319,7 +332,9 @@ class _ReportModuleSheetState extends State<ReportModuleSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Report an issue',
+                      widget.activityTitle != null
+                          ? 'Report Activity Issue'
+                          : 'Report an issue',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16.0,
                         fontWeight: FontWeight.w800,
@@ -328,7 +343,7 @@ class _ReportModuleSheetState extends State<ReportModuleSheet> {
                     ),
                     const SizedBox(height: 2.0),
                     Text(
-                      widget.moduleTitle,
+                      widget.activityTitle ?? widget.moduleTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.plusJakartaSans(

@@ -18,6 +18,7 @@ import 'widgets/markdown_content_view.dart';
 import 'widgets/module_review_modal.dart';
 import 'widgets/practice_code_editor.dart';
 import 'widgets/practice_console_sheet.dart';
+import 'widgets/report_module_sheet.dart';
 import 'widgets/submissions_history_view.dart';
 
 class ChallengeScreen extends StatefulWidget {
@@ -230,7 +231,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                context.pop();
+                _popOrFallback();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error,
@@ -242,7 +243,15 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         ),
       );
     } else {
-      context.pop();
+      _popOrFallback();
+    }
+  }
+
+  void _popOrFallback() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      context.go('/modules/${widget.moduleId}');
     }
   }
 
@@ -337,7 +346,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
             : null,
         onBackToModule: () {
           Navigator.of(context).pop();
-          context.pop();
+          _popOrFallback();
         },
         onRateModule: () async {
           Navigator.of(context).pop();
@@ -357,7 +366,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
           );
           if (submitted == true && mounted) {
             AppToast.showSuccess(context, 'Review posted!');
-            context.pop();
+            _popOrFallback();
           }
         },
       );
@@ -391,37 +400,45 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
+      return PopScope(
+        canPop: Navigator.of(context).canPop(),
+        onPopInvokedWithResult: (bool didPop, dynamic result) {
+          if (!didPop) {
+            _popOrFallback();
+          }
+        },
+        child: Scaffold(
           backgroundColor: backgroundColor,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: textPrimary,
-            onPressed: () => context.pop(),
+          appBar: AppBar(
+            backgroundColor: backgroundColor,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              color: textPrimary,
+              onPressed: _popOrFallback,
+            ),
           ),
-        ),
-        body: const ShimmerLoading(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                SkeletonBox(width: 220.0, height: 24.0, borderRadius: 6.0),
-                SizedBox(height: 16.0),
-                SkeletonBox(
-                  width: double.infinity,
-                  height: 180.0,
-                  borderRadius: 16.0,
-                ),
-                SizedBox(height: 16.0),
-                SkeletonBox(
-                  width: double.infinity,
-                  height: 240.0,
-                  borderRadius: 16.0,
-                ),
-              ],
+          body: const ShimmerLoading(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  SkeletonBox(width: 220.0, height: 24.0, borderRadius: 6.0),
+                  SizedBox(height: 16.0),
+                  SkeletonBox(
+                    width: double.infinity,
+                    height: 180.0,
+                    borderRadius: 16.0,
+                  ),
+                  SizedBox(height: 16.0),
+                  SkeletonBox(
+                    width: double.infinity,
+                    height: 240.0,
+                    borderRadius: 16.0,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -430,37 +447,52 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
 
     final PracticeExerciseModel? ch = _challenge;
     if (ch == null) {
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
+      return PopScope(
+        canPop: Navigator.of(context).canPop(),
+        onPopInvokedWithResult: (bool didPop, dynamic result) {
+          if (!didPop) {
+            _popOrFallback();
+          }
+        },
+        child: Scaffold(
           backgroundColor: backgroundColor,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: textPrimary,
-            onPressed: () => context.pop(),
+          appBar: AppBar(
+            backgroundColor: backgroundColor,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              color: textPrimary,
+              onPressed: _popOrFallback,
+            ),
           ),
-        ),
-        body: Center(
-          child: Text(
-            'Challenge not found',
-            style: TextStyle(color: textSecondary),
+          body: Center(
+            child: Text(
+              'Challenge not found',
+              style: TextStyle(color: textSecondary),
+            ),
           ),
         ),
       );
     }
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (!didPop) {
+          _handleBackNavigation();
+        }
+      },
+      child: Scaffold(
         backgroundColor: backgroundColor,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          color: textPrimary,
-          onPressed: _handleBackNavigation,
-        ),
+        appBar: AppBar(
+          backgroundColor: backgroundColor,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            color: textPrimary,
+            onPressed: _handleBackNavigation,
+          ),
         title: Text(
           ch.title,
           style: GoogleFonts.plusJakartaSans(
@@ -578,6 +610,23 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
             tooltip: 'Reset code template',
             onPressed: _handleResetCode,
           ),
+
+          // Report activity issue
+          IconButton(
+            icon: const Icon(Icons.flag_outlined, size: 20.0),
+            color: textSecondary,
+            tooltip: 'Report activity issue',
+            onPressed: () {
+              ReportModuleSheet.show(
+                context,
+                moduleId: widget.moduleId,
+                moduleTitle: ch.title,
+                activityId: widget.challengeId,
+                activityTitle: ch.title,
+                pathwayRepository: widget.pathwayRepository,
+              );
+            },
+          ),
         ],
       ),
       body: Column(
@@ -585,9 +634,12 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
           // Segmented Sub-Nav: [ Description ] <-> [ Code Editor ] <-> [ Test Cases ] <-> [ Submissions ]
           Container(
             decoration: BoxDecoration(
-              color: cardBg,
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
               border: Border(
-                bottom: BorderSide(color: borderColor, width: 0.8),
+                bottom: BorderSide(
+                  color: borderColor.withValues(alpha: 0.6),
+                  width: 1.0,
+                ),
               ),
             ),
             child: Row(
@@ -676,8 +728,13 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             decoration: BoxDecoration(
-              color: cardBg,
-              border: Border(top: BorderSide(color: borderColor, width: 0.8)),
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              border: Border(
+                top: BorderSide(
+                  color: borderColor.withValues(alpha: 0.6),
+                  width: 1.0,
+                ),
+              ),
             ),
             child: SafeArea(
               top: false,
@@ -780,8 +837,9 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSubNavTab({
     required String id,
@@ -930,9 +988,11 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
               return Container(
                 margin: const EdgeInsets.only(bottom: 12.0),
                 decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(14.0),
-                  border: Border.all(color: borderColor),
+                  color: isDark ? const Color(0xFF161618) : cardBg,
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF26262B) : borderColor,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -945,13 +1005,16 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? AppColors.darkSurface
+                            ? const Color(0xFF1E1E22)
                             : const Color(0xFFF8FAFC),
                         borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(13.0),
+                          top: Radius.circular(11.0),
                         ),
                         border: Border(
-                          bottom: BorderSide(color: borderColor, width: 0.8),
+                          bottom: BorderSide(
+                            color: isDark ? const Color(0xFF26262B) : borderColor,
+                            width: 0.8,
+                          ),
                         ),
                       ),
                       child: Text(
@@ -964,7 +1027,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.all(14.0),
+                      padding: const EdgeInsets.all(12.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
@@ -983,10 +1046,12 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                               padding: const EdgeInsets.all(8.0),
                               decoration: BoxDecoration(
                                 color: isDark
-                                    ? AppColors.darkBackground
+                                    ? const Color(0xFF121214)
                                     : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(8.0),
-                                border: Border.all(color: borderColor),
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF26262B) : borderColor,
+                                ),
                               ),
                               child: Text(
                                 tc.input,
@@ -1003,7 +1068,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11.0,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF3ECF8E),
+                              color: const Color(0xFF10B981),
                             ),
                           ),
                           const SizedBox(height: 4.0),
@@ -1012,16 +1077,18 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                             padding: const EdgeInsets.all(8.0),
                             decoration: BoxDecoration(
                               color: isDark
-                                  ? AppColors.darkBackground
+                                  ? const Color(0xFF121214)
                                   : const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(8.0),
-                              border: Border.all(color: borderColor),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF26262B) : borderColor,
+                              ),
                             ),
                             child: Text(
                               tc.expectedOutput,
                               style: GoogleFonts.jetBrainsMono(
                                 fontSize: 11.5,
-                                color: const Color(0xFF3ECF8E),
+                                color: const Color(0xFF10B981),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1067,6 +1134,18 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         ? _lastResult!.caseResults[safeIdx]
         : null;
 
+    final bool currentCasePassed = activeCr != null
+        ? activeCr.passed
+        : (hasRun ? _lastResult!.isSuccess : false);
+
+    final String actualOutputText = activeCr != null
+        ? activeCr.actual
+        : (hasRun
+            ? (_lastResult!.stdout.isNotEmpty
+                ? _lastResult!.stdout.join('\n')
+                : (_lastResult!.isSuccess ? tc.expectedOutput : 'No stdout recorded'))
+            : '');
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
       child: Column(
@@ -1089,70 +1168,44 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
                   decoration: BoxDecoration(
-                    color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.15),
+                    color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6.0),
                     border: Border.all(
-                      color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.3),
+                      color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.25),
                     ),
                   ),
-                  child: Text(
-                    _lastResult!.isSuccess
-                        ? 'Passed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'
-                        : (_lastResult!.isCompileError
-                            ? 'Compilation Error'
-                            : 'Failed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'),
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w700,
-                      color: _lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        width: 6.0,
+                        height: 6.0,
+                        margin: const EdgeInsets.only(right: 6.0),
+                        decoration: BoxDecoration(
+                          color: _lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      Text(
+                        _lastResult!.isSuccess
+                            ? 'Passed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'
+                            : (_lastResult!.isCompileError
+                                ? 'Compilation Error'
+                                : 'Failed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'),
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11.0,
+                          fontWeight: FontWeight.w700,
+                          color: _lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ],
           ),
           const SizedBox(height: 12.0),
 
-          // Submit prompt if all passed
-          if (hasRun && _lastResult!.isSuccess) ...<Widget>[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-              margin: const EdgeInsets.only(bottom: 14.0),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10.0),
-                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: <Widget>[
-                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18.0),
-                  const SizedBox(width: 8.0),
-                  Expanded(
-                    child: Text(
-                      'All tests passed! Ready to submit solution.',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF10B981),
-                      ),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _handleSubmitSolution,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-                      visualDensity: VisualDensity.compact,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-                    ),
-                    child: const Text('Submit Solution →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Case Selector Chips with status dots
+          // Case Selector Pills (Sleek minimalist horizontal selector)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -1165,40 +1218,49 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
 
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    showCheckmark: false,
-                    avatar: hasRun && thisPassed != null
-                        ? Container(
-                            width: 8.0,
-                            height: 8.0,
-                            margin: const EdgeInsets.only(left: 4.0),
-                            decoration: BoxDecoration(
-                              color: thisPassed ? const Color(0xFF10B981) : AppColors.error,
-                              shape: BoxShape.circle,
-                            ),
-                          )
-                        : null,
-                    label: Text('Case ${idx + 1}'),
-                    selected: isSelected,
-                    onSelected: (bool val) {
-                      if (val) setState(() => _selectedTestCaseIdx = idx);
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedTestCaseIdx = idx);
                     },
-                    labelStyle: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.5,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected
-                          ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                          : textSecondary,
-                    ),
-                    selectedColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                    backgroundColor: cardBg,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                      side: BorderSide(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.5),
+                      decoration: BoxDecoration(
                         color: isSelected
-                            ? (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1))
-                            : borderColor,
-                        width: isSelected ? 1.5 : 1.0,
+                            ? (isDark ? const Color(0xFF26262B) : const Color(0xFFE2E8F0))
+                            : (isDark ? const Color(0xFF18181B) : const Color(0xFFF1F5F9)),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(
+                          color: isSelected
+                              ? (isDark ? const Color(0xFF3C3C44) : const Color(0xFFCBD5E1))
+                              : (isDark ? const Color(0xFF26262B) : borderColor.withValues(alpha: 0.5)),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          if (hasRun && thisPassed != null) ...<Widget>[
+                            Container(
+                              width: 6.5,
+                              height: 6.5,
+                              margin: const EdgeInsets.only(right: 6.0),
+                              decoration: BoxDecoration(
+                                color: thisPassed ? const Color(0xFF10B981) : AppColors.error,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                          Text(
+                            'Case ${idx + 1}',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11.5,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: isSelected ? textPrimary : textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1206,165 +1268,206 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
               }),
             ),
           ),
-          const SizedBox(height: 16.0),
-
-          // Input Block
-          Text(
-            'Input',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              fontWeight: FontWeight.w700,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(10.0),
-              border: Border.all(color: borderColor),
-            ),
-            child: SelectableText(
-              tc.input.isEmpty ? '(empty input)' : tc.input,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 12.0,
-                color: textPrimary,
-              ),
-            ),
-          ),
           const SizedBox(height: 14.0),
 
-          // Expected Output Block
-          Text(
-            'Expected Output',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              fontWeight: FontWeight.w700,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 6.0),
+          // Unified Test Case Card (Clean neutral simplicity pattern)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(10.0),
-              border: Border.all(color: borderColor),
-            ),
-            child: SelectableText(
-              tc.expectedOutput,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 12.0,
-                color: const Color(0xFF10B981),
-                fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFF161618) : Colors.white,
+              borderRadius: BorderRadius.circular(12.0),
+              border: Border.all(
+                color: isDark ? const Color(0xFF26262B) : borderColor,
               ),
             ),
-          ),
-          const SizedBox(height: 14.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Input Block
+                Text(
+                  'INPUT',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6.0),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10.0),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF121214) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF222226) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: SelectableText(
+                    tc.input.isEmpty ? '(empty input)' : tc.input,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 12.0,
+                      color: textPrimary,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14.0),
 
-          // Actual Output / Status
-          if (hasRun) ...<Widget>[
-            Text(
-              'Actual Output (stdout)',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.0,
-                fontWeight: FontWeight.w700,
-                color: textSecondary,
-              ),
-            ),
-            const SizedBox(height: 6.0),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: (activeCr?.passed ?? (hasRun ? _lastResult!.isSuccess : false))
-                    ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                    : AppColors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10.0),
-                border: Border.all(
-                  color: (activeCr?.passed ?? (hasRun ? _lastResult!.isSuccess : false))
-                      ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                      : AppColors.error.withValues(alpha: 0.3),
+                // Expected Output Block
+                Text(
+                  'EXPECTED OUTPUT',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: const Color(0xFF10B981),
+                  ),
                 ),
-              ),
-              child: SelectableText(
-                activeCr?.actual ??
-                    (_lastResult!.stdout.isNotEmpty ? _lastResult!.stdout.join('\n') : (_lastResult!.isSuccess ? tc.expectedOutput : 'No stdout recorded')),
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 12.0,
-                  color: (activeCr?.passed ?? (hasRun ? _lastResult!.isSuccess : false))
-                      ? const Color(0xFF10B981)
-                      : AppColors.error,
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 6.0),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10.0),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF121214) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF222226) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: SelectableText(
+                    tc.expectedOutput,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 12.0,
+                      color: const Color(0xFF10B981),
+                      fontWeight: FontWeight.w600,
+                      height: 1.45,
+                    ),
+                  ),
                 ),
-              ),
-            ),
 
-            if (!(activeCr?.passed ?? (hasRun ? _lastResult!.isSuccess : false))) ...<Widget>[
-              const SizedBox(height: 14.0),
-              Container(
-                padding: const EdgeInsets.all(12.0),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10.0),
-                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Icon(Icons.lightbulb_outline_rounded, color: Color(0xFF10B981), size: 18.0),
-                    const SizedBox(width: 8.0),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            'Socratic AI Mentor Hint',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12.0, fontWeight: FontWeight.w800, color: const Color(0xFF10B981)),
-                          ),
-                          const SizedBox(height: 3.0),
-                          Text(
-                            activeCr?.error ??
-                                (_lastResult!.socraticHint != null && _lastResult!.socraticHint!.isNotEmpty
-                                    ? _lastResult!.socraticHint!
-                                    : 'Your program did not produce the expected output. Review constraints and assertions.'),
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: textPrimary),
-                          ),
-                        ],
+                // Actual Output (stdout)
+                if (hasRun) ...<Widget>[
+                  const SizedBox(height: 14.0),
+                  Text(
+                    'ACTUAL OUTPUT',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
+                      color: currentCasePassed ? const Color(0xFF10B981) : AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(height: 6.0),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10.0),
+                    decoration: BoxDecoration(
+                      color: currentCasePassed
+                          ? const Color(0xFF10B981).withValues(alpha: 0.08)
+                          : AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(
+                        color: currentCasePassed
+                            ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                            : AppColors.error.withValues(alpha: 0.3),
                       ),
                     ),
-                  ],
+                    child: SelectableText(
+                      actualOutputText,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 12.0,
+                        color: currentCasePassed ? const Color(0xFF10B981) : AppColors.error,
+                        fontWeight: FontWeight.w600,
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ] else ...<Widget>[
+                  const SizedBox(height: 14.0),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF121214) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF222226) : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.play_circle_outline_rounded,
+                          size: 16.0,
+                          color: textSecondary,
+                        ),
+                        const SizedBox(width: 8.0),
+                        Expanded(
+                          child: Text(
+                            'Click "Run Tests" below to test your solution against this case.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              color: textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Socratic Hint if failed
+          if (hasRun && !currentCasePassed) ...<Widget>[
+            const SizedBox(height: 12.0),
+            Container(
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161618) : const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(10.0),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2D2D35) : const Color(0xFFFECACA),
                 ),
               ),
-            ],
-          ] else ...<Widget>[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14.0),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(12.0),
-                border: Border.all(color: borderColor),
-              ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const Icon(
-                    Icons.info_outline_rounded,
-                    size: 18.0,
-                    color: AppColors.primary,
+                    Icons.lightbulb_outline_rounded,
+                    color: Color(0xFFF59E0B),
+                    size: 16.0,
                   ),
-                  const SizedBox(width: 10.0),
+                  const SizedBox(width: 8.0),
                   Expanded(
-                    child: Text(
-                      'Ready to validate. Tap "Run Tests" below to test your code against this case.',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        fontWeight: FontWeight.w500,
-                        color: textSecondary,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Mentor Guidance',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            fontWeight: FontWeight.w700,
+                            color: textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 3.0),
+                        Text(
+                          activeCr?.error ??
+                              (_lastResult!.socraticHint != null && _lastResult!.socraticHint!.isNotEmpty
+                                  ? _lastResult!.socraticHint!
+                                  : 'Your program did not produce the expected output. Review constraints and assertions.'),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            color: textSecondary,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

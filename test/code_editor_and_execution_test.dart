@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:codementorai_mobile/src/features/learn/data/code_execution_service.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/practice_exercise_model.dart';
+import 'package:codementorai_mobile/src/features/learn/domain/submission_history_model.dart';
 import 'package:codementorai_mobile/src/features/learn/presentation/widgets/practice_code_editor.dart';
 import 'package:codementorai_mobile/src/features/learn/presentation/widgets/practice_console_sheet.dart';
+import 'package:codementorai_mobile/src/features/learn/presentation/widgets/submissions_history_view.dart';
 
 void main() {
   group('CodeExecutionService Unit Tests', () {
@@ -183,6 +187,116 @@ void main() {
       await tester.pump();
 
       expect(submitted, isTrue);
+    });
+  });
+
+  group('SubmissionHistoryModel & SubmissionsHistoryView Tests', () {
+    test('SubmissionHistoryModel parses score and sanitizes optimal verdict', () {
+      final SubmissionHistoryModel model = SubmissionHistoryModel.fromJson(<String, dynamic>{
+        'sub_id': 'sub-1',
+        'sub_code': 'console.log("hello");',
+        'sub_language': 'javascript',
+        'sub_status': 'accepted',
+        'sub_score': 95,
+        'sub_verdict': jsonEncode(<String, dynamic>{
+          'verdict': 'Optimal Solution',
+          'acf_composite_score': 95,
+        }),
+        'sub_submitted_at': '2026-10-25T12:00:00Z',
+      });
+
+      expect(model.score, equals(95));
+      expect(model.verdict, equals('Accepted'));
+      expect(model.isAccepted, isTrue);
+    });
+
+    test('SubmissionHistoryModel extracts acf_composite_score from joined ai_audits', () {
+      final SubmissionHistoryModel model = SubmissionHistoryModel.fromJson(<String, dynamic>{
+        'sub_id': 'sub-2',
+        'sub_code': 'function test() {}',
+        'sub_language': 'javascript',
+        'sub_status': 'accepted',
+        'sub_verdict': <String, dynamic>{
+          'verdict': 'Accepted',
+          'grade': 'A+',
+        },
+        'sub_submitted_at': '2026-10-25T12:00:00Z',
+        'ai_audits': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'audit_findings': <String, dynamic>{
+              'acf_composite_score': 96.24,
+            },
+          },
+        ],
+      });
+
+      expect(model.score, equals(96));
+      expect(model.verdict, equals('Accepted'));
+    });
+
+    test('SubmissionHistoryModel leaves score null if no audit exists without faking 100', () {
+      final SubmissionHistoryModel model = SubmissionHistoryModel.fromJson(<String, dynamic>{
+        'sub_id': 'sub-3',
+        'sub_code': 'function test() {}',
+        'sub_language': 'javascript',
+        'sub_status': 'accepted',
+        'sub_verdict': <String, dynamic>{
+          'verdict': 'Accepted',
+        },
+        'sub_submitted_at': '2026-10-25T12:00:00Z',
+        'ai_audits': <dynamic>[],
+      });
+
+      expect(model.score, isNull);
+    });
+
+    testWidgets('SubmissionsHistoryView renders rows accordion without letter grades', (
+      WidgetTester tester,
+    ) async {
+      final List<SubmissionHistoryModel> history = <SubmissionHistoryModel>[
+        SubmissionHistoryModel(
+          id: 'sub-101',
+          code: 'function solve() { return true; }',
+          language: 'javascript',
+          status: 'accepted',
+          verdict: 'Accepted',
+          submittedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          score: 100,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SubmissionsHistoryView(
+              submissions: history,
+              isLoading: false,
+              onRefresh: () async {},
+              onRestoreCode: (String code, String language) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verified full-width row header and attempt details
+      expect(find.text('TOTAL ATTEMPTS'), findsOneWidget);
+      expect(find.text('Attempt #1'), findsOneWidget);
+      expect(find.text('Passed'), findsOneWidget);
+      expect(find.text('100%'), findsOneWidget);
+
+      // Strictly verify no letter grade badges
+      expect(find.textContaining('Grade'), findsNothing);
+
+      // Tap row to expand accordion
+      await tester.tap(find.text('Attempt #1'));
+      await tester.pumpAndSettle();
+
+      // Expanded accordion displays language, Copy and Restore buttons, and code
+      expect(find.text('JAVASCRIPT'), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Restore'), findsOneWidget);
+      expect(find.text('function solve() { return true; }'), findsOneWidget);
     });
   });
 }

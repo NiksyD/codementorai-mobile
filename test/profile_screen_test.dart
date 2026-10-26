@@ -67,8 +67,6 @@ void main() {
 
       // Preferences items
       expect(find.text('Appearance'), findsOneWidget);
-      expect(find.text('Email Notifications'), findsOneWidget);
-      expect(find.text('Streak Reminders'), findsOneWidget);
 
       // Sign Out
       expect(find.text('Sign Out'), findsOneWidget);

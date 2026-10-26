@@ -115,6 +115,7 @@ class FakeActivityPathwayRepository implements PathwayRepository {
   Future<Map<String, dynamic>?> getActiveModuleReport({
     required String moduleId,
     required String userId,
+    String? activityId,
   }) async => null;
 
   @override
@@ -123,6 +124,7 @@ class FakeActivityPathwayRepository implements PathwayRepository {
     required String userId,
     required String reason,
     required String details,
+    String? activityId,
   }) async => true;
 
   @override
@@ -232,7 +234,7 @@ void main() {
       );
 
       // Metrics row
-      expect(find.text('Submissions'), findsOneWidget);
+      expect(find.text('Submissions'), findsWidgets);
       expect(find.text('Pass Rate'), findsOneWidget);
       expect(find.text('Streak'), findsOneWidget);
       expect(find.text('Review'), findsWidgets);
@@ -378,14 +380,15 @@ void main() {
         await tester.pumpAndSettle();
 
         // Dedicated review screen is mounted
-        expect(find.text('Verified Submission'), findsOneWidget);
+        expect(find.text('Verified Passed'), findsOneWidget);
         expect(find.text('All Tests Passed'), findsOneWidget);
-        expect(find.text('AUTOMATED CODE FEEDBACK (ACF)'), findsOneWidget);
+        expect(find.text('Automated Code Feedback'), findsOneWidget);
         expect(find.text('Correctness'), findsOneWidget);
         expect(find.text('Readability'), findsOneWidget);
         expect(find.text('Maintainability'), findsOneWidget);
         expect(find.text('Efficiency'), findsOneWidget);
-        expect(find.text('Back to Activity'), findsOneWidget);
+        expect(find.text('Submission Review'), findsOneWidget);
+        expect(find.byTooltip('Back to Activity'), findsOneWidget);
       },
     );
 
@@ -407,7 +410,7 @@ void main() {
       expect(find.text('No submissions yet'), findsOneWidget);
       expect(
         find.text(
-          'Complete challenges inside any enrolled module to see your submission history here.',
+          'Complete challenges inside any active module to see your submission history here.',
         ),
         findsOneWidget,
       );

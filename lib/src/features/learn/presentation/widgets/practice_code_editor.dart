@@ -32,7 +32,7 @@ class SyntaxHighlightingTextEditingController extends TextEditingController {
         GoogleFonts.jetBrainsMono(
           fontSize: 13.0,
           height: 22.0 / 13.0,
-          color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1E293B),
+          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
         );
 
     final String text = value.text;
@@ -40,10 +40,11 @@ class SyntaxHighlightingTextEditingController extends TextEditingController {
       return TextSpan(text: '', style: baseStyle);
     }
 
-    final Color commentColor = isDark ? const Color(0xFF6E7681) : const Color(0xFF64748B);
-    final Color stringColor = isDark ? const Color(0xFFA5D6FF) : const Color(0xFF0284C7);
-    final Color numberColor = isDark ? const Color(0xFF79C0FF) : const Color(0xFF2563EB);
-    final Color keywordColor = isDark ? const Color(0xFF3ECF8E) : const Color(0xFF059669);
+    // Design Token Color Palette (Charcoal, Zinc & Emerald mint - no blue)
+    final Color commentColor = isDark ? const Color(0xFF6E7681) : const Color(0xFF94A3B8);
+    final Color stringColor = isDark ? const Color(0xFFE5C07B) : const Color(0xFFB45309);
+    final Color numberColor = isDark ? const Color(0xFFF97316) : const Color(0xFFEA580C);
+    final Color keywordColor = isDark ? AppColors.primary : AppColors.primaryVariant;
     final Color typeColor = isDark ? const Color(0xFFFFA657) : const Color(0xFFD97706);
 
     final List<TextSpan> spans = <TextSpan>[];
@@ -256,14 +257,44 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
     _focusNode.requestFocus();
   }
 
+  List<double> _calculateLineHeights(double availableWidth, TextStyle style) {
+    if (availableWidth <= 0) {
+      return List<double>.filled(_lineCount, 22.0);
+    }
+    final List<String> lines = widget.controller.text.split('\n');
+    final List<double> heights = <double>[];
+    for (final String line in lines) {
+      if (line.isEmpty) {
+        heights.add(22.0);
+        continue;
+      }
+      final TextPainter tp = TextPainter(
+        text: TextSpan(text: line, style: style),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: availableWidth);
+      heights.add(tp.height > 22.0 ? tp.height : 22.0);
+    }
+    return heights;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color editorBg = isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC);
-    final Color gutterBg = isDark ? const Color(0xFF161B22) : const Color(0xFFEDF2F7);
+    final Color editorBg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
+    final Color gutterBg = editorBg; // Seamless unified canvas, no contrasting card block
     final Color gutterText = isDark ? const Color(0xFF6E7681) : const Color(0xFF94A3B8);
-    final Color textColor = isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1E293B);
-    final Color toolbarBg = isDark ? const Color(0xFF161B22) : const Color(0xFFE2E8F0);
+    final Color gutterDivider = isDark
+        ? AppColors.darkBorder.withValues(alpha: 0.35)
+        : AppColors.lightBorder.withValues(alpha: 0.6);
+    final Color textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final Color toolbarBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+
+    final TextStyle codeStyle = GoogleFonts.jetBrainsMono(
+      fontSize: 13.0,
+      height: 22.0 / 13.0,
+      color: textColor,
+      fontWeight: FontWeight.w500,
+    );
 
     // Sync theme & language to controller if using SyntaxHighlightingTextEditingController
     if (widget.controller is SyntaxHighlightingTextEditingController) {
@@ -275,113 +306,143 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
 
     return Column(
       children: <Widget>[
-        // Editor workspace with line numbers gutter
+        // Editor workspace with line numbers gutter (seamless hollow canvas with soft wrapping)
         Expanded(
           child: Container(
             color: editorBg,
-            child: SingleChildScrollView(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  // Line numbers column
-                  Container(
-                    width: 38.0,
-                    padding: const EdgeInsets.only(top: 14.0, right: 8.0),
-                    color: gutterBg,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: List<Widget>.generate(_lineCount, (int index) {
-                        return Container(
-                          height: 22.0,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            '${index + 1}',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 12.0,
-                              color: gutterText,
-                              fontWeight: FontWeight.w500,
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                const double gutterWidth = 38.0;
+                const double horizontalPadding = 10.0;
+                final double availableCodeWidth =
+                    constraints.maxWidth - gutterWidth - (horizontalPadding * 2);
+                final List<String> lines = widget.controller.text.split('\n');
+                final List<double> lineHeights = _calculateLineHeights(
+                  availableCodeWidth,
+                  codeStyle,
+                );
+
+                return SingleChildScrollView(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      // Line numbers column
+                      Container(
+                        width: gutterWidth,
+                        padding: const EdgeInsets.only(top: 14.0, right: 8.0),
+                        decoration: BoxDecoration(
+                          color: gutterBg,
+                          border: Border(
+                            right: BorderSide(
+                              color: gutterDivider,
+                              width: 1.0,
                             ),
                           ),
-                        );
-                      }),
-                    ),
-                  ),
-
-                  // Code input area with horizontal scrolling support
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: MediaQuery.of(context).size.width - 58.0,
                         ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: List<Widget>.generate(lines.length, (int index) {
+                            final double h =
+                                index < lineHeights.length ? lineHeights[index] : 22.0;
+                            return Container(
+                              height: h,
+                              alignment: Alignment.topRight,
+                              child: Container(
+                                height: 22.0,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  '${index + 1}',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 12.0,
+                                    color: gutterText,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+
+                      // Code input area with automatic soft line wrapping
+                      Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                          child: IntrinsicWidth(
-                            child: TextField(
-                              controller: widget.controller,
-                              focusNode: _focusNode,
-                              maxLines: null,
-                              keyboardType: TextInputType.multiline,
-                              inputFormatters: const <TextInputFormatter>[
-                                AutoIndentTextInputFormatter(),
-                              ],
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 13.0,
-                                height: 22.0 / 13.0,
-                                color: textColor,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.only(top: 14.0, bottom: 20.0),
-                                isDense: true,
-                              ),
-                              onChanged: widget.onChanged,
-                              autocorrect: false,
-                              enableSuggestions: false,
+                          padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
+                          child: TextField(
+                            controller: widget.controller,
+                            focusNode: _focusNode,
+                            maxLines: null,
+                            keyboardType: TextInputType.multiline,
+                            cursorColor: AppColors.primary,
+                            cursorWidth: 2.0,
+                            inputFormatters: const <TextInputFormatter>[
+                              AutoIndentTextInputFormatter(),
+                            ],
+                            style: codeStyle,
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.only(top: 14.0, bottom: 20.0),
+                              isDense: true,
                             ),
+                            onChanged: widget.onChanged,
+                            autocorrect: false,
+                            enableSuggestions: false,
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
 
-        // Quick-insert keyboard accessory toolbar
+        // Quick-insert keyboard accessory toolbar (Hollow, uncarded design)
         Container(
-          height: 42.0,
-          color: toolbarBg,
+          height: 40.0,
+          decoration: BoxDecoration(
+            color: toolbarBg,
+            border: Border(
+              top: BorderSide(color: gutterDivider, width: 1.0),
+            ),
+          ),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.5),
             itemCount: _accessoryKeys.length,
-            separatorBuilder: (BuildContext context, int i) => const SizedBox(width: 6.0),
+            separatorBuilder: (BuildContext context, int i) => const SizedBox(width: 5.0),
             itemBuilder: (BuildContext context, int i) {
               final String key = _accessoryKeys[i];
+              final bool isTab = key == 'tab';
               return InkWell(
                 onTap: () => _insertSymbol(key),
                 borderRadius: BorderRadius.circular(6.0),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF21262D) : Colors.white,
+                    color: isTab
+                        ? AppColors.primary.withValues(alpha: 0.12)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.black.withValues(alpha: 0.04)),
                     borderRadius: BorderRadius.circular(6.0),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF30363D) : const Color(0xFFCBD5E1),
+                      color: isTab
+                          ? AppColors.primary.withValues(alpha: 0.3)
+                          : gutterDivider,
+                      width: 1.0,
                     ),
                   ),
                   child: Text(
-                    key == 'tab' ? '⇥ tab' : key,
+                    isTab ? '⇥ tab' : key,
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.primary : const Color(0xFF0F172A),
+                      fontSize: 12.0,
+                      fontWeight: isTab ? FontWeight.w700 : FontWeight.w600,
+                      color: isTab
+                          ? AppColors.primary
+                          : textColor,
                     ),
                   ),
                 ),

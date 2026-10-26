@@ -158,6 +158,49 @@ class AcfRefactoringModel {
   }
 }
 
+class WeakTopicModel {
+  const WeakTopicModel({
+    required this.conceptTag,
+    required this.evidence,
+    required this.dimension,
+  });
+
+  final String conceptTag;
+  final String evidence;
+  final String dimension;
+
+  factory WeakTopicModel.fromJson(Map<String, dynamic> json) {
+    return WeakTopicModel(
+      conceptTag: json['concept_tag']?.toString() ?? '',
+      evidence: json['evidence']?.toString() ?? '',
+      dimension: json['dimension']?.toString() ?? 'correctness',
+    );
+  }
+}
+
+class ModuleRecommendationModel {
+  const ModuleRecommendationModel({
+    required this.moduleId,
+    required this.moduleTitle,
+    required this.rationale,
+    required this.topicTag,
+  });
+
+  final String moduleId;
+  final String moduleTitle;
+  final String rationale;
+  final String topicTag;
+
+  factory ModuleRecommendationModel.fromJson(Map<String, dynamic> json) {
+    return ModuleRecommendationModel(
+      moduleId: json['module_id']?.toString() ?? '',
+      moduleTitle: json['module_title']?.toString() ?? '',
+      rationale: json['rationale']?.toString() ?? '',
+      topicTag: json['topic_tag']?.toString() ?? '',
+    );
+  }
+}
+
 class AcfEvaluationModel {
   const AcfEvaluationModel({
     required this.compositeScore,
@@ -167,6 +210,8 @@ class AcfEvaluationModel {
     required this.maintainability,
     required this.efficiency,
     this.recommendedRefactoring,
+    this.weakTopics = const <WeakTopicModel>[],
+    this.recommendations = const <ModuleRecommendationModel>[],
   });
 
   final double compositeScore;
@@ -176,6 +221,8 @@ class AcfEvaluationModel {
   final AcfCriterionModel maintainability;
   final AcfCriterionModel efficiency;
   final AcfRefactoringModel? recommendedRefactoring;
+  final List<WeakTopicModel> weakTopics;
+  final List<ModuleRecommendationModel> recommendations;
 
   List<AcfCriterionModel> get allCriteria => <AcfCriterionModel>[
         correctness,
@@ -211,6 +258,32 @@ class AcfEvaluationModel {
       }
     }
 
+    final List<WeakTopicModel> parsedWeakTopics = <WeakTopicModel>[];
+    if (json['weak_topics'] is List) {
+      for (final dynamic item in json['weak_topics'] as List<dynamic>) {
+        if (item is Map) {
+          parsedWeakTopics.add(
+            WeakTopicModel.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          );
+        }
+      }
+    }
+
+    final List<ModuleRecommendationModel> parsedRecs = <ModuleRecommendationModel>[];
+    if (json['recommendations'] is List) {
+      for (final dynamic item in json['recommendations'] as List<dynamic>) {
+        if (item is Map) {
+          parsedRecs.add(
+            ModuleRecommendationModel.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          );
+        }
+      }
+    }
+
     return AcfEvaluationModel(
       compositeScore: score,
       executiveSummary: summary,
@@ -241,6 +314,8 @@ class AcfEvaluationModel {
         defaultSpace: defaultSpace,
       ),
       recommendedRefactoring: refactoring,
+      weakTopics: parsedWeakTopics,
+      recommendations: parsedRecs,
     );
   }
 

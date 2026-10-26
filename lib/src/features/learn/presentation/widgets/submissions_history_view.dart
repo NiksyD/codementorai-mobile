@@ -30,44 +30,61 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color cardBg = isDark ? AppColors.darkSurfaceCard : Colors.white;
     final Color borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final Color textPrimary = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     if (widget.isLoading) {
       return ShimmerLoading(
-        child: ListView.separated(
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-          itemCount: 3,
-          separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12.0),
-          itemBuilder: (BuildContext context, int index) {
-            return Container(
-              padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: <Widget>[
+            // Header skeleton
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
               decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(14.0),
-                border: Border.all(color: borderColor),
+                border: Border(
+                  bottom: BorderSide(color: borderColor.withValues(alpha: 0.4)),
+                ),
               ),
               child: const Row(
                 children: <Widget>[
-                  SkeletonBox(width: 28.0, height: 28.0, borderRadius: 14.0),
-                  SizedBox(width: 12.0),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        SkeletonBox(width: 140.0, height: 16.0, borderRadius: 4.0),
-                        SizedBox(height: 6.0),
-                        SkeletonBox(width: 180.0, height: 12.0, borderRadius: 4.0),
-                      ],
-                    ),
-                  ),
+                  SkeletonBox(width: 90.0, height: 13.0, borderRadius: 4.0),
+                  Spacer(),
+                  SkeletonBox(width: 24.0, height: 16.0, borderRadius: 8.0),
                 ],
               ),
-            );
-          },
+            ),
+            // Divided rows skeleton
+            Expanded(
+              child: ListView.separated(
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 4,
+                separatorBuilder: (BuildContext context, int index) =>
+                    Divider(height: 1.0, color: borderColor.withValues(alpha: 0.4)),
+                itemBuilder: (BuildContext context, int index) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
+                    child: Row(
+                      children: <Widget>[
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const <Widget>[
+                            SkeletonBox(width: 100.0, height: 14.0, borderRadius: 4.0),
+                            SizedBox(height: 6.0),
+                            SkeletonBox(width: 60.0, height: 11.0, borderRadius: 4.0),
+                          ],
+                        ),
+                        const Spacer(),
+                        const SkeletonBox(width: 34.0, height: 14.0, borderRadius: 4.0),
+                        const SizedBox(width: 10.0),
+                        const SkeletonBox(width: 14.0, height: 14.0, borderRadius: 4.0),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -88,16 +105,16 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
                         Container(
-                          width: 56.0,
-                          height: 56.0,
+                          width: 52.0,
+                          height: 52.0,
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.darkSurfaceCard : const Color(0xFFF1F5F9),
+                            color: isDark ? const Color(0xFF161618) : const Color(0xFFF1F5F9),
                             shape: BoxShape.circle,
                             border: Border.all(color: borderColor),
                           ),
                           child: Icon(
                             Icons.history_rounded,
-                            size: 28.0,
+                            size: 26.0,
                             color: textSecondary,
                           ),
                         ),
@@ -105,17 +122,17 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
                         Text(
                           'No Attempts Yet',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16.0,
+                            fontSize: 15.0,
                             fontWeight: FontWeight.w700,
                             color: textPrimary,
                           ),
                         ),
                         const SizedBox(height: 6.0),
                         Text(
-                          'Submit a solution to start tracking your version history and performance benchmarks.',
+                          'Submit your code solution to track your version history and performance benchmarks.',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.0,
+                            fontSize: 12.5,
                             color: textSecondary,
                             height: 1.4,
                           ),
@@ -133,254 +150,319 @@ class _SubmissionsHistoryViewState extends State<SubmissionsHistoryView> {
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-        itemCount: widget.submissions.length,
-        separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12.0),
-        itemBuilder: (BuildContext context, int index) {
-          final SubmissionHistoryModel sub = widget.submissions[index];
-          final bool isExpanded = _expandedSubmissionId == sub.id;
-          final int attemptNumber = widget.submissions.length - index;
-
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+      child: Column(
+        children: <Widget>[
+          // Full-width header row with bottom border separator (1:1 Web parity)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
             decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(14.0),
-              border: Border.all(
-                color: isExpanded ? AppColors.primary.withValues(alpha: 0.5) : borderColor,
+              color: isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+              border: Border(
+                bottom: BorderSide(
+                  color: borderColor.withValues(alpha: 0.4),
+                  width: 1.0,
+                ),
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: <Widget>[
-                // Header row
-                InkWell(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() {
-                      _expandedSubmissionId = isExpanded ? null : sub.id;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(14.0),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-                    child: Row(
-                      children: <Widget>[
-                        // Status indicator icon
-                        Container(
-                          width: 28.0,
-                          height: 28.0,
-                          decoration: BoxDecoration(
-                            color: sub.isAccepted
-                                ? const Color(0xFF3ECF8E).withValues(alpha: 0.15)
-                                : AppColors.error.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            sub.isAccepted ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                            size: 16.0,
-                            color: sub.isAccepted ? const Color(0xFF3ECF8E) : AppColors.error,
-                          ),
-                        ),
-                        const SizedBox(width: 12.0),
+                Text(
+                  'TOTAL ATTEMPTS',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11.0,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: textSecondary,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF26262B) : const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  child: Text(
+                    '${widget.submissions.length}',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-                        // Title & relative time
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Row(
+          // Full-width divided rows accordion
+          Expanded(
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: widget.submissions.length,
+              separatorBuilder: (BuildContext context, int index) => Divider(
+                height: 1.0,
+                thickness: 1.0,
+                color: borderColor.withValues(alpha: 0.4),
+              ),
+              itemBuilder: (BuildContext context, int index) {
+                final SubmissionHistoryModel sub = widget.submissions[index];
+                final bool isExpanded = _expandedSubmissionId == sub.id;
+                final int attemptNumber = widget.submissions.length - index;
+                final int? scoreVal = sub.score;
+
+                final Color scoreColor = (scoreVal ?? 0) >= 80
+                    ? const Color(0xFF10B981)
+                    : ((scoreVal ?? 0) >= 60 ? const Color(0xFFF59E0B) : AppColors.error);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    // Accordion Row Trigger
+                    InkWell(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          _expandedSubmissionId = isExpanded ? null : sub.id;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
+                        child: Row(
+                          children: <Widget>[
+                            // Left: Attempt # & Status Badge & Metadata
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
-                                  Text(
-                                    'Attempt #$attemptNumber',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8.0),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
-                                    decoration: BoxDecoration(
-                                      color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(4.0),
-                                      border: Border.all(color: borderColor),
-                                    ),
-                                    child: Text(
-                                      sub.language.toUpperCase(),
-                                      style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 10.0,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 5.0),
-                              Wrap(
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 6.0,
-                                runSpacing: 4.0,
-                                children: <Widget>[
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
-                                    decoration: BoxDecoration(
-                                      color: sub.isAccepted
-                                          ? const Color(0xFF3ECF8E).withValues(alpha: 0.15)
-                                          : AppColors.error.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(6.0),
-                                    ),
-                                    child: Text(
-                                      sub.verdict.isNotEmpty ? sub.verdict : (sub.isAccepted ? 'Accepted' : 'Failed'),
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11.0,
-                                        fontWeight: FontWeight.w700,
-                                        color: sub.isAccepted ? const Color(0xFF3ECF8E) : AppColors.error,
-                                      ),
-                                    ),
-                                  ),
-                                  if (sub.grade != null && sub.grade!.isNotEmpty)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                                      decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                                        borderRadius: BorderRadius.circular(6.0),
-                                        border: Border.all(color: borderColor),
-                                      ),
-                                      child: Text(
-                                        'Grade ${sub.grade}',
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 10.5,
+                                  Row(
+                                    children: <Widget>[
+                                      Text(
+                                        'Attempt #$attemptNumber',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 13.5,
                                           fontWeight: FontWeight.w700,
                                           color: textPrimary,
                                         ),
                                       ),
-                                    ),
+                                      const SizedBox(width: 8.0),
+                                      // Status badge: Passed / Failed (1:1 Web parity)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                                        decoration: BoxDecoration(
+                                          color: (sub.isAccepted ? const Color(0xFF10B981) : AppColors.error)
+                                              .withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(6.0),
+                                          border: Border.all(
+                                            color: (sub.isAccepted ? const Color(0xFF10B981) : AppColors.error)
+                                                .withValues(alpha: 0.25),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: <Widget>[
+                                            Icon(
+                                              sub.isAccepted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                                              size: 11.0,
+                                              color: sub.isAccepted ? const Color(0xFF10B981) : AppColors.error,
+                                            ),
+                                            const SizedBox(width: 3.5),
+                                            Text(
+                                              sub.isAccepted ? 'Passed' : 'Failed',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: sub.isAccepted ? const Color(0xFF10B981) : AppColors.error,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4.0),
+                                  Row(
+                                    children: <Widget>[
+                                      Text(
+                                        sub.timeAgoFormatted,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          color: textSecondary,
+                                        ),
+                                      ),
+                                      if (!sub.isAccepted &&
+                                          sub.verdict.isNotEmpty &&
+                                          !sub.verdict.toLowerCase().contains('optimal')) ...<Widget>[
+                                        Text(
+                                          '  ·  ',
+                                          style: TextStyle(fontSize: 11.0, color: textSecondary),
+                                        ),
+                                        Flexible(
+                                          child: Text(
+                                            sub.verdict,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11.5,
+                                              color: AppColors.error.withValues(alpha: 0.9),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Right: Pure Numeric Score Percentage & Accordion Chevron
+                            if (sub.score != null) ...<Widget>[
+                              Text(
+                                '${sub.score}%',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 13.0,
+                                  fontWeight: FontWeight.w700,
+                                  color: scoreColor,
+                                ),
+                              ),
+                            ] else ...<Widget>[
+                              Text(
+                                '—',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 13.0,
+                                  fontWeight: FontWeight.w500,
+                                  color: textSecondary,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 8.0),
+                            Icon(
+                              isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                              size: 18.0,
+                              color: textSecondary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Expanded Code View & Actions (Accordion Content)
+                    if (isExpanded)
+                      Container(
+                        margin: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 14.0),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF161618) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10.0),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF26262B) : borderColor,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            // Integrated Header with Language & Actions
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 7.0),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E1E22) : const Color(0xFFF1F5F9),
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(9.0)),
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: isDark ? const Color(0xFF26262B) : borderColor,
+                                    width: 0.8,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                children: <Widget>[
+                                  Icon(Icons.code_rounded, size: 14.0, color: textSecondary),
+                                  const SizedBox(width: 6.0),
                                   Text(
-                                    '·  ${sub.timeAgoFormatted}',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11.5,
+                                    sub.language.toUpperCase(),
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
                                       color: textSecondary,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      Clipboard.setData(ClipboardData(text: sub.code));
+                                      HapticFeedback.lightImpact();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Code copied to clipboard',
+                                            style: GoogleFonts.plusJakartaSans(fontSize: 12.5),
+                                          ),
+                                          duration: const Duration(seconds: 2),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.copy_rounded, size: 13.0),
+                                    label: const Text('Copy'),
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                                      foregroundColor: textPrimary,
+                                      textStyle: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4.0),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      HapticFeedback.mediumImpact();
+                                      widget.onRestoreCode(sub.code, sub.language);
+                                    },
+                                    icon: const Icon(Icons.settings_backup_restore_rounded, size: 14.0),
+                                    label: const Text('Restore'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6.0),
+                                      ),
+                                      textStyle: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-
-                        // Expand chevron
-                        Icon(
-                          isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                          size: 20.0,
-                          color: textSecondary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Expanded code preview & Restore action
-                if (isExpanded) ...<Widget>[
-                  Divider(color: borderColor, height: 1.0),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14.0),
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        // Monospace code display
-                        SelectableText(
-                          sub.code.trim().isNotEmpty
-                              ? sub.code
-                              : '// No code recorded for this attempt.',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 12.0,
-                            height: 1.45,
-                            color: textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 14.0),
-
-                        // Actions row: Copy + Restore
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: <Widget>[
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                Clipboard.setData(ClipboardData(text: sub.code));
-                                HapticFeedback.lightImpact();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Code copied to clipboard',
-                                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5),
-                                    ),
-                                    duration: const Duration(seconds: 2),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.copy_rounded, size: 14.0),
-                              label: Text(
-                                'Copy Code',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12.0,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: textPrimary,
-                                side: BorderSide(color: borderColor),
-                                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
-                              ),
                             ),
-                            const SizedBox(width: 8.0),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                HapticFeedback.mediumImpact();
-                                widget.onRestoreCode(sub.code, sub.language);
-                              },
-                              icon: const Icon(Icons.settings_backup_restore_rounded, size: 15.0),
-                              label: Text(
-                                'Restore This Code',
-                                style: GoogleFonts.plusJakartaSans(
+
+                            // Monospace code display
+                            Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: SelectableText(
+                                sub.code.trim().isNotEmpty
+                                    ? sub.code
+                                    : '// No code recorded for this attempt.',
+                                style: GoogleFonts.jetBrainsMono(
                                   fontSize: 12.0,
-                                  fontWeight: FontWeight.w700,
+                                  height: 1.45,
+                                  color: textPrimary,
                                 ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
-                                elevation: 0,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+                      ),
+                  ],
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

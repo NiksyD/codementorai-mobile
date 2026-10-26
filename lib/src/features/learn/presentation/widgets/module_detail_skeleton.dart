@@ -11,7 +11,7 @@ class ModuleDetailSkeleton extends StatelessWidget {
     final Color backgroundColor =
         isDark ? AppColors.darkBackground : AppColors.lightBackground;
     final Color cardBg =
-        isDark ? AppColors.darkSurfaceCard : Colors.white;
+        isDark ? AppColors.darkSurface : Colors.white;
     final Color borderColor =
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -26,7 +26,7 @@ class ModuleDetailSkeleton extends StatelessWidget {
           color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: ShimmerLoading(
+        title: const ShimmerLoading(
           child: SkeletonBox(
             width: 160.0,
             height: 18.0,
@@ -47,175 +47,142 @@ class ModuleDetailSkeleton extends StatelessWidget {
         ],
       ),
       body: ShimmerLoading(
-        child: Column(
-          children: <Widget>[
-            // ── SUB-NAV TAB PLACEHOLDERS ──
-            Container(
-              decoration: BoxDecoration(
-                color: cardBg,
-                border: Border(
-                  bottom: BorderSide(color: borderColor, width: 0.8),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16.0,
+            vertical: 12.0,
+          ),
+          physics: const NeverScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // Split-Block Hero Banner Skeleton
+              Container(
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(22.0),
+                  border: Border.all(color: borderColor.withValues(alpha: 0.5)),
                 ),
-              ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-              child: Row(
-                children: const <Widget>[
-                  SkeletonBox(width: 80.0, height: 20.0, borderRadius: 6.0),
-                  SizedBox(width: 24.0),
-                  SkeletonBox(width: 95.0, height: 20.0, borderRadius: 6.0),
-                ],
-              ),
-            ),
-
-            // ── SCROLLABLE SKELETON CONTENT ──
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 16.0,
-                ),
-                physics: const NeverScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    // Hero Module Card Skeleton
-                    Container(
+                    // Upper Context
+                    Padding(
                       padding: const EdgeInsets.all(18.0),
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(20.0),
-                        border: Border.all(color: borderColor),
-                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: const <Widget>[
+                              SkeletonBox(width: 60.0, height: 12.0, borderRadius: 4.0),
                               Row(
                                 children: <Widget>[
-                                  SkeletonCircle(size: 28.0),
-                                  SizedBox(width: 6.0),
-                                  SkeletonCircle(size: 28.0),
+                                  SkeletonCircle(size: 24.0),
+                                  SizedBox(width: 4.0),
+                                  SkeletonCircle(size: 24.0),
                                 ],
-                              ),
-                              SkeletonBox(
-                                width: 90.0,
-                                height: 22.0,
-                                borderRadius: 10.0,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16.0),
-                          const SkeletonBox(
-                            width: 220.0,
-                            height: 20.0,
-                            borderRadius: 6.0,
-                          ),
+                          const SizedBox(height: 14.0),
+                          const SkeletonBox(width: 220.0, height: 20.0, borderRadius: 6.0),
                           const SizedBox(height: 8.0),
-                          const SkeletonBox(
-                            width: double.infinity,
-                            height: 14.0,
-                            borderRadius: 4.0,
-                          ),
+                          const SkeletonBox(width: double.infinity, height: 14.0, borderRadius: 4.0),
                           const SizedBox(height: 6.0),
-                          const SkeletonBox(
-                            width: 180.0,
-                            height: 14.0,
-                            borderRadius: 4.0,
-                          ),
-                          const SizedBox(height: 16.0),
-                          const SkeletonBox(
-                            width: double.infinity,
-                            height: 6.0,
-                            borderRadius: 3.0,
-                          ),
-                          const SizedBox(height: 16.0),
+                          const SkeletonBox(width: 180.0, height: 14.0, borderRadius: 4.0),
+                          const SizedBox(height: 14.0),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: const <Widget>[
-                              Row(
-                                children: <Widget>[
-                                  SkeletonCircle(size: 26.0),
-                                  SizedBox(width: 8.0),
-                                  SkeletonBox(
-                                    width: 110.0,
-                                    height: 14.0,
-                                    borderRadius: 4.0,
-                                  ),
-                                ],
-                              ),
-                              SkeletonBox(
-                                width: 40.0,
-                                height: 16.0,
-                                borderRadius: 4.0,
-                              ),
+                              SkeletonCircle(size: 20.0),
+                              SizedBox(width: 8.0),
+                              SkeletonBox(width: 100.0, height: 12.0, borderRadius: 4.0),
+                              SizedBox(width: 8.0),
+                              SkeletonBox(width: 70.0, height: 12.0, borderRadius: 4.0),
                             ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24.0),
-
-                    // Section Title Skeleton
-                    const SkeletonBox(
-                      width: 130.0,
-                      height: 18.0,
-                      borderRadius: 6.0,
-                    ),
-                    const SizedBox(height: 14.0),
-
-                    // 3 Topic Pathway Cards Skeleton
-                    for (int i = 0; i < 3; i++) ...<Widget>[
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12.0),
-                        padding: const EdgeInsets.all(15.0),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(18.0),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Row(
-                          children: <Widget>[
-                            const SkeletonBox(
-                              width: 28.0,
-                              height: 28.0,
-                              borderRadius: 8.0,
-                            ),
-                            const SizedBox(width: 12.0),
-                            Expanded(
-                              child: Column(
+                    Divider(height: 1.0, color: borderColor.withValues(alpha: 0.35)),
+                    // Lower Action Block
+                    Container(
+                      padding: const EdgeInsets.all(18.0),
+                      color: isDark
+                          ? AppColors.darkSurfaceCard.withValues(alpha: 0.5)
+                          : AppColors.lightSurfaceCard.withValues(alpha: 0.6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const <Widget>[
+                              Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const <Widget>[
-                                  SkeletonBox(
-                                    width: 150.0,
-                                    height: 14.0,
-                                    borderRadius: 4.0,
-                                  ),
-                                  SizedBox(height: 6.0),
-                                  SkeletonBox(
-                                    width: 210.0,
-                                    height: 11.0,
-                                    borderRadius: 4.0,
-                                  ),
+                                children: <Widget>[
+                                  SkeletonBox(width: 50.0, height: 10.0, borderRadius: 3.0),
+                                  SizedBox(height: 4.0),
+                                  SkeletonBox(width: 120.0, height: 16.0, borderRadius: 4.0),
                                 ],
                               ),
-                            ),
-                            const SkeletonBox(
-                              width: 16.0,
-                              height: 16.0,
-                              borderRadius: 4.0,
-                            ),
-                          ],
-                        ),
+                              SkeletonBox(width: 80.0, height: 14.0, borderRadius: 4.0),
+                            ],
+                          ),
+                          const SizedBox(height: 12.0),
+                          const SkeletonBox(width: double.infinity, height: 5.0, borderRadius: 3.0),
+                          const SizedBox(height: 14.0),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const <Widget>[
+                              SkeletonBox(width: 130.0, height: 12.0, borderRadius: 4.0),
+                              SkeletonBox(width: 110.0, height: 34.0, borderRadius: 17.0),
+                            ],
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24.0),
+
+              // Module Outline Header Skeleton
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const <Widget>[
+                  SkeletonBox(width: 130.0, height: 18.0, borderRadius: 6.0),
+                  SkeletonBox(width: 75.0, height: 14.0, borderRadius: 4.0),
+                ],
+              ),
+              const SizedBox(height: 10.0),
+              Divider(height: 1.0, color: borderColor.withValues(alpha: 0.4)),
+
+              // Hollow Topic Rows Skeleton
+              for (int i = 0; i < 4; i++) ...<Widget>[
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 4.0),
+                  child: Row(
+                    children: <Widget>[
+                      const SkeletonBox(width: 24.0, height: 14.0, borderRadius: 4.0),
+                      const SizedBox(width: 12.0),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const <Widget>[
+                            SkeletonBox(width: 160.0, height: 14.0, borderRadius: 4.0),
+                            SizedBox(height: 5.0),
+                            SkeletonBox(width: 220.0, height: 11.0, borderRadius: 4.0),
+                          ],
+                        ),
+                      ),
+                      const SkeletonBox(width: 60.0, height: 14.0, borderRadius: 4.0),
+                    ],
+                  ),
+                ),
+                Divider(height: 1.0, color: borderColor.withValues(alpha: 0.25)),
+              ],
+            ],
+          ),
         ),
       ),
     );

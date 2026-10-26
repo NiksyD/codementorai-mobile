@@ -76,10 +76,10 @@ class FakeDetailPathwayRepository implements PathwayRepository {
   Future<bool> submitModuleReview({required String moduleId, required String userId, required int rating, required String comment}) async => true;
 
   @override
-  Future<Map<String, dynamic>?> getActiveModuleReport({required String moduleId, required String userId}) async => null;
+  Future<Map<String, dynamic>?> getActiveModuleReport({required String moduleId, required String userId, String? activityId}) async => null;
 
   @override
-  Future<bool> submitModuleReport({required String moduleId, required String userId, required String reason, required String details}) async => true;
+  Future<bool> submitModuleReport({required String moduleId, required String userId, required String reason, required String details, String? activityId}) async => true;
 
   @override
   Future<List<dynamic>> getLearnerRooms(String userId) async => <dynamic>[];
@@ -98,7 +98,7 @@ class FakeDetailPathwayRepository implements PathwayRepository {
 }
 
 void main() {
-  group('ModuleDetailScreen Widget Tests (Web 1:1 Parity)', () {
+  group('ModuleDetailScreen Widget Tests (Web 1:1 Redesign Parity)', () {
     final ModuleDetailModel sampleModule = ModuleDetailModel(
       id: 'python-core',
       title: 'Python Core Mastery',
@@ -188,7 +188,7 @@ void main() {
       );
     }
 
-    testWidgets('Renders hero banner, progress card and 4 standardized tabs', (WidgetTester tester) async {
+    testWidgets('Renders split-block hero banner, module outline, and learner reviews', (WidgetTester tester) async {
       final FakeDetailPathwayRepository repo = FakeDetailPathwayRepository(
         moduleDetail: sampleModule,
         reviews: sampleReviews,
@@ -197,21 +197,22 @@ void main() {
       await tester.pumpWidget(createTestWidget(repo));
       await tester.pumpAndSettle();
 
-      // Hero banner checks
+      // Split-Block Hero banner checks
       expect(find.text('Python Core Mastery'), findsWidgets);
       expect(find.text('By Sarah Jenkins'), findsOneWidget);
-      expect(find.text('MODULE PROGRESS'), findsOneWidget);
-      expect(find.text('1/2 Solved'), findsOneWidget);
-      expect(find.text('50%'), findsOneWidget);
-
-      // Primary CTA checks per AGENTS.md rule 1.2 (>0% progress -> Continue Learning)
+      expect(find.text('MODULE'), findsOneWidget);
+      expect(find.text('Progress '), findsOneWidget);
       expect(find.text('Continue Learning'), findsOneWidget);
 
-      // Standardized 4 tabs
-      expect(find.text('Guided Practice'), findsOneWidget);
-      expect(find.text('Challenges'), findsOneWidget);
-      expect(find.text('Overview & Mentor'), findsOneWidget);
-      expect(find.text('Reviews'), findsOneWidget);
+      // Module Outline checks
+      expect(find.text('Module Outline'), findsOneWidget);
+      expect(find.text('Memory Allocation & Pointers'), findsWidgets);
+      expect(find.text('Reference Counting Internals'), findsOneWidget);
+      expect(find.text('PRACTICE'), findsWidgets);
+
+      // Learner Reviews section checks
+      expect(find.text('Learner Reviews'), findsOneWidget);
+      expect(find.text('Write a Review'), findsOneWidget);
     });
 
     testWidgets('Strict 0% progress handling per AGENTS.md rule 2.3 & Start Learning CTA', (WidgetTester tester) async {
@@ -238,6 +239,7 @@ void main() {
             ],
           ),
         ],
+        challenges: const <ModuleActivityModel>[],
       );
 
       final FakeDetailPathwayRepository repo = FakeDetailPathwayRepository(
@@ -249,11 +251,10 @@ void main() {
 
       // CTA check per AGENTS.md rule 1.2
       expect(find.text('Start Learning'), findsOneWidget);
-      expect(find.text('0%'), findsOneWidget);
-      expect(find.text('Not Started'), findsOneWidget);
+      expect(find.text('0% Complete'), findsOneWidget);
     });
 
-    testWidgets('Tapping Challenges tab displays SLA benchmarks and difficulty badge', (WidgetTester tester) async {
+    testWidgets('Displays benchmark challenges with SLA and CHALLENGE badge in the outline', (WidgetTester tester) async {
       final FakeDetailPathwayRepository repo = FakeDetailPathwayRepository(
         moduleDetail: sampleModule,
         reviews: sampleReviews,
@@ -262,59 +263,30 @@ void main() {
       await tester.pumpWidget(createTestWidget(repo));
       await tester.pumpAndSettle();
 
-      // Tap on Challenges tab
-      await tester.tap(find.text('Challenges'));
+      // Expand all topics to inspect benchmark challenges
+      await tester.tap(find.text('EXPAND ALL'));
       await tester.pumpAndSettle();
 
-      // Verify challenge title, SLA constraint and difficulty pill
+      expect(find.text('Benchmark Challenges'), findsOneWidget);
       expect(find.text('LRU Cache Benchmark'), findsOneWidget);
-      expect(find.text('Time: O(1) · Space: O(N)'), findsOneWidget);
-      expect(find.text('HARD'), findsOneWidget);
-      expect(find.text('Solve Challenge'), findsOneWidget);
+      expect(find.text('CHALLENGE'), findsOneWidget);
+      expect(find.text('· O(1)'), findsOneWidget);
+      expect(find.text('Solve'), findsNWidgets(2));
     });
 
-    testWidgets('Tapping Overview & Mentor tab displays 2x2 Bento and Instructor card', (WidgetTester tester) async {
+    testWidgets('Learner Reviews section displays overall score, distribution and review cards', (WidgetTester tester) async {
       final FakeDetailPathwayRepository repo = FakeDetailPathwayRepository(
         moduleDetail: sampleModule,
         reviews: sampleReviews,
       );
 
       await tester.pumpWidget(createTestWidget(repo));
-      await tester.pumpAndSettle();
-
-      // Tap on Overview & Mentor tab
-      await tester.tap(find.text('Overview & Mentor'));
-      await tester.pumpAndSettle();
-
-      // Verify About this Module and 2x2 Bento cards
-      expect(find.text('About this Module'), findsOneWidget);
-      expect(find.text('WHAT YOU\'LL PRACTICE'), findsOneWidget);
-      expect(find.text('In-Browser IDE'), findsOneWidget);
-      expect(find.text('AI Code Tutor'), findsOneWidget);
-      expect(find.text('SLA Benchmarks'), findsOneWidget);
-      expect(find.text('Progress Tracking'), findsOneWidget);
-
-      // Verify Instructor Profile Card
-      expect(find.text('View Full Mentor Profile'), findsOneWidget);
-    });
-
-    testWidgets('Tapping Reviews tab displays overall score, distribution and review cards', (WidgetTester tester) async {
-      final FakeDetailPathwayRepository repo = FakeDetailPathwayRepository(
-        moduleDetail: sampleModule,
-        reviews: sampleReviews,
-      );
-
-      await tester.pumpWidget(createTestWidget(repo));
-      await tester.pumpAndSettle();
-
-      // Tap on Reviews tab
-      await tester.tap(find.text('Reviews'));
       await tester.pumpAndSettle();
 
       // Verify Reviews metric overview
       expect(find.text('OVERALL RATING'), findsOneWidget);
       expect(find.text('/ 5.0'), findsOneWidget);
-      expect(find.text('RECOMMENDED'), findsOneWidget);
+      expect(find.text('RECOMMENDATION'), findsOneWidget);
       expect(find.text('Write a Review'), findsOneWidget);
 
       // Verify review items

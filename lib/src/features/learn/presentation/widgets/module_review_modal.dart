@@ -100,10 +100,10 @@ class _ModuleReviewModalState extends State<ModuleReviewModal> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color sheetBg = isDark ? AppColors.darkBackground : Colors.white;
-    final Color cardBg = isDark ? AppColors.darkSurface : const Color(0xFFF8FAFC);
-    final Color borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
-    final Color textPrimary = isDark ? AppColors.darkTextPrimary : const Color(0xFF0F172A);
-    final Color textSecondary = isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B);
+    final Color cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurfaceCard;
+    final Color borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final Color textPrimary = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
 

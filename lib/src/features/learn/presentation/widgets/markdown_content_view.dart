@@ -50,9 +50,11 @@ class MarkdownContentView extends StatelessWidget {
               margin: const EdgeInsets.symmetric(vertical: 8.0),
               padding: const EdgeInsets.all(12.0),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF1F5F9),
+                color: isDark ? const Color(0xFF161618) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(10.0),
-                border: Border.all(color: borderColor),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF26262B) : borderColor,
+                ),
               ),
               child: SelectableText(
                 fullCode,
@@ -296,7 +298,7 @@ class MarkdownContentView extends StatelessWidget {
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
+                    color: isDark ? AppColors.primary : AppColors.primaryVariant,
                   ),
                 ),
               ),

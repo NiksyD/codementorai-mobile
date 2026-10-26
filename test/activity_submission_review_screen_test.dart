@@ -126,6 +126,7 @@ class MockReviewPathwayRepository implements PathwayRepository {
   Future<Map<String, dynamic>?> getActiveModuleReport({
     required String moduleId,
     required String userId,
+    String? activityId,
   }) async =>
       null;
 
@@ -135,6 +136,7 @@ class MockReviewPathwayRepository implements PathwayRepository {
     required String userId,
     required String reason,
     required String details,
+    String? activityId,
   }) async =>
       true;
 
@@ -255,54 +257,45 @@ public class RefactoredSolution {
       // App Bar Title
       expect(find.text('Submission Review'), findsOneWidget);
 
-      // Hero Assessment Card
-      expect(find.text('Verified Submission'), findsOneWidget);
+      // Quiet Editorial Header & Inline Metadata
+      expect(find.text('Verified Passed'), findsOneWidget);
       expect(find.text('All Tests Passed'), findsOneWidget);
       expect(
         find.text('Modern Switch Expressions and Short-Circuit Evaluation'),
-        findsOneWidget,
+        findsWidgets,
       );
-      expect(find.text('Overall Score'), findsOneWidget);
+      expect(find.text('SCORE'), findsOneWidget);
       expect(find.text('96'), findsOneWidget);
-      expect(
-        find.text(
-          'Solution verified with optimal pattern matching switch syntax.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('STATUS'), findsOneWidget);
+      expect(find.text('RUNTIME'), findsOneWidget);
+      expect(find.text('MEMORY'), findsOneWidget);
 
       // 4 ACF Tabs
       expect(find.text('Correctness'), findsOneWidget);
-      expect(find.text('24.84%'), findsOneWidget);
       expect(find.text('98'), findsOneWidget);
 
       expect(find.text('Readability'), findsOneWidget);
-      expect(find.text('24.53%'), findsOneWidget);
       expect(find.text('95'), findsOneWidget);
 
       expect(find.text('Maintainability'), findsOneWidget);
-      expect(find.text('25.16%'), findsOneWidget);
       expect(find.text('92'), findsOneWidget);
 
       expect(find.text('Efficiency'), findsOneWidget);
-      expect(find.text('25.47%'), findsOneWidget);
       expect(find.text('100'), findsOneWidget);
 
-      // Mentor Feedback Card
+      // Mentor Feedback Row
       expect(find.text('Sarah Connor'), findsOneWidget);
       expect(find.text('“Superb switch syntax usage!”'), findsOneWidget);
 
-      // Code Review Tabs (with line count badges)
-      expect(find.textContaining('Your Submission'), findsOneWidget);
-      expect(find.textContaining('Mentor Refinement'), findsOneWidget);
-      expect(find.text('Solution.java'), findsOneWidget);
+      // Code Review Section
+      expect(find.text('(solution.java)'), findsOneWidget);
+      expect(find.text('Copy Code'), findsOneWidget);
 
-      // Bottom actions
-      expect(find.text('Back to Activity'), findsOneWidget);
-      expect(find.text('Open Module'), findsOneWidget);
+      // Bottom action dock is removed (matching web)
+      expect(find.text('Open Module'), findsNothing);
     });
 
-    testWidgets('Tapping ACF tabs updates criterion analysis card', (
+    testWidgets('Tapping ACF tabs updates criterion reasoning', (
       WidgetTester tester,
     ) async {
       final MockReviewPathwayRepository repo =
@@ -319,7 +312,6 @@ public class RefactoredSolution {
       await tester.pumpAndSettle();
 
       // Initially Correctness is selected
-      expect(find.text('Correctness Analysis'), findsOneWidget);
       expect(
         find.text('All test assertions evaluated successfully.'),
         findsOneWidget,
@@ -329,7 +321,6 @@ public class RefactoredSolution {
       await tester.tap(find.text('Readability'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Readability Analysis'), findsOneWidget);
       expect(
         find.text('Idiomatic switch arrow expression syntax.'),
         findsOneWidget,
@@ -339,16 +330,14 @@ public class RefactoredSolution {
       await tester.tap(find.text('Efficiency'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Efficiency Analysis'), findsOneWidget);
       expect(
         find.text('Constant time lookup with zero dynamic allocations.'),
         findsOneWidget,
       );
-      expect(find.text('O(1) time · O(1) space'), findsOneWidget);
     });
 
     testWidgets(
-      'Tapping Mentor Refinement tab displays refactored code and diff stats without banner',
+      'Displays submitted code with Solution filename without Mentor Refinement',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 1600);
         tester.view.devicePixelRatio = 1.0;
@@ -370,19 +359,13 @@ public class RefactoredSolution {
         );
         await tester.pumpAndSettle();
 
-        // Tap Mentor Refinement tab
-        await tester.tap(find.textContaining('Mentor Refinement'));
-        await tester.pumpAndSettle();
+        // Mentor refinement should not exist
+        expect(find.textContaining('Mentor Refinement'), findsNothing);
+        expect(find.text('Refactored.java'), findsNothing);
 
-        // The explanation banner is removed to match Web UI
-        expect(
-          find.text('Refactored to eliminate scanner leaks.'),
-          findsNothing,
-        );
-        expect(find.text('Refactored.java'), findsOneWidget);
-        // Diff markers present
-        expect(find.text('+'), findsWidgets);
-        expect(find.text('-'), findsWidgets);
+        // Submitted code solution header is displayed
+        expect(find.text('(solution.java)'), findsOneWidget);
+        expect(find.text('Copy Code'), findsOneWidget);
       },
     );
   });

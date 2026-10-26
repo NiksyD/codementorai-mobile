@@ -76,10 +76,10 @@ class FakePathwayRepository implements PathwayRepository {
   Future<bool> submitModuleReview({required String moduleId, required String userId, required int rating, required String comment}) async => true;
 
   @override
-  Future<Map<String, dynamic>?> getActiveModuleReport({required String moduleId, required String userId}) async => null;
+  Future<Map<String, dynamic>?> getActiveModuleReport({required String moduleId, required String userId, String? activityId}) async => null;
 
   @override
-  Future<bool> submitModuleReport({required String moduleId, required String userId, required String reason, required String details}) async => true;
+  Future<bool> submitModuleReport({required String moduleId, required String userId, required String reason, required String details, String? activityId}) async => true;
 
   @override
   Future<List<dynamic>> getLearnerRooms(String userId) async => <dynamic>[];

@@ -844,7 +844,9 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
       width: double.infinity,
       padding: const EdgeInsets.all(14.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? AppColors.darkSurface
+            : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(color: borderColor),
       ),

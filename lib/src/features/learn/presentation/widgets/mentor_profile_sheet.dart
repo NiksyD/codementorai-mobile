@@ -81,7 +81,7 @@ class MentorProfileSheet extends StatelessWidget {
     final Color borderColor =
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final Color chipBg =
-        isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+        isDark ? AppColors.darkSurface : AppColors.lightSurfaceCard;
 
     final String effectiveRole = currentRole ??
         'Senior Software Architect & Technical Educator';
@@ -236,8 +236,8 @@ class MentorProfileSheet extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? const Color(0xFF0F172A)
-                            : const Color(0xFFF8FAFC),
+                            ? AppColors.darkSurface
+                            : AppColors.lightBackground,
                         borderRadius: BorderRadius.circular(14.0),
                         border: Border.all(color: borderColor),
                       ),
@@ -511,7 +511,7 @@ class MentorProfileSheet extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: borderColor),
           backgroundColor:
-              isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+              isDark ? AppColors.darkSurface : AppColors.lightBackground,
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10.0),

@@ -5,13 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../common_widgets/app_toast.dart';
-import '../../../common_widgets/filter_tab_bar.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
-import '../../../common_widgets/language_icon.dart';
 import '../../../constants/app_colors.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
-import '../domain/dashboard_submission.dart';
 import '../domain/module_detail_model.dart';
 import '../domain/module_review_model.dart';
 import '../domain/pathway_model.dart';
@@ -19,7 +16,30 @@ import 'widgets/mentor_profile_sheet.dart';
 import 'widgets/module_detail_skeleton.dart';
 import 'widgets/module_preview_sheet.dart';
 import 'widgets/module_review_modal.dart';
-import 'widgets/report_module_sheet.dart';
+
+class _DisplayTopic {
+  const _DisplayTopic({
+    required this.id,
+    required this.number,
+    required this.title,
+    required this.description,
+    required this.activities,
+  });
+
+  final String id;
+  final int number;
+  final String title;
+  final String description;
+  final List<ModuleActivityModel> activities;
+
+  int get solvedCount =>
+      activities.where((ModuleActivityModel a) => a.isCompleted).length;
+
+  int get totalCount => activities.length;
+
+  bool get isCompleted =>
+      totalCount > 0 && solvedCount == totalCount;
+}
 
 class ModuleDetailScreen extends StatefulWidget {
   const ModuleDetailScreen({
@@ -39,18 +59,12 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
   ModuleDetailModel? _module;
   bool _isLoading = true;
 
-  // 4 Main Tabs matching Web 1:1 ('practice', 'challenges', 'overview', 'reviews')
-  String _selectedTab = 'practice';
-
-  // Sub-filter for Tab 2 (Challenges)
-  String _challengeFilter = 'all'; // 'all', 'easy', 'medium', 'hard', 'unsolved', 'submissions'
-  String _challengeSearchQuery = '';
-  final TextEditingController _challengeSearchController = TextEditingController();
-
   final Set<String> _expandedTopicIds = <String>{};
+  bool _hasInitializedAccordion = false;
   List<ModuleReviewModel> _reviews = <ModuleReviewModel>[];
-  bool _isLoadingReviews = false;
-  List<DashboardSubmission> _userSubmissions = <DashboardSubmission>[];
+
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _reviewsKey = GlobalKey();
 
   @override
   void initState() {
@@ -60,31 +74,29 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     if (cached != null) {
       _module = cached;
       _isLoading = false;
-      if (cached.topics.isNotEmpty) {
-        _expandedTopicIds.add(cached.topics.first.id);
-      }
+      _initializeExpandedTopics(cached);
     }
     _loadModuleData();
     _loadReviews();
-    _loadSubmissions();
   }
 
   @override
   void dispose() {
-    _challengeSearchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadReviews() async {
-    setState(() => _isLoadingReviews = true);
-    final List<ModuleReviewModel> revs =
-        await widget.pathwayRepository.getModuleReviews(widget.moduleId);
-    if (mounted) {
-      setState(() {
-        _reviews = revs;
-        _isLoadingReviews = false;
-      });
-    }
+  void _initializeExpandedTopics(ModuleDetailModel mod) {
+    if (_hasInitializedAccordion) return;
+    final List<_DisplayTopic> topics = _getDisplayTopicsForModule(mod);
+    if (topics.isEmpty) return;
+
+    final _DisplayTopic active = topics.firstWhere(
+      (_DisplayTopic t) => t.activities.any((ModuleActivityModel a) => !a.isCompleted),
+      orElse: () => topics.first,
+    );
+    _expandedTopicIds.add(active.id);
+    _hasInitializedAccordion = true;
   }
 
   String _getUserId() {
@@ -95,18 +107,13 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
   }
 
-  Future<void> _loadSubmissions() async {
-    try {
-      final String userId = _getUserId();
-      final List<DashboardSubmission> subs =
-          await widget.pathwayRepository.getUserSubmissions(userId);
-      if (mounted) {
-        setState(() {
-          _userSubmissions = subs;
-        });
-      }
-    } catch (_) {
-      // Submissions fallback silently
+  Future<void> _loadReviews() async {
+    final List<ModuleReviewModel> revs =
+        await widget.pathwayRepository.getModuleReviews(widget.moduleId);
+    if (mounted) {
+      setState(() {
+        _reviews = revs;
+      });
     }
   }
 
@@ -120,10 +127,8 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
       setState(() {
         _module = data;
         _isLoading = false;
-        if (data != null &&
-            _expandedTopicIds.isEmpty &&
-            data.topics.isNotEmpty) {
-          _expandedTopicIds.add(data.topics.first.id);
+        if (data != null) {
+          _initializeExpandedTopics(data);
         }
       });
     }
@@ -204,23 +209,6 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
   }
 
-  Future<void> _handleOpenReportSheet() async {
-    final String userId = _getUserId();
-    if (userId.isEmpty) {
-      AppToast.showError(context, 'Please log in to report this module');
-      return;
-    }
-
-    if (_module == null) return;
-
-    await ReportModuleSheet.show(
-      context,
-      moduleId: _module!.id,
-      moduleTitle: _module!.title,
-      pathwayRepository: widget.pathwayRepository,
-    );
-  }
-
   void _handleOpenMentorProfile() {
     if (_module == null) return;
     HapticFeedback.lightImpact();
@@ -232,6 +220,73 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     );
   }
 
+  Future<void> _handleOpenReviewModal() async {
+    HapticFeedback.lightImpact();
+    final String userId = _getUserId();
+    if (userId.isEmpty) {
+      AppToast.showError(
+        context,
+        'Please log in to write a review',
+      );
+      return;
+    }
+    if (_module == null) return;
+
+    final bool? submitted = await ModuleReviewModal.show(
+      context,
+      moduleTitle: _module!.title,
+      onSubmitReview: (int rating, String comment) async {
+        return await widget.pathwayRepository.submitModuleReview(
+          moduleId: widget.moduleId,
+          userId: userId,
+          rating: rating,
+          comment: comment,
+        );
+      },
+    );
+
+    if (submitted == true && mounted) {
+      AppToast.showSuccess(context, 'Review posted!');
+      _loadReviews();
+    }
+  }
+
+  void _scrollToReviews() {
+    HapticFeedback.selectionClick();
+    final BuildContext? targetCtx = _reviewsKey.currentContext;
+    if (targetCtx != null) {
+      Scrollable.ensureVisible(
+        targetCtx,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
+  Future<void> _navigateToActivity(ModuleActivityModel act) async {
+    HapticFeedback.lightImpact();
+    if (_module == null) return;
+
+    if (!_module!.isEnrolled) {
+      await _handleEnroll();
+      return;
+    }
+
+    if (act.category == 'challenge') {
+      await context.push(
+        '/modules/${widget.moduleId}/challenges/${act.id}',
+      );
+    } else {
+      await context.push(
+        '/modules/${widget.moduleId}/practice/${act.id}',
+      );
+    }
+
+    if (mounted) {
+      _loadModuleData();
+    }
+  }
+
   Future<void> _handlePrimaryCta() async {
     HapticFeedback.mediumImpact();
     if (_module == null) return;
@@ -241,33 +296,109 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
       return;
     }
 
-    // Find first unsolved practice exercise
-    final ModuleActivityModel? firstUnsolved = _module!
-        .allPracticeActivities
-        .cast<ModuleActivityModel?>()
-        .firstWhere(
-          (ModuleActivityModel? a) => a != null && !a.isCompleted,
-          orElse: () => _module!.allPracticeActivities.isNotEmpty
-              ? _module!.allPracticeActivities.first
-              : null,
-        );
-
-    if (firstUnsolved != null) {
-      await context.push(
-        '/modules/${widget.moduleId}/practice/${firstUnsolved.id}',
-      );
-      if (mounted) {
-        _loadModuleData();
+    // Find first unsolved activity across all display topics
+    ModuleActivityModel? firstUnsolved;
+    for (final _DisplayTopic t in _displayTopics) {
+      for (final ModuleActivityModel a in t.activities) {
+        if (!a.isCompleted) {
+          firstUnsolved = a;
+          break;
+        }
       }
-    } else if (_module!.allChallenges.isNotEmpty) {
-      final ModuleActivityModel firstCh = _module!.allChallenges.first;
-      await context.push(
-        '/modules/${widget.moduleId}/challenges/${firstCh.id}',
-      );
-      if (mounted) {
-        _loadModuleData();
+      if (firstUnsolved != null) break;
+    }
+
+    // Fallback to first activity if all solved
+    final ModuleActivityModel? target = firstUnsolved ??
+        (_displayTopics.isNotEmpty && _displayTopics.first.activities.isNotEmpty
+            ? _displayTopics.first.activities.first
+            : null);
+
+    if (target != null) {
+      await _navigateToActivity(target);
+    }
+  }
+
+  void _handleBack() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      context.go('/learn/modules');
+    }
+  }
+
+  List<_DisplayTopic> _getDisplayTopicsForModule(ModuleDetailModel mod) {
+    final List<_DisplayTopic> list = <_DisplayTopic>[];
+    for (int i = 0; i < mod.topics.length; i++) {
+      final ModuleTopicModel topic = mod.topics[i];
+      list.add(_DisplayTopic(
+        id: topic.id,
+        number: i + 1,
+        title: topic.title,
+        description: topic.description,
+        activities: topic.activities,
+      ));
+    }
+
+    // Include standalone benchmark challenges if they are not in any topic
+    final Set<String> existingActIds = <String>{};
+    for (final ModuleTopicModel t in mod.topics) {
+      for (final ModuleActivityModel a in t.activities) {
+        existingActIds.add(a.id);
       }
     }
+
+    final List<ModuleActivityModel> standaloneChallenges = mod.challenges
+        .where((ModuleActivityModel c) => !existingActIds.contains(c.id))
+        .toList();
+
+    if (standaloneChallenges.isNotEmpty) {
+      list.add(_DisplayTopic(
+        id: 'topic-benchmark-challenges',
+        number: list.length + 1,
+        title: 'Benchmark Challenges',
+        description: 'Algorithmic benchmark challenges and performance SLAs.',
+        activities: standaloneChallenges,
+      ));
+    }
+
+    return list;
+  }
+
+  List<_DisplayTopic> get _displayTopics {
+    if (_module == null) return const <_DisplayTopic>[];
+    return _getDisplayTopicsForModule(_module!);
+  }
+
+  _DisplayTopic? get _activeUnsolvedTopic {
+    final List<_DisplayTopic> list = _displayTopics;
+    if (list.isEmpty) return null;
+    return list.firstWhere(
+      (_DisplayTopic t) => t.activities.any((ModuleActivityModel a) => !a.isCompleted),
+      orElse: () => list.first,
+    );
+  }
+
+  int get _totalSolvedExercises {
+    int count = 0;
+    for (final _DisplayTopic t in _displayTopics) {
+      count += t.activities.where((ModuleActivityModel a) => a.isCompleted).length;
+    }
+    return count;
+  }
+
+  int get _totalExercises {
+    int count = 0;
+    for (final _DisplayTopic t in _displayTopics) {
+      count += t.activities.length;
+    }
+    return count;
+  }
+
+  int get _completionPercentage {
+    final int total = _totalExercises;
+    if (total == 0) return _module?.completion ?? 0;
+    return ((_totalSolvedExercises / total) * 100).round();
   }
 
   double get _effectiveRating {
@@ -281,17 +412,22 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     return _module?.rating ?? 4.9;
   }
 
-  Color _getDifficultyColor(String diff) {
-    switch (diff.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF10B981);
-      case 'medium':
-        return const Color(0xFFF59E0B);
-      case 'hard':
-        return const Color(0xFFEF4444);
-      default:
-        return AppColors.primary;
+  String _cleanChallengeSummary(String raw) {
+    if (raw.isEmpty) {
+      return 'Implement optimal algorithmic logic matching SLA bounds.';
     }
+    String cleaned = raw
+        .replaceAll(RegExp(r'###\s*Problem Statement:?', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'###\s*Key Requirements[\s\S]*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'###\s*Example[\s\S]*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'###\s*Constraints[\s\S]*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'[*_#`\->]', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.isEmpty) {
+      return 'Implement optimal algorithmic logic matching SLA bounds.';
+    }
+    return cleaned;
   }
 
   Widget _buildCoachAvatar(String coachName, String? coachAvatar, double radius) {
@@ -317,7 +453,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
       width: radius * 2,
       height: radius * 2,
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.2),
+        color: AppColors.primary.withValues(alpha: 0.18),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
@@ -332,31 +468,17 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     );
   }
 
-  String _cleanChallengeSummary(String raw) {
-    if (raw.isEmpty) {
-      return 'Implement optimal algorithmic logic matching SLA bounds.';
-    }
-    String cleaned = raw
-        .replaceAll(RegExp(r'###\s*Problem Statement', caseSensitive: false), '')
-        .replaceAll(RegExp(r'###\s*Key Requirements[\s\S]*', caseSensitive: false), '')
-        .replaceAll(RegExp(r'###\s*Example[\s\S]*', caseSensitive: false), '')
-        .replaceAll(RegExp(r'###\s*Constraints[\s\S]*', caseSensitive: false), '')
-        .replaceAll(RegExp(r'[*_#`\->]', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (cleaned.isEmpty) {
-      return 'Implement optimal algorithmic logic matching SLA bounds.';
-    }
-    return cleaned;
-  }
-
-  List<DashboardSubmission> get _moduleSubmissions {
-    if (_module == null) return const <DashboardSubmission>[];
-    return _userSubmissions.where((DashboardSubmission s) {
-      return s.moduleId == widget.moduleId ||
-          (s.module.isNotEmpty &&
-              s.module.toLowerCase() == _module!.title.toLowerCase());
-    }).toList();
+  void _toggleExpandAll() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      final List<_DisplayTopic> list = _displayTopics;
+      if (_expandedTopicIds.length == list.length) {
+        _expandedTopicIds.clear();
+      } else {
+        _expandedTopicIds.clear();
+        _expandedTopicIds.addAll(list.map((_DisplayTopic t) => t.id));
+      }
+    });
   }
 
   @override
@@ -369,7 +491,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     final Color textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final Color cardBg =
-        isDark ? AppColors.darkSurfaceCard : Colors.white;
+        isDark ? AppColors.darkSurface : Colors.white;
     final Color borderColor =
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -378,24 +500,32 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
 
     if (_module == null) {
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
+      return PopScope(
+        canPop: Navigator.of(context).canPop(),
+        onPopInvokedWithResult: (bool didPop, dynamic result) {
+          if (!didPop) {
+            context.go('/learn/modules');
+          }
+        },
+        child: Scaffold(
           backgroundColor: backgroundColor,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: textPrimary,
-            onPressed: () => context.pop(),
-          ),
-        ),
-        body: Center(
-          child: Text(
-            'Module not found',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 16.0,
-              fontWeight: FontWeight.w700,
+          appBar: AppBar(
+            backgroundColor: backgroundColor,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
               color: textPrimary,
+              onPressed: _handleBack,
+            ),
+          ),
+          body: Center(
+            child: Text(
+              'Module not found',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16.0,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
             ),
           ),
         ),
@@ -403,131 +533,60 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
 
     final ModuleDetailModel mod = _module!;
+    final List<_DisplayTopic> topics = _displayTopics;
+    final bool isAllExpanded = topics.isNotEmpty && _expandedTopicIds.length == topics.length;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
+    return PopScope(
+      canPop: Navigator.of(context).canPop(),
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (!didPop) {
+          context.go('/learn/modules');
+        }
+      },
+      child: Scaffold(
         backgroundColor: backgroundColor,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          color: textPrimary,
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          mod.title,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 16.0,
-            fontWeight: FontWeight.w800,
+        appBar: AppBar(
+          backgroundColor: backgroundColor,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
             color: textPrimary,
+            onPressed: _handleBack,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          title: Text(
+            mod.title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16.0,
+              fontWeight: FontWeight.w800,
+              color: textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          actions: <Widget>[
+            IconButton(
+              icon: Icon(
+                mod.isBookmarked
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                color: mod.isBookmarked ? AppColors.primary : textSecondary,
+              ),
+              tooltip: mod.isBookmarked ? 'Remove bookmark' : 'Save module',
+              onPressed: _handleToggleBookmark,
+            ),
+            const SizedBox(width: 4.0),
+          ],
         ),
-        actions: <Widget>[
-          IconButton(
-            icon: Icon(
-              mod.isBookmarked
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
-              color: mod.isBookmarked ? AppColors.primary : textSecondary,
-            ),
-            tooltip: mod.isBookmarked ? 'Remove bookmark' : 'Save module',
-            onPressed: _handleToggleBookmark,
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.flag_outlined,
-              color: textSecondary,
-              size: 20.0,
-            ),
-            tooltip: 'Report Module',
-            onPressed: _handleOpenReportSheet,
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // ── HERO BANNER: MODULE IDENTITY & PROGRESS CARD (1:1 Web Parity) ──
-            _buildHeroSection(
-              mod: mod,
-              isDark: isDark,
-              textPrimary: textPrimary,
-              textSecondary: textSecondary,
-              cardBg: cardBg,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 20.0),
-
-            // ── STANDARDIZED 4 TABS NAVIGATION (Guided Practice, Challenges, Overview & Mentor, Reviews) ──
-            FilterTabBar(
-              height: 36.0,
-              selectedId: _selectedTab,
-              onTabSelected: (String tabId) {
-                setState(() {
-                  _selectedTab = tabId;
-                });
-              },
-              tabs: <FilterTabItem>[
-                FilterTabItem(
-                  id: 'practice',
-                  label: 'Guided Practice',
-                  count: mod.allPracticeActivities.length,
-                ),
-                FilterTabItem(
-                  id: 'challenges',
-                  label: 'Challenges',
-                  count: mod.allChallenges.length,
-                ),
-                const FilterTabItem(
-                  id: 'overview',
-                  label: 'Overview & Mentor',
-                  // No count badge per Web 1:1
-                ),
-                FilterTabItem(
-                  id: 'reviews',
-                  label: 'Reviews',
-                  count: _reviews.length,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18.0),
-
-            // ── TAB CONTENT ──
-            if (_selectedTab == 'practice')
-              _buildPracticeView(
-                mod: mod,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                cardBg: cardBg,
-                borderColor: borderColor,
-              )
-            else if (_selectedTab == 'challenges')
-              _buildChallengesView(
-                mod: mod,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                cardBg: cardBg,
-                borderColor: borderColor,
-              )
-            else if (_selectedTab == 'overview')
-              _buildOverviewView(
-                mod: mod,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                cardBg: cardBg,
-                borderColor: borderColor,
-              )
-            else if (_selectedTab == 'reviews')
-              _buildReviewsView(
+        body: SingleChildScrollView(
+          controller: _scrollController,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // ── HERO BANNER: SPLIT-BLOCK ARCHETYPE (Matching Web 1:1) ──
+              _buildSplitBlockHero(
                 mod: mod,
                 isDark: isDark,
                 textPrimary: textPrimary,
@@ -535,18 +594,44 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                 cardBg: cardBg,
                 borderColor: borderColor,
               ),
+              const SizedBox(height: 24.0),
 
-            const SizedBox(height: 32.0),
-          ],
+              // ── MODULE OUTLINE (Unified Hollow Topics & Progression) ──
+              _buildModuleOutline(
+                topics: topics,
+                isAllExpanded: isAllExpanded,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                borderColor: borderColor,
+              ),
+              const SizedBox(height: 28.0),
+
+              // ── MODULE REVIEWS & RATINGS (Matching Web 1:1) ──
+              Container(
+                key: _reviewsKey,
+                child: _buildLearnerReviewsSection(
+                  mod: mod,
+                  isDark: isDark,
+                  textPrimary: textPrimary,
+                  textSecondary: textSecondary,
+                  cardBg: cardBg,
+                  borderColor: borderColor,
+                ),
+              ),
+
+              const SizedBox(height: 40.0),
+            ],
+          ),
         ),
       ),
     );
   }
 
   // ===========================================================================
-  // HERO SECTION: IDENTITY & EMBEDDED PROGRESS CARD (1:1 Web Parity)
+  // 1. SPLIT-BLOCK HERO BANNER (Left Context + Right Action in Single Card)
   // ===========================================================================
-  Widget _buildHeroSection({
+  Widget _buildSplitBlockHero({
     required ModuleDetailModel mod,
     required bool isDark,
     required Color textPrimary,
@@ -554,189 +639,324 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     required Color cardBg,
     required Color borderColor,
   }) {
-    final int completion = mod.practiceCompletionPercentage;
-    final int totalSolved = mod.solvedPracticeCount;
-    final int totalExercises = mod.totalPracticeCount;
+    final int completion = _completionPercentage;
+    final int totalSolved = _totalSolvedExercises;
+    final int totalExercises = _totalExercises;
+    final _DisplayTopic? activeTopic = _activeUnsolvedTopic;
 
     return Container(
-      padding: const EdgeInsets.all(18.0),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(22.0),
+        border: Border.all(color: borderColor.withValues(alpha: isDark ? 0.35 : 0.6)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
-            blurRadius: 14.0,
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.03),
+            blurRadius: 16.0,
             offset: const Offset(0, 4),
           ),
         ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Row 1: Language Avatar Stack
-          LanguageAvatarStack(
-            languages: mod.stack.isNotEmpty ? mod.stack : <String>['python'],
-            size: 34.0,
-          ),
-          const SizedBox(height: 14.0),
-
-          // Title & Description
-          Text(
-            mod.title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18.0,
-              fontWeight: FontWeight.w800,
-              color: textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          Text(
-            mod.description.trim().isNotEmpty
-                ? mod.description.trim()
-                : 'Master core concepts and hands-on coding challenges with real-time feedback.',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.5,
-              color: textSecondary,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 12.0),
-
-          // Author Chip & Star Rating (Tappable Mentor Profile)
-          InkWell(
-            onTap: _handleOpenMentorProfile,
-            borderRadius: BorderRadius.circular(8.0),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2.0),
-              child: Row(
-                children: <Widget>[
-                  _buildCoachAvatar(mod.coachName, mod.coachAvatar, 11.0),
-                  const SizedBox(width: 7.0),
-                  Text(
-                    'By ${mod.coachName}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.0,
-                      fontWeight: FontWeight.w600,
-                      color: textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  Text(
-                    '•',
-                    style: TextStyle(color: textSecondary),
-                  ),
-                  const SizedBox(width: 8.0),
-                  const Icon(
-                    Icons.star_rounded,
-                    size: 15.0,
-                    color: Color(0xFFFBBF24),
-                  ),
-                  const SizedBox(width: 3.0),
-                  Text(
-                    _effectiveRating.toStringAsFixed(1),
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.0,
-                      fontWeight: FontWeight.w700,
-                      color: textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 4.0),
-                  Text(
-                    '(${_reviews.length} ${_reviews.length == 1 ? "review" : "reviews"})',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      color: textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16.0),
-
-          // ── PROGRESS & PRIMARY CTA EMBEDDED CARD ──
-          Container(
-            padding: const EdgeInsets.all(14.0),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(16.0),
-              border: Border.all(color: borderColor),
-            ),
+          // ── UPPER CONTEXT: Identity, Tech Stack, Mentor & Ratings ──
+          Padding(
+            padding: const EdgeInsets.all(18.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Progress Header row
+                // Row 1: "MODULE" pill + LanguageAvatarStack + Action Utilities
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     Text(
-                      'MODULE PROGRESS',
+                      'MODULE',
                       style: GoogleFonts.jetBrainsMono(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
-                        color: textSecondary,
-                        letterSpacing: 0.5,
+                        color: AppColors.primary,
+                        letterSpacing: 1.5,
                       ),
                     ),
-                    Text(
-                      '$totalSolved/$totalExercises Solved',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: textSecondary,
-                      ),
+                    Row(
+                      children: <Widget>[
+                        LanguageAvatarStack(
+                          languages: mod.stack.isNotEmpty
+                              ? mod.stack
+                              : <String>['python'],
+                          size: 26.0,
+                        ),
+                      ],
                     ),
                   ],
+                ),
+                const SizedBox(height: 12.0),
+
+                // Title
+                Text(
+                  mod.title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18.5,
+                    fontWeight: FontWeight.w800,
+                    color: textPrimary,
+                    letterSpacing: -0.3,
+                  ),
                 ),
                 const SizedBox(height: 6.0),
 
-                // Percentage and Status
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: <Widget>[
-                    Text(
-                      '$completion%',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 22.0,
-                        fontWeight: FontWeight.w900,
-                        color: textPrimary,
-                        letterSpacing: -0.5,
+                // Description
+                Text(
+                  mod.description.trim().isNotEmpty
+                      ? mod.description.trim()
+                      : 'Master core concepts and hands-on coding challenges with real-time feedback.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    color: textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 14.0),
+
+                // Meta Row: Mentor Avatar & Name • Rating Chip • Price
+                Container(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: borderColor.withValues(alpha: 0.25),
                       ),
                     ),
-                    Text(
-                      completion == 100
-                          ? 'Mastered'
-                          : completion > 0
-                              ? 'In Progress'
-                              : 'Not Started',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        fontWeight: FontWeight.w600,
-                        color: completion == 100
-                            ? const Color(0xFF10B981)
-                            : textSecondary,
+                  ),
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8.0,
+                    runSpacing: 6.0,
+                    children: <Widget>[
+                      // Mentor Chip
+                      InkWell(
+                        onTap: _handleOpenMentorProfile,
+                        borderRadius: BorderRadius.circular(6.0),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              _buildCoachAvatar(mod.coachName, mod.coachAvatar, 9.0),
+                              const SizedBox(width: 6.0),
+                              Text(
+                                'By ${mod.coachName}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
+
+                      Text(
+                        '•',
+                        style: TextStyle(
+                          color: textSecondary.withValues(alpha: 0.6),
+                          fontSize: 11.0,
+                        ),
+                      ),
+
+                      // Rating Chip (Scrolls to Reviews Section)
+                      InkWell(
+                        onTap: _scrollToReviews,
+                        borderRadius: BorderRadius.circular(6.0),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 14.0,
+                                color: Color(0xFFFBBF24),
+                              ),
+                              const SizedBox(width: 3.0),
+                              Text(
+                                _effectiveRating.toStringAsFixed(1),
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 4.0),
+                              Text(
+                                _reviews.isNotEmpty
+                                    ? '(${_reviews.length} ${_reviews.length == 1 ? "review" : "reviews"})'
+                                    : 'New Module · 0 reviews',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.0,
+                                  color: textSecondary,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: textSecondary.withValues(alpha: 0.4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Price Tag (If Paid & Not Enrolled)
+                      if (!mod.isEnrolled && mod.price > 0) ...<Widget>[
+                        Text(
+                          '•',
+                          style: TextStyle(
+                            color: textSecondary.withValues(alpha: 0.6),
+                            fontSize: 11.0,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: _handleEnroll,
+                          borderRadius: BorderRadius.circular(6.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7.0,
+                              vertical: 2.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6.0),
+                              border: Border.all(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                const Icon(
+                                  Icons.monetization_on_rounded,
+                                  size: 11.0,
+                                  color: Color(0xFFF59E0B),
+                                ),
+                                const SizedBox(width: 3.5),
+                                Text(
+                                  '${(mod.price * 100).toInt()} Coins',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFFF59E0B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Hairline Divider between context and action blocks
+          Divider(
+            height: 1.0,
+            color: borderColor.withValues(alpha: 0.35),
+          ),
+
+          // ── LOWER ACTION BLOCK: Active Step, Micro Progress Bar & CTA ──
+          Container(
+            padding: const EdgeInsets.all(18.0),
+            color: isDark
+                ? AppColors.darkSurfaceCard.withValues(alpha: 0.5)
+                : AppColors.lightSurfaceCard.withValues(alpha: 0.6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Target Step + Progress Text Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            completion >= 100
+                                ? 'COMPLETED'
+                                : activeTopic != null
+                                    ? 'TOPIC ${activeTopic.number}'
+                                    : 'TOPIC 1',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 10.0,
+                              fontWeight: FontWeight.w700,
+                              color: textSecondary,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2.0),
+                          Text(
+                            completion >= 100
+                                ? 'Module Mastered'
+                                : activeTopic?.title ?? 'Topic 1',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15.0,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12.0),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              'Progress ',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10.5,
+                                color: textSecondary,
+                              ),
+                            ),
+                            Text(
+                              '$completion% Complete',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: completion > 0
+                                    ? (completion >= 100
+                                        ? const Color(0xFF10B981)
+                                        : AppColors.primary)
+                                    : textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8.0),
+                const SizedBox(height: 10.0),
 
-                // Strict 0% progress bar per AGENTS.md rule 2.3
+                // Strict 0% handling per AGENTS.md rule 2.3
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(4.0),
+                  borderRadius: BorderRadius.circular(2.5),
                   child: LinearProgressIndicator(
-                    value: completion > 0 ? (completion / 100.0).clamp(0.0, 1.0) : 0.0,
-                    minHeight: 6.0,
-                    backgroundColor: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.lightBorder,
+                    value: completion > 0
+                        ? (completion / 100.0).clamp(0.0, 1.0)
+                        : 0.0,
+                    minHeight: 5.0,
+                    backgroundColor: borderColor.withValues(alpha: 0.4),
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      completion == 100
+                      completion >= 100
                           ? const Color(0xFF10B981)
                           : AppColors.primary,
                     ),
@@ -744,53 +964,70 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                 ),
                 const SizedBox(height: 14.0),
 
-                // Primary CTA button per AGENTS.md rule 1.2
-                SizedBox(
-                  width: double.infinity,
-                  height: 42.0,
-                  child: ElevatedButton(
-                    onPressed: _handlePrimaryCta,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor:
-                          isDark ? AppColors.onPrimaryDark : Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
+                // Action Row: Completed count subtitle + Primary CTA Button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      completion >= 100
+                          ? 'All challenges passed'
+                          : activeTopic != null && activeTopic.totalCount > 0
+                              ? '${activeTopic.solvedCount} of ${activeTopic.totalCount} exercises completed'
+                              : '$totalSolved of $totalExercises solved',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: textSecondary,
                       ),
-                      elevation: 0,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Icon(
-                          completion == 100
-                              ? Icons.check_circle_rounded
-                              : Icons.play_arrow_rounded,
-                          size: 16.0,
-                          color: completion == 100
-                              ? const Color(0xFF10B981)
-                              : null,
+                    ElevatedButton(
+                      onPressed: _handlePrimaryCta,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor:
+                            isDark ? AppColors.onPrimaryDark : Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 9.0,
                         ),
-                        const SizedBox(width: 6.0),
-                        Text(
-                          completion == 100
-                              ? 'Review Module'
-                              : completion > 0
-                                  ? 'Continue Learning'
-                                  : 'Start Learning',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.0,
-                            fontWeight: FontWeight.w700,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20.0),
+                        ),
+                        elevation: 0,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            completion >= 100
+                                ? Icons.check_circle_rounded
+                                : Icons.play_arrow_rounded,
+                            size: 15.0,
+                            color: completion >= 100
+                                ? const Color(0xFF10B981)
+                                : null,
                           ),
-                        ),
-                        const SizedBox(width: 6.0),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 14.0,
-                        ),
-                      ],
+                          const SizedBox(width: 5.0),
+                          Text(
+                            completion >= 100
+                                ? 'Review Module'
+                                : completion > 0
+                                    ? 'Continue Learning'
+                                    : 'Start Learning',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 4.0),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 13.0,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -801,200 +1038,57 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
   }
 
   // ===========================================================================
-  // 1. GUIDED PRACTICE TAB (Milestone Topics + Exercises)
+  // 2. MODULE OUTLINE (Unified Hollow Topics & Activities, NO Nested Cards)
   // ===========================================================================
-  Widget _buildPracticeView({
-    required ModuleDetailModel mod,
+  Widget _buildModuleOutline({
+    required List<_DisplayTopic> topics,
+    required bool isAllExpanded,
     required bool isDark,
     required Color textPrimary,
     required Color textSecondary,
-    required Color cardBg,
     required Color borderColor,
   }) {
-    if (mod.topics.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(28.0),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(18.0),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // Header Row: "Module Outline" + "Expand All / Collapse All"
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
             Text(
-              'No practice topics found',
+              'Module Outline',
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 14.0,
-                fontWeight: FontWeight.w700,
+                fontSize: 16.5,
+                fontWeight: FontWeight.w800,
                 color: textPrimary,
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: 4.0),
-            Text(
-              'This module does not contain any published practice exercises yet.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.0,
-                color: textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: mod.topics.length,
-      separatorBuilder: (BuildContext context, int index) =>
-          const SizedBox(height: 12.0),
-      itemBuilder: (BuildContext context, int index) {
-        final ModuleTopicModel topic = mod.topics[index];
-        final bool isExpanded = _expandedTopicIds.contains(topic.id);
-        final String orderStr = (index + 1).toString().padLeft(2, '0');
-
-        return Container(
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(18.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // Topic Header Trigger
+            if (topics.isNotEmpty)
               InkWell(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    if (isExpanded) {
-                      _expandedTopicIds.remove(topic.id);
-                    } else {
-                      _expandedTopicIds.add(topic.id);
-                    }
-                  });
-                },
-                borderRadius: BorderRadius.circular(18.0),
+                onTap: _toggleExpandAll,
+                borderRadius: BorderRadius.circular(6.0),
                 child: Padding(
-                  padding: const EdgeInsets.all(15.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      // Number Badge
-                      Container(
-                        width: 32.0,
-                        height: 32.0,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF1E293B)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8.0),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Text(
-                          orderStr,
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w800,
-                            color: textSecondary,
-                          ),
+                      Text(
+                        isAllExpanded ? 'COLLAPSE ALL' : 'EXPAND ALL',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11.0,
+                          fontWeight: FontWeight.w700,
+                          color: textSecondary,
+                          letterSpacing: 0.8,
                         ),
                       ),
-                      const SizedBox(width: 12.0),
-
-                      // Title & Description
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              topic.title,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: textPrimary,
-                              ),
-                            ),
-                            if (topic.description.isNotEmpty) ...<Widget>[
-                              const SizedBox(height: 2.0),
-                              Text(
-                                topic.description,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  color: textSecondary,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8.0),
-
-                      // Solved Badge
-                      if (topic.totalCount > 0) ...<Widget>[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8.0,
-                            vertical: 3.0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: topic.isFullyCompleted
-                                ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                                : isDark
-                                    ? const Color(0xFF1E293B)
-                                    : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(8.0),
-                            border: Border.all(
-                              color: topic.isFullyCompleted
-                                  ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                                  : borderColor,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              if (topic.isFullyCompleted) ...<Widget>[
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 12.0,
-                                  color: Color(0xFF10B981),
-                                ),
-                                const SizedBox(width: 4.0),
-                                Text(
-                                  'Completed',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11.0,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF10B981),
-                                  ),
-                                ),
-                              ] else ...<Widget>[
-                                Text(
-                                  '${topic.solvedCount} / ${topic.totalCount} Solved',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                      ],
-
+                      const SizedBox(width: 3.0),
                       AnimatedRotation(
-                        turns: isExpanded ? 0.5 : 0.0,
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeInOutCubic,
+                        turns: isAllExpanded ? 0.25 : 0.0,
+                        duration: const Duration(milliseconds: 200),
                         child: Icon(
-                          Icons.expand_more_rounded,
+                          Icons.chevron_right_rounded,
+                          size: 14.0,
                           color: textSecondary,
                         ),
                       ),
@@ -1002,1217 +1096,777 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                   ),
                 ),
               ),
-
-              // Smooth Accordion Expansion
-              AnimatedCrossFade(
-                firstChild: const SizedBox(width: double.infinity, height: 0.0),
-                secondChild: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Divider(height: 1.0, color: borderColor),
-                    if (topic.practiceActivities.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(14.0),
-                        child: Text(
-                          'Guided practice exercises & code sandbox.',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(12.0),
-                        itemCount: topic.practiceActivities.length,
-                        separatorBuilder: (BuildContext context, int i) =>
-                            const SizedBox(height: 8.0),
-                        itemBuilder: (BuildContext context, int i) {
-                          final ModuleActivityModel act =
-                              topic.practiceActivities[i];
-                          final bool isSolved = act.isCompleted;
-
-                          return InkWell(
-                            onTap: () async {
-                              HapticFeedback.lightImpact();
-                              if (!mod.isEnrolled) {
-                                await _handleEnroll();
-                              } else {
-                                await context.push(
-                                  '/modules/${widget.moduleId}/practice/${act.id}',
-                                );
-                                if (mounted) {
-                                  _loadModuleData();
-                                }
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(12.0),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14.0,
-                                vertical: 11.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? AppColors.darkSurface
-                                    : AppColors.lightSurfaceCard,
-                                borderRadius: BorderRadius.circular(12.0),
-                                border: Border.all(color: borderColor),
-                              ),
-                              child: Row(
-                                children: <Widget>[
-                                  Icon(
-                                    isSolved
-                                        ? Icons.check_circle_rounded
-                                        : !mod.isEnrolled
-                                            ? Icons.lock_outline_rounded
-                                            : Icons.radio_button_unchecked_rounded,
-                                    size: 16.0,
-                                    color: isSolved
-                                        ? const Color(0xFF10B981)
-                                        : !mod.isEnrolled
-                                            ? textSecondary.withValues(alpha: 0.6)
-                                            : textSecondary.withValues(alpha: 0.4),
-                                  ),
-                                  const SizedBox(width: 12.0),
-                                  Expanded(
-                                    child: Text(
-                                      act.title,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 13.0,
-                                        fontWeight: isSolved
-                                            ? FontWeight.w600
-                                            : FontWeight.w700,
-                                        color: textPrimary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8.0),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: <Widget>[
-                                      Text(
-                                        isSolved ? 'Review' : 'Solve',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12.0,
-                                          fontWeight: FontWeight.w700,
-                                          color: isSolved
-                                              ? const Color(0xFF10B981)
-                                              : AppColors.primary,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 3.0),
-                                      Icon(
-                                        Icons.arrow_forward_rounded,
-                                        size: 13.0,
-                                        color: isSolved
-                                            ? const Color(0xFF10B981)
-                                            : AppColors.primary,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-                crossFadeState: isExpanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-                duration: const Duration(milliseconds: 240),
-                sizeCurve: Curves.easeInOutCubic,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ===========================================================================
-  // 2. CHALLENGES TAB (Algorithmic Benchmarks, SLA Targets & Submissions)
-  // ===========================================================================
-  Widget _buildChallengesView({
-    required ModuleDetailModel mod,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color cardBg,
-    required Color borderColor,
-  }) {
-    final List<ModuleActivityModel> allChallenges = mod.allChallenges;
-    final List<DashboardSubmission> modSubmissions = _moduleSubmissions;
-
-    final List<ModuleActivityModel> filteredChallenges = allChallenges.where((
-      ModuleActivityModel ch,
-    ) {
-      if (_challengeFilter == 'easy' && ch.difficulty.toLowerCase() != 'easy') {
-        return false;
-      }
-      if (_challengeFilter == 'medium' && ch.difficulty.toLowerCase() != 'medium') {
-        return false;
-      }
-      if (_challengeFilter == 'hard' && ch.difficulty.toLowerCase() != 'hard') {
-        return false;
-      }
-      if (_challengeFilter == 'unsolved' && ch.isCompleted) {
-        return false;
-      }
-      if (_challengeSearchQuery.isNotEmpty) {
-        final String q = _challengeSearchQuery.toLowerCase();
-        final bool matchesTitle = ch.title.toLowerCase().contains(q);
-        final bool matchesDesc = ch.description.toLowerCase().contains(q);
-        if (!matchesTitle && !matchesDesc) return false;
-      }
-      return true;
-    }).toList();
-
-    final List<DashboardSubmission> filteredSubmissions = modSubmissions.where((
-      DashboardSubmission s,
-    ) {
-      if (_challengeSearchQuery.isNotEmpty) {
-        final String q = _challengeSearchQuery.toLowerCase();
-        final bool matchesTitle = s.title.toLowerCase().contains(q);
-        final bool matchesLang = s.language.toLowerCase().contains(q);
-        if (!matchesTitle && !matchesLang) return false;
-      }
-      return true;
-    }).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        // Search Box (matching Web)
-        Container(
-          height: 40.0,
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(color: borderColor),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Row(
-            children: <Widget>[
-              Icon(Icons.search_rounded, size: 18.0, color: textSecondary),
-              const SizedBox(width: 8.0),
-              Expanded(
-                child: TextField(
-                  controller: _challengeSearchController,
-                  onChanged: (String val) {
-                    setState(() {
-                      _challengeSearchQuery = val;
-                    });
-                  },
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13.0,
-                    color: textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: _challengeFilter == 'submissions'
-                        ? 'Search submissions...'
-                        : 'Search challenges...',
-                    hintStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      color: textSecondary.withValues(alpha: 0.7),
-                    ),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-              if (_challengeSearchQuery.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    _challengeSearchController.clear();
-                    setState(() {
-                      _challengeSearchQuery = '';
-                    });
-                  },
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 16.0,
-                    color: textSecondary,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12.0),
-
-        // Sub-filter tabs (All, Easy, Medium, Hard, Unsolved, My Submissions)
-        FilterTabBar(
-          height: 36.0,
-          selectedId: _challengeFilter,
-          onTabSelected: (String id) {
-            setState(() {
-              _challengeFilter = id;
-            });
-          },
-          tabs: <FilterTabItem>[
-            FilterTabItem(
-              id: 'all',
-              label: 'All Challenges',
-              count: allChallenges.length,
-            ),
-            FilterTabItem(
-              id: 'easy',
-              label: 'Easy',
-              count: allChallenges.where((c) => c.difficulty.toLowerCase() == 'easy').length,
-            ),
-            FilterTabItem(
-              id: 'medium',
-              label: 'Medium',
-              count: allChallenges.where((c) => c.difficulty.toLowerCase() == 'medium').length,
-            ),
-            FilterTabItem(
-              id: 'hard',
-              label: 'Hard',
-              count: allChallenges.where((c) => c.difficulty.toLowerCase() == 'hard').length,
-            ),
-            FilterTabItem(
-              id: 'unsolved',
-              label: 'Unsolved',
-              count: allChallenges.where((c) => !c.isCompleted).length,
-            ),
-            FilterTabItem(
-              id: 'submissions',
-              label: 'My Submissions',
-              count: modSubmissions.length,
-            ),
           ],
         ),
-        const SizedBox(height: 16.0),
-
-        // Display Submissions or Challenges List
-        if (_challengeFilter == 'submissions')
-          if (filteredSubmissions.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(28.0),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(18.0),
-                border: Border.all(color: borderColor),
-              ),
-              child: Text(
-                'No submissions recorded yet.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13.0,
-                  color: textSecondary,
-                ),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filteredSubmissions.length,
-              separatorBuilder: (BuildContext context, int i) =>
-                  const SizedBox(height: 10.0),
-              itemBuilder: (BuildContext context, int i) {
-                final DashboardSubmission sub = filteredSubmissions[i];
-                return InkWell(
-                  onTap: () => _openSubmissionAuditSheet(sub),
-                  borderRadius: BorderRadius.circular(14.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(14.0),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(14.0),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Text(
-                          '${i + 1}',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 12.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                        const SizedBox(width: 12.0),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                sub.title,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 3.0),
-                              Row(
-                                children: <Widget>[
-                                  LanguageIcon(language: sub.language, size: 14.0),
-                                  const SizedBox(width: 4.0),
-                                  Text(
-                                    sub.language,
-                                    style: GoogleFonts.jetBrainsMono(
-                                      fontSize: 11.0,
-                                      color: textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8.0),
-                                  Text('·', style: TextStyle(color: textSecondary)),
-                                  const SizedBox(width: 8.0),
-                                  Text(
-                                    sub.timeAgoFormatted,
-                                    style: GoogleFonts.jetBrainsMono(
-                                      fontSize: 11.0,
-                                      color: textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8.0,
-                            vertical: 3.0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6.0),
-                            border: Border.all(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                size: 12.0,
-                                color: Color(0xFF10B981),
-                              ),
-                              const SizedBox(width: 4.0),
-                              Text(
-                                'Accepted',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF10B981),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            )
-        else
-          if (filteredChallenges.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(28.0),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(18.0),
-                border: Border.all(color: borderColor),
-              ),
-              child: Text(
-                'No challenges found matching your filter criteria.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13.0,
-                  color: textSecondary,
-                ),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filteredChallenges.length,
-              separatorBuilder: (BuildContext context, int index) =>
-                  const SizedBox(height: 12.0),
-              itemBuilder: (BuildContext context, int index) {
-                final ModuleActivityModel ch = filteredChallenges[index];
-                final Color diffColor = _getDifficultyColor(ch.difficulty);
-
-                return Container(
-                  padding: const EdgeInsets.all(15.0),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(16.0),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 7.0,
-                                  vertical: 2.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: diffColor.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(6.0),
-                                ),
-                                child: Text(
-                                  ch.difficulty.toUpperCase(),
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 10.0,
-                                    fontWeight: FontWeight.w700,
-                                    color: diffColor,
-                                  ),
-                                ),
-                              ),
-                              if (ch.isCompleted) ...<Widget>[
-                                const SizedBox(width: 8.0),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7.0,
-                                    vertical: 2.0,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981)
-                                        .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6.0),
-                                  ),
-                                  child: Text(
-                                    'Solved',
-                                    style: GoogleFonts.jetBrainsMono(
-                                      fontSize: 10.0,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF10B981),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          Text(
-                            'Time: ${ch.timeSla} · Space: ${ch.spaceSla}',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 10.5,
-                              color: textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8.0),
-                      Text(
-                        ch.title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14.0,
-                          fontWeight: FontWeight.w800,
-                          color: textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4.0),
-                      Text(
-                        _cleanChallengeSummary(ch.description),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.0,
-                          color: textSecondary,
-                          height: 1.35,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 14.0),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 40.0,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            HapticFeedback.lightImpact();
-                            if (!mod.isEnrolled) {
-                              await _handleEnroll();
-                            } else {
-                              await context.push(
-                                '/modules/${widget.moduleId}/challenges/${ch.id}',
-                              );
-                              if (mounted) {
-                                _loadModuleData();
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isDark
-                                ? AppColors.darkSurface
-                                : const Color(0xFFF1F5F9),
-                            foregroundColor: isDark
-                                ? AppColors.darkTextPrimary
-                                : AppColors.lightTextPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10.0),
-                              side: BorderSide(color: borderColor),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              Icon(
-                                ch.isCompleted
-                                    ? Icons.check_circle_outline_rounded
-                                    : Icons.code_rounded,
-                                size: 16.0,
-                                color: ch.isCompleted
-                                    ? const Color(0xFF10B981)
-                                    : null,
-                              ),
-                              const SizedBox(width: 6.0),
-                              Text(
-                                ch.isCompleted
-                                    ? 'Review Challenge'
-                                    : 'Solve Challenge',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.0,
-                                  fontWeight: FontWeight.w700,
-                                  color: ch.isCompleted
-                                      ? const Color(0xFF10B981)
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // 3. OVERVIEW & MENTOR TAB (About, 2x2 Bento & Instructor Profile)
-  // ===========================================================================
-  Widget _buildOverviewView({
-    required ModuleDetailModel mod,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color cardBg,
-    required Color borderColor,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        // Card 1: About this Module & 2x2 Bento
-        Container(
-          padding: const EdgeInsets.all(18.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(20.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                'About this Module',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15.0,
-                  fontWeight: FontWeight.w800,
-                  color: textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6.0),
-              Text(
-                mod.description.trim().isNotEmpty
-                    ? mod.description.trim()
-                    : 'Master core programming concepts, hands-on challenges, and guided exercises with real-time feedback.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  color: textSecondary,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 16.0),
-              Divider(height: 1.0, color: borderColor),
-              const SizedBox(height: 16.0),
-
-              Text(
-                'WHAT YOU\'LL PRACTICE',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 11.0,
-                  fontWeight: FontWeight.w700,
-                  color: textSecondary,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 12.0),
-
-              // 2x2 Bento Grid
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(
-                    child: _buildBentoCard(
-                      title: 'In-Browser IDE',
-                      desc: 'Live compile, unit tests, and terminal feedback',
-                      icon: Icons.code_rounded,
-                      isDark: isDark,
-                      borderColor: borderColor,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 10.0),
-                  Expanded(
-                    child: _buildBentoCard(
-                      title: 'AI Code Tutor',
-                      desc: 'Socratic hints and syntax recommendations',
-                      icon: Icons.auto_awesome_rounded,
-                      isDark: isDark,
-                      borderColor: borderColor,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10.0),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(
-                    child: _buildBentoCard(
-                      title: 'SLA Benchmarks',
-                      desc: 'Time & memory performance constraints',
-                      icon: Icons.speed_rounded,
-                      isDark: isDark,
-                      borderColor: borderColor,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 10.0),
-                  Expanded(
-                    child: _buildBentoCard(
-                      title: 'Progress Tracking',
-                      desc: 'Auto-saved code submissions and activity history',
-                      icon: Icons.insights_rounded,
-                      isDark: isDark,
-                      borderColor: borderColor,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        const SizedBox(height: 8.0),
+        Divider(
+          height: 1.0,
+          color: borderColor.withValues(alpha: 0.4),
         ),
-        const SizedBox(height: 16.0),
 
-        // Card 2: Instructor Profile Card
-        Container(
-          padding: const EdgeInsets.all(18.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(20.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        // Topics List
+        if (topics.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 36.0),
+            child: Center(
+              child: Column(
                 children: <Widget>[
-                  _buildCoachAvatar(mod.coachName, mod.coachAvatar, 24.0),
-                  const SizedBox(width: 12.0),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          mod.coachName,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15.0,
-                            fontWeight: FontWeight.w800,
-                            color: textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2.0),
-                        Text(
-                          'Senior Staff Architect & Technical Educator',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            color: textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 4.0),
-                        Row(
-                          children: <Widget>[
-                            const Icon(
-                              Icons.star_rounded,
-                              size: 14.0,
-                              color: Color(0xFFFBBF24),
-                            ),
-                            const SizedBox(width: 3.0),
-                            Text(
-                              _effectiveRating.toStringAsFixed(1),
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: textPrimary,
-                              ),
-                            ),
-                            const SizedBox(width: 6.0),
-                            Text('•', style: TextStyle(color: textSecondary)),
-                            const SizedBox(width: 6.0),
-                            Text(
-                              'Verified Mentor',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.0,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF10B981),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12.0),
-
-              Text(
-                '10+ years designing fault-tolerant distributed systems and architectures. Mentoring developers worldwide with battle-tested production blueprints.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  color: textSecondary,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 14.0),
-
-              // Expertise Badges
-              Wrap(
-                spacing: 6.0,
-                runSpacing: 6.0,
-                children: <String>[
-                  'Architecture',
-                  'Algorithms',
-                  'SLA Optimization',
-                  'System Design',
-                ].map((String skill) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0,
-                      vertical: 3.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1E293B)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6.0),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Text(
-                      skill,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.0,
-                        fontWeight: FontWeight.w600,
-                        color: textPrimary,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16.0),
-
-              // View Full Profile Button
-              SizedBox(
-                width: double.infinity,
-                height: 40.0,
-                child: OutlinedButton(
-                  onPressed: _handleOpenMentorProfile,
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: borderColor),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.0),
-                    ),
-                  ),
-                  child: Text(
-                    'View Full Mentor Profile',
+                  Text(
+                    'No practice topics found',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
+                      fontSize: 14.0,
                       fontWeight: FontWeight.w700,
                       color: textPrimary,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    'This module does not contain any published practice exercises yet.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      color: textSecondary,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBentoCard({
-    required String title,
-    required String desc,
-    required IconData icon,
-    required bool isDark,
-    required Color borderColor,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            padding: const EdgeInsets.all(6.0),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8.0),
             ),
-            child: Icon(icon, size: 16.0, color: AppColors.primary),
-          ),
-          const SizedBox(height: 8.0),
-          Text(
-            title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
-            ),
-          ),
-          const SizedBox(height: 2.0),
-          Text(
-            desc,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10.5,
-              color: textSecondary,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: topics.length,
+            itemBuilder: (BuildContext context, int index) {
+              final _DisplayTopic topic = topics[index];
+              final bool isExpanded = _expandedTopicIds.contains(topic.id);
+              final String orderStr = topic.number.toString().padLeft(2, '0');
 
-  // ===========================================================================
-  // 4. REVIEWS TAB (Overall Metrics, Distribution & Verified Reviews)
-  // ===========================================================================
-  Widget _buildReviewsView({
-    required ModuleDetailModel mod,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color cardBg,
-    required Color borderColor,
-  }) {
-    final double avgRating = _effectiveRating;
-    final int count = _reviews.length;
-    final int positiveCount = _reviews.where((r) => r.rating >= 4).length;
-    final int recommendPct = count > 0 ? ((positiveCount / count) * 100).round() : 100;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        // Overview Header Card (1:1 Web Parity)
-        Container(
-          padding: const EdgeInsets.all(18.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(20.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  // Overall Rating Score
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'OVERALL RATING',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 10.0,
-                            fontWeight: FontWeight.w700,
-                            color: textSecondary,
-                            letterSpacing: 0.5,
-                          ),
+              return Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: borderColor.withValues(alpha: 0.35),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    // Topic Header Trigger (Hollow row with ripple)
+                    InkWell(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          if (isExpanded) {
+                            _expandedTopicIds.remove(topic.id);
+                          } else {
+                            _expandedTopicIds.add(topic.id);
+                          }
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14.0,
+                          horizontal: 4.0,
                         ),
-                        const SizedBox(height: 4.0),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
+                        child: Row(
                           children: <Widget>[
-                            Text(
-                              avgRating.toStringAsFixed(1),
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 32.0,
-                                fontWeight: FontWeight.w900,
-                                color: textPrimary,
-                                letterSpacing: -0.5,
+                            // Monospace number index (01, 02)
+                            SizedBox(
+                              width: 28.0,
+                              child: Text(
+                                orderStr,
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: textSecondary,
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 4.0),
-                            Text(
-                              '/ 5.0',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 13.0,
+                            const SizedBox(width: 8.0),
+
+                            // Topic Title & Description
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    topic.title,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14.0,
+                                      fontWeight: FontWeight.w700,
+                                      color: textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (topic.description.isNotEmpty) ...<Widget>[
+                                    const SizedBox(height: 2.0),
+                                    Text(
+                                      topic.description,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        color: textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10.0),
+
+                            // Solved Status Indicator
+                            if (topic.isCompleted) ...<Widget>[
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 13.0,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                  const SizedBox(width: 4.0),
+                                  Text(
+                                    'Completed',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF10B981),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else ...<Widget>[
+                              Text(
+                                '${topic.solvedCount} / ${topic.totalCount} Solved',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 11.0,
+                                  fontWeight: FontWeight.w700,
+                                  color: textSecondary,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 8.0),
+
+                            // Rotating Chevron
+                            AnimatedRotation(
+                              turns: isExpanded ? 0.5 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                Icons.expand_more_rounded,
+                                size: 18.0,
                                 color: textSecondary,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4.0),
-                        Row(
+                      ),
+                    ),
+
+                    // Expanded Activities List (Hollow Rows with Dividers)
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox(width: double.infinity, height: 0.0),
+                      secondChild: Padding(
+                        padding: const EdgeInsets.only(left: 28.0, bottom: 6.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            for (int s = 1; s <= 5; s++)
-                              Icon(
-                                s <= avgRating.round()
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                size: 16.0,
-                                color: s <= avgRating.round()
-                                    ? const Color(0xFFFBBF24)
-                                    : textSecondary.withValues(alpha: 0.3),
+                            Divider(
+                              height: 1.0,
+                              color: borderColor.withValues(alpha: 0.2),
+                            ),
+                            if (topic.activities.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 10.0),
+                                child: Text(
+                                  'No activities in this topic yet.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11.5,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                              )
+                            else
+                              ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: topic.activities.length,
+                                separatorBuilder: (BuildContext context, int i) =>
+                                    Divider(
+                                  height: 1.0,
+                                  color: borderColor.withValues(alpha: 0.2),
+                                ),
+                                itemBuilder: (BuildContext context, int i) {
+                                  final ModuleActivityModel act = topic.activities[i];
+                                  final bool isSolved = act.isCompleted;
+                                  final bool isChallenge = act.category == 'challenge';
+                                  final bool isLocked = !_module!.isEnrolled;
+
+                                  return InkWell(
+                                    onTap: () => _navigateToActivity(act),
+                                    borderRadius: BorderRadius.circular(8.0),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10.0,
+                                        horizontal: 4.0,
+                                      ),
+                                      child: Row(
+                                        children: <Widget>[
+                                          // Status indicator dot or checkmark
+                                          if (isSolved) ...<Widget>[
+                                            const Icon(
+                                              Icons.check_circle_rounded,
+                                              size: 15.0,
+                                              color: Color(0xFF10B981),
+                                            ),
+                                          ] else if (isLocked) ...<Widget>[
+                                            Icon(
+                                              Icons.lock_outline_rounded,
+                                              size: 14.0,
+                                              color: textSecondary.withValues(alpha: 0.5),
+                                            ),
+                                          ] else if (isChallenge) ...<Widget>[
+                                            Container(
+                                              width: 5.0,
+                                              height: 5.0,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFF59E0B),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ] else ...<Widget>[
+                                            Container(
+                                              width: 5.0,
+                                              height: 5.0,
+                                              decoration: BoxDecoration(
+                                                color: textSecondary.withValues(alpha: 0.4),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ],
+                                          const SizedBox(width: 10.0),
+
+                                          // Activity Title + Category Badge + SLA + Subtitle
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: <Widget>[
+                                                Row(
+                                                  children: <Widget>[
+                                                    Flexible(
+                                                      child: Text(
+                                                        act.title,
+                                                        style: GoogleFonts.plusJakartaSans(
+                                                          fontSize: 13.0,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: textPrimary,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6.0),
+
+                                                    // Minimal Hollow Category Badge
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 5.0,
+                                                        vertical: 1.5,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: isChallenge
+                                                            ? const Color(0xFFF59E0B).withValues(alpha: 0.08)
+                                                            : (isDark
+                                                                ? AppColors.darkSurfaceCard
+                                                                : AppColors.lightSurfaceCard),
+                                                        borderRadius: BorderRadius.circular(4.0),
+                                                        border: Border.all(
+                                                          color: isChallenge
+                                                              ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
+                                                              : borderColor.withValues(alpha: 0.5),
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        isChallenge ? 'CHALLENGE' : 'PRACTICE',
+                                                        style: GoogleFonts.jetBrainsMono(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.w700,
+                                                          color: isChallenge
+                                                              ? const Color(0xFFF59E0B)
+                                                              : textSecondary,
+                                                        ),
+                                                      ),
+                                                    ),
+
+                                                    // Time SLA
+                                                    if (isChallenge && act.timeSla.isNotEmpty && act.timeSla != '—') ...<Widget>[
+                                                      const SizedBox(width: 4.0),
+                                                      Text(
+                                                        '· ${act.timeSla}',
+                                                        style: GoogleFonts.jetBrainsMono(
+                                                          fontSize: 10.0,
+                                                          color: textSecondary.withValues(alpha: 0.7),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+
+                                                // Subtitle
+                                                if (act.description.isNotEmpty) ...<Widget>[
+                                                  const SizedBox(height: 2.0),
+                                                  Text(
+                                                    _cleanChallengeSummary(act.description),
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 11.0,
+                                                      color: textSecondary,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8.0),
+
+                                          // Minimal Hollow Action Button
+                                          if (isLocked) ...<Widget>[
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: <Widget>[
+                                                Icon(
+                                                  Icons.lock_outline_rounded,
+                                                  size: 12.0,
+                                                  color: textSecondary.withValues(alpha: 0.6),
+                                                ),
+                                                const SizedBox(width: 3.0),
+                                                Text(
+                                                  'Locked',
+                                                  style: GoogleFonts.jetBrainsMono(
+                                                    fontSize: 11.0,
+                                                    color: textSecondary.withValues(alpha: 0.6),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ] else if (isSolved) ...<Widget>[
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: <Widget>[
+                                                Text(
+                                                  'Review',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: textSecondary,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 2.0),
+                                                Icon(
+                                                  Icons.arrow_forward_rounded,
+                                                  size: 12.0,
+                                                  color: textSecondary,
+                                                ),
+                                              ],
+                                            ),
+                                          ] else if (isChallenge) ...<Widget>[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 9.0,
+                                                vertical: 4.0,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+                                                borderRadius: BorderRadius.circular(8.0),
+                                                border: Border.all(
+                                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: <Widget>[
+                                                  Text(
+                                                    'Solve',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: const Color(0xFFF59E0B),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 3.0),
+                                                  const Icon(
+                                                    Icons.arrow_forward_rounded,
+                                                    size: 11.0,
+                                                    color: Color(0xFFF59E0B),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ] else ...<Widget>[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 10.0,
+                                                vertical: 4.0,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary.withValues(alpha: 0.08),
+                                                borderRadius: BorderRadius.circular(8.0),
+                                                border: Border.all(
+                                                  color: AppColors.primary.withValues(alpha: 0.35),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: <Widget>[
+                                                  Text(
+                                                    'Solve',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: AppColors.primary,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 3.0),
+                                                  const Icon(
+                                                    Icons.arrow_forward_rounded,
+                                                    size: 11.0,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                           ],
                         ),
-                        const SizedBox(height: 4.0),
-                        Text(
-                          'Based on $count verified ${count == 1 ? "review" : "reviews"}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                      ],
+                      ),
+                      crossFadeState: isExpanded
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 220),
                     ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // 3. LEARNER REVIEWS SECTION (Matching Web 1:1)
+  // ===========================================================================
+  Widget _buildLearnerReviewsSection({
+    required ModuleDetailModel mod,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color cardBg,
+    required Color borderColor,
+  }) {
+    final int recommendedCount = _reviews.where((ModuleReviewModel r) => r.rating >= 4).length;
+    final int recommendedPct = _reviews.isNotEmpty
+        ? ((recommendedCount / _reviews.length) * 100).round()
+        : 100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // Header Row: "Learner Reviews" with badge + "Write a Review" button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Text(
+                  'Learner Reviews',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    color: textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkSurfaceCard
+                        : AppColors.lightSurfaceCard,
+                    borderRadius: BorderRadius.circular(6.0),
+                    border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    '${_reviews.length}',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w700,
+                      color: textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ElevatedButton(
+              onPressed: _handleOpenReviewModal,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor:
+                    isDark ? AppColors.onPrimaryDark : Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14.0,
+                  vertical: 7.0,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                ),
+                elevation: 0,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Write a Review',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4.0),
+                  const Icon(Icons.arrow_forward_rounded, size: 12.0),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14.0),
+
+        // Reviews Metric Overview Header Card
+        Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(18.0),
+            border: Border.all(color: borderColor.withValues(alpha: isDark ? 0.35 : 0.6)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // Top Row: Overall Rating & Recommendation
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  // Overall Rating Score
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'OVERALL RATING',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 10.0,
+                          fontWeight: FontWeight.w700,
+                          color: textSecondary,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 2.0),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: <Widget>[
+                          Text(
+                            _reviews.isNotEmpty
+                                ? _effectiveRating.toStringAsFixed(1)
+                                : '—',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 30.0,
+                              fontWeight: FontWeight.w900,
+                              color: textPrimary,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 4.0),
+                          Text(
+                            '/ 5.0',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 12.5,
+                              color: textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4.0),
+                      Row(
+                        children: List<Widget>.generate(5, (int i) {
+                          final bool isLit = _reviews.isNotEmpty && (i + 1) <= _effectiveRating.round();
+                          return Icon(
+                            isLit ? Icons.star_rounded : Icons.star_outline_rounded,
+                            size: 15.0,
+                            color: isLit ? const Color(0xFFFBBF24) : textSecondary.withValues(alpha: 0.3),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 4.0),
+                      Text(
+                        'Based on ${_reviews.length} verified review${_reviews.length == 1 ? "" : "s"}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.0,
+                          color: textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
 
                   // Recommendation %
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14.0,
-                      vertical: 10.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF0F172A)
-                          : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(14.0),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Column(
-                      children: <Widget>[
-                        Text(
-                          'RECOMMENDED',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            color: textSecondary,
-                            letterSpacing: 0.5,
-                          ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Text(
+                        'RECOMMENDATION',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 10.0,
+                          fontWeight: FontWeight.w700,
+                          color: textSecondary,
+                          letterSpacing: 1.0,
                         ),
-                        const SizedBox(height: 4.0),
-                        Text(
-                          '$recommendPct%',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 22.0,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF10B981),
-                          ),
+                      ),
+                      const SizedBox(height: 2.0),
+                      Text(
+                        '$recommendedPct%',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 26.0,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF10B981),
+                          letterSpacing: -0.5,
                         ),
-                      ],
-                    ),
+                      ),
+                      Text(
+                        'Learners recommend',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.0,
+                          color: textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
               const SizedBox(height: 16.0),
+              Divider(height: 1.0, color: borderColor.withValues(alpha: 0.3)),
+              const SizedBox(height: 12.0),
 
-              // Rating Distribution Breakdown (5★ to 1★)
-              Column(
-                children: <int>[5, 4, 3, 2, 1].map((int stars) {
-                  final int starCount =
-                      _reviews.where((r) => r.rating == stars).length;
-                  final double pct =
-                      count > 0 ? (starCount / count).clamp(0.0, 1.0) : 0.0;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 5.0),
-                    child: Row(
-                      children: <Widget>[
-                        SizedBox(
-                          width: 28.0,
-                          child: Text(
-                            '$stars★',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.0,
-                              fontWeight: FontWeight.w700,
-                              color: textSecondary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6.0),
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(3.0),
-                            child: LinearProgressIndicator(
-                              value: pct,
-                              minHeight: 5.0,
-                              backgroundColor: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.lightBorder,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Color(0xFFFBBF24),
+              // Star Breakdown Distribution Bars (5 down to 1)
+              for (int stars = 5; stars >= 1; stars--) ...<Widget>[
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.5),
+                  child: Row(
+                    children: <Widget>[
+                      SizedBox(
+                        width: 28.0,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              '$stars',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.w700,
+                                color: textSecondary,
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 2.0),
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 11.0,
+                              color: Color(0xFFFBBF24),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8.0),
-                        SizedBox(
-                          width: 20.0,
-                          child: Text(
-                            '$starCount',
-                            textAlign: TextAlign.right,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.0,
-                              color: textSecondary,
+                      ),
+                      const SizedBox(width: 8.0),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2.5),
+                          child: LinearProgressIndicator(
+                            value: _reviews.isNotEmpty
+                                ? (_reviews.where((ModuleReviewModel r) => r.rating == stars).length /
+                                        _reviews.length)
+                                    .clamp(0.0, 1.0)
+                                : 0.0,
+                            minHeight: 5.0,
+                            backgroundColor: borderColor.withValues(alpha: 0.3),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFFFBBF24),
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16.0),
-
-              // Write a Review Button
-              SizedBox(
-                width: double.infinity,
-                height: 40.0,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    HapticFeedback.lightImpact();
-                    final String userId = _getUserId();
-                    if (userId.isEmpty) {
-                      AppToast.showError(
-                        context,
-                        'Please log in to write a review',
-                      );
-                      return;
-                    }
-                    final bool? submitted = await ModuleReviewModal.show(
-                      context,
-                      moduleTitle: mod.title,
-                      onSubmitReview: (int rating, String comment) async {
-                        return await widget.pathwayRepository.submitModuleReview(
-                          moduleId: widget.moduleId,
-                          userId: userId,
-                          rating: rating,
-                          comment: comment,
-                        );
-                      },
-                    );
-                    if (submitted == true && mounted) {
-                      AppToast.showSuccess(context, 'Review posted!');
-                      _loadReviews();
-                    }
-                  },
-                  icon: const Icon(Icons.rate_review_outlined, size: 16.0),
-                  label: Text(
-                    'Write a Review',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13.0,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor:
-                        isDark ? AppColors.onPrimaryDark : Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.0),
-                    ),
-                    elevation: 0,
+                      ),
+                      const SizedBox(width: 10.0),
+                      SizedBox(
+                        width: 20.0,
+                        child: Text(
+                          '${_reviews.where((ModuleReviewModel r) => r.rating == stars).length}',
+                          textAlign: TextAlign.end,
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10.5,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
-        const SizedBox(height: 18.0),
+        const SizedBox(height: 14.0),
 
         // Reviews List or Empty State
-        if (_isLoadingReviews)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24.0),
-            child: Center(
-              child: SizedBox(
-                width: 24.0,
-                height: 24.0,
-                child: CircularProgressIndicator(strokeWidth: 2.0),
-              ),
-            ),
-          )
-        else if (_reviews.isEmpty)
+        if (_reviews.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(28.0),
+            padding: const EdgeInsets.symmetric(vertical: 28.0, horizontal: 20.0),
             decoration: BoxDecoration(
               color: cardBg,
-              borderRadius: BorderRadius.circular(20.0),
-              border: Border.all(color: borderColor),
+              borderRadius: BorderRadius.circular(18.0),
+              border: Border.all(color: borderColor.withValues(alpha: 0.4)),
             ),
             child: Column(
               children: <Widget>[
                 Container(
-                  padding: const EdgeInsets.all(12.0),
+                  width: 44.0,
+                  height: 44.0,
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14.0),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: const Icon(
                     Icons.chat_bubble_outline_rounded,
-                    size: 26.0,
                     color: AppColors.primary,
+                    size: 20.0,
                   ),
                 ),
                 const SizedBox(height: 12.0),
                 Text(
                   'No reviews yet',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15.0,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w700,
                     color: textPrimary,
                   ),
@@ -2227,6 +1881,37 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                     height: 1.45,
                   ),
                 ),
+                const SizedBox(height: 14.0),
+                OutlinedButton(
+                  onPressed: _handleOpenReviewModal,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.5),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16.0),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        'Leave First Review',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.0,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 4.0),
+                      const Icon(Icons.arrow_forward_rounded, size: 12.0),
+                    ],
+                  ),
+                ),
               ],
             ),
           )
@@ -2235,93 +1920,96 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _reviews.length,
-            separatorBuilder: (BuildContext context, int i) =>
+            separatorBuilder: (BuildContext context, int index) =>
                 const SizedBox(height: 10.0),
-            itemBuilder: (BuildContext context, int i) {
-              final ModuleReviewModel rev = _reviews[i];
-              final String initials = rev.userName
-                  .split(' ')
-                  .where((String p) => p.isNotEmpty)
-                  .map((String p) => p[0])
-                  .take(2)
-                  .join('')
-                  .toUpperCase();
+            itemBuilder: (BuildContext context, int index) {
+              final ModuleReviewModel rev = _reviews[index];
+              final String initial = rev.userName.isNotEmpty
+                  ? rev.userName[0].toUpperCase()
+                  : 'L';
 
               return Container(
-                padding: const EdgeInsets.all(15.0),
+                padding: const EdgeInsets.all(14.0),
                 decoration: BoxDecoration(
                   color: cardBg,
-                  borderRadius: BorderRadius.circular(16.0),
-                  border: Border.all(color: borderColor),
+                  borderRadius: BorderRadius.circular(14.0),
+                  border: Border.all(
+                    color: borderColor.withValues(alpha: isDark ? 0.3 : 0.5),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
+                    // Author + Rating Header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: <Widget>[
                         Row(
                           children: <Widget>[
                             Container(
-                              width: 30.0,
-                              height: 30.0,
+                              width: 28.0,
+                              height: 28.0,
                               decoration: BoxDecoration(
                                 color: AppColors.primary.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8.0),
+                                shape: BoxShape.circle,
                                 border: Border.all(
                                   color: AppColors.primary.withValues(alpha: 0.3),
                                 ),
                               ),
                               alignment: Alignment.center,
                               child: Text(
-                                initials.isEmpty ? 'U' : initials,
+                                initial,
                                 style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11.5,
+                                  fontSize: 12.0,
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.primary,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 10.0),
+                            const SizedBox(width: 8.0),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
                                   rev.userName,
                                   style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13.0,
+                                    fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
                                     color: textPrimary,
                                   ),
                                 ),
-                                Text(
-                                  rev.createdAt,
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 10.0,
-                                    color: textSecondary,
+                                if (rev.createdAt.isNotEmpty)
+                                  Text(
+                                    rev.createdAt,
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 10.0,
+                                      color: textSecondary,
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ],
                         ),
+
+                        // Stars
                         Row(
-                          children: <Widget>[
-                            for (int s = 1; s <= 5; s++)
-                              Icon(
-                                s <= rev.rating
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                size: 14.0,
-                                color: s <= rev.rating
-                                    ? const Color(0xFFFBBF24)
-                                    : borderColor,
-                              ),
-                          ],
+                          mainAxisSize: MainAxisSize.min,
+                          children: List<Widget>.generate(5, (int i) {
+                            final bool isLit = (i + 1) <= rev.rating;
+                            return Icon(
+                              isLit ? Icons.star_rounded : Icons.star_outline_rounded,
+                              size: 13.0,
+                              color: isLit
+                                  ? const Color(0xFFFBBF24)
+                                  : textSecondary.withValues(alpha: 0.25),
+                            );
+                          }),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10.0),
+                    const SizedBox(height: 8.0),
+
+                    // Review Comment
                     Text(
                       '“${rev.comment}”',
                       style: GoogleFonts.plusJakartaSans(
@@ -2336,263 +2024,6 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
             },
           ),
       ],
-    );
-  }
-
-  // ===========================================================================
-  // SUBMISSION AUDIT MODAL SHEET (Matching Web Dialog lines 1990-2057)
-  // ===========================================================================
-  void _openSubmissionAuditSheet(DashboardSubmission sub) {
-    HapticFeedback.selectionClick();
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final Color surfaceColor =
-        isDark ? AppColors.darkSurfaceCard : Colors.white;
-    final Color borderColor =
-        isDark ? AppColors.darkBorder : AppColors.lightBorder;
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext sheetContext) {
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(sheetContext).size.height * 0.88,
-          ),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
-            border: Border.all(color: borderColor),
-          ),
-          child: SafeArea(
-            top: false,
-            bottom: true,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                // Drag handle
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 10.0, bottom: 6.0),
-                    width: 36.0,
-                    height: 4.0,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFCBD5E1),
-                      borderRadius: BorderRadius.circular(2.0),
-                    ),
-                  ),
-                ),
-
-                // Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 12.0),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Flexible(
-                                  child: Text(
-                                    sub.title,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 15.0,
-                                      fontWeight: FontWeight.w800,
-                                      color: textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8.0),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7.0,
-                                    vertical: 2.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6.0),
-                                    border: Border.all(
-                                      color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: <Widget>[
-                                      const Icon(
-                                        Icons.check_circle_rounded,
-                                        size: 11.0,
-                                        color: Color(0xFF10B981),
-                                      ),
-                                      const SizedBox(width: 3.0),
-                                      Text(
-                                        'Accepted',
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 10.0,
-                                          fontWeight: FontWeight.w700,
-                                          color: const Color(0xFF10B981),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 3.0),
-                            Text(
-                              '${sub.language} · Submitted ${sub.timeAgoFormatted}',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11.0,
-                                color: textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () => Navigator.of(sheetContext).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(height: 1.0, color: borderColor),
-
-                // Code and evaluation
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(18.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'SUBMITTED CODE',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: textSecondary,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8.0),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14.0),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF0F172A)
-                                : const Color(0xFF1E293B),
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          child: SelectableText(
-                            sub.code.isNotEmpty
-                                ? sub.code
-                                : '// Optimal algorithmic solution executed successfully\n// Target SLA constraint verified.',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 12.0,
-                              color: const Color(0xFFE2E8F0),
-                              height: 1.45,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16.0),
-
-                        // Mentor feedback / tips if available
-                        if (sub.feedbackTips.isNotEmpty || sub.verdict.isNotEmpty) ...<Widget>[
-                          Container(
-                            padding: const EdgeInsets.all(14.0),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(12.0),
-                              border: Border.all(
-                                color: AppColors.primary.withValues(alpha: 0.25),
-                              ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 2.0),
-                                  child: Icon(
-                                    Icons.lightbulb_outline_rounded,
-                                    size: 16.0,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 10.0),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        'Mentor Evaluation',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3.0),
-                                      Text(
-                                        sub.verdict.isNotEmpty
-                                            ? sub.verdict
-                                            : sub.feedbackTips.join(' '),
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12.0,
-                                          color: textSecondary,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 18.0),
-                        ],
-
-                        // Close button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 42.0,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.of(sheetContext).pop(),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor:
-                                  isDark ? AppColors.onPrimaryDark : Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12.0),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: Text(
-                              'Close',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.0,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
