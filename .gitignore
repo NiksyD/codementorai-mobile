@@ -52,4 +52,8 @@ node_modules/
 *.env
 !.env.example
 
+# Release outputs
+release_artifacts/
+release_assets/
+
 
