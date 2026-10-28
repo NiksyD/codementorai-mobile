@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/constants/app_theme.dart';
 import 'src/features/auth/data/password_reset_storage.dart';
+import 'src/features/profile/data/supabase_profile_repository.dart';
 import 'src/routing/app_router.dart';
 import 'src/theme/theme_mode_controller.dart';
 
@@ -44,6 +45,18 @@ class _CodeMentorAppState extends State<CodeMentorApp> {
           appRouter.go('/reset-password');
         } else if (event == AuthChangeEvent.signedOut) {
           appRouter.go('/login');
+        } else if (event == AuthChangeEvent.signedIn) {
+          final session = data.session;
+          if (session != null) {
+            const profileRepo = SupabaseProfileRepository();
+            final bool hasCompleted =
+                await profileRepo.hasCompletedProfile(session.user.id);
+            if (!hasCompleted) {
+              appRouter.go('/onboarding');
+            } else {
+              appRouter.go('/dashboard');
+            }
+          }
         }
       });
     } catch (_) {}

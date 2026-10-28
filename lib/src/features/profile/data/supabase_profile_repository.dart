@@ -33,7 +33,8 @@ class SupabaseProfileRepository implements ProfileRepository {
             firstName: (meta['first_name'] as String?) ?? (meta['full_name'] as String?)?.split(' ').first,
             lastName: (meta['last_name'] as String?) ?? ((meta['full_name'] as String?)?.contains(' ') == true ? (meta['full_name'] as String).split(' ').sublist(1).join(' ') : null),
             avatarUrl: (meta['avatar_url'] as String?) ?? (meta['picture'] as String?),
-            role: (meta['role'] as String?) ?? 'student',
+            role: (meta['role'] as String?) ?? 'learner',
+            userOnboarded: false,
           );
           cachedProfile = fallback;
           return fallback;
@@ -70,6 +71,7 @@ class SupabaseProfileRepository implements ProfileRepository {
 
     final Map<String, dynamic> data = profile.toJson();
     data['user_created_at'] ??= DateTime.now().toIso8601String();
+    data['user_onboarded'] = profile.userOnboarded ?? true;
 
     await _supabase.from('profiles').upsert(data, onConflict: 'user_id');
 
@@ -104,6 +106,9 @@ class SupabaseProfileRepository implements ProfileRepository {
   Future<bool> hasCompletedProfile(String userId) async {
     final ProfileModel? profile = await getProfile(userId);
     if (profile == null) return false;
+    if (profile.userOnboarded != null) {
+      return profile.userOnboarded!;
+    }
     return (profile.firstName?.isNotEmpty ?? false) &&
         (profile.lastName?.isNotEmpty ?? false);
   }

@@ -11,6 +11,7 @@ class ProfileModel {
     this.phoneNumber,
     this.city,
     this.province,
+    this.userOnboarded,
   });
 
   final String userId;
@@ -24,6 +25,7 @@ class ProfileModel {
   final String? phoneNumber;
   final String? city;
   final String? province;
+  final bool? userOnboarded;
 
   String get fullName {
     final String first = firstName?.trim() ?? '';
@@ -45,6 +47,7 @@ class ProfileModel {
       phoneNumber: json['user_phone_number'] as String?,
       city: json['user_city'] as String?,
       province: json['user_province'] as String?,
+      userOnboarded: json['user_onboarded'] as bool?,
     );
   }
 
@@ -55,8 +58,9 @@ class ProfileModel {
       'user_email': email,
       'user_first_name': firstName ?? '',
       'user_last_name': lastName ?? '',
-      'user_role': role ?? 'student',
+      'user_role': role ?? 'learner',
       'user_avatar_url': avatarUrl ?? '',
+      'user_onboarded': userOnboarded ?? false,
       'user_email_notifications': true,
       'user_created_at': now,
       'user_updated_at': now,

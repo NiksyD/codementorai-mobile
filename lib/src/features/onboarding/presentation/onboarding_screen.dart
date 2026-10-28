@@ -96,12 +96,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      final String? fullName = user.userMetadata?['full_name'] as String?;
+      final String? fullName = (user.userMetadata?['full_name'] as String?) ??
+          (user.userMetadata?['name'] as String?);
       if (fullName != null && fullName.isNotEmpty) {
-        final List<String> parts = fullName.split(' ');
-        _firstNameController.text = parts.first;
-        if (parts.length > 1) {
-          _lastNameController.text = parts.sublist(1).join(' ');
+        if (fullName.contains(',')) {
+          final List<String> commaParts = fullName.split(',');
+          _lastNameController.text = commaParts[0].trim();
+          if (commaParts.length > 1) {
+            _firstNameController.text = commaParts[1].trim();
+          }
+        } else {
+          final List<String> parts = fullName.split(' ');
+          _firstNameController.text = parts.first;
+          if (parts.length > 1) {
+            _lastNameController.text = parts.sublist(1).join(' ');
+          }
         }
       }
     }
@@ -218,7 +227,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
 
     try {
-      final String userRole = (user.userMetadata?['role'] as String?) ?? 'student';
+      final String rawRole = (user.userMetadata?['role'] as String?) ?? 'learner';
+      final String userRole = rawRole == 'student' ? 'learner' : rawRole;
       final ProfileModel profile = ProfileModel(
         userId: user.id,
         email: user.email ?? '',
@@ -232,6 +242,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         phoneNumber: '',
         city: '',
         province: '',
+        userOnboarded: true,
       );
 
       await widget.profileRepository.saveProfile(profile);

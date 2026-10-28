@@ -149,8 +149,9 @@ class _SplashScreenState extends State<SplashScreen>
         if (!mounted) return;
 
         final ProfileModel? profile = results[0] as ProfileModel?;
-        final bool hasCompleted = (profile?.firstName?.isNotEmpty ?? false) &&
-            (profile?.lastName?.isNotEmpty ?? false);
+        final bool hasCompleted = profile?.userOnboarded ??
+            ((profile?.firstName?.isNotEmpty ?? false) &&
+                (profile?.lastName?.isNotEmpty ?? false));
 
         if (!hasCompleted) {
           context.go('/onboarding');
