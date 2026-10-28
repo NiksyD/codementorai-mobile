@@ -61,8 +61,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _isUploadingAvatar = false;
 
   static const List<String> _avatarPool = <String>[
-    'Felix', 'Aneka', 'Jack', 'Luna', 'Oliver', 'Sarah', 'George', 'Elena',
-    'Milo', 'Zoe', 'Hugo', 'Maya', 'Leo', 'Ruby', 'Ezra', 'Nova', 'Silas', 'Clara',
+    'Felix',
+    'Aneka',
+    'Jack',
+    'Luna',
+    'Oliver',
+    'Sarah',
+    'George',
+    'Elena',
+    'Milo',
+    'Zoe',
+    'Hugo',
+    'Maya',
+    'Leo',
+    'Ruby',
+    'Ezra',
+    'Nova',
+    'Silas',
+    'Clara',
   ];
 
   late List<String> _currentAvatarSeeds;
@@ -73,9 +89,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String _selectedSkillLevel = 'intermediate';
 
   static const List<TargetLanguageOption> _languages = <TargetLanguageOption>[
-    TargetLanguageOption(id: 'python', label: 'Python', desc: 'Scripting & Data'),
-    TargetLanguageOption(id: 'javascript', label: 'JavaScript', desc: 'Web Development'),
-    TargetLanguageOption(id: 'typescript', label: 'TypeScript', desc: 'Typed Web Apps'),
+    TargetLanguageOption(
+      id: 'python',
+      label: 'Python',
+      desc: 'Scripting & Data',
+    ),
+    TargetLanguageOption(
+      id: 'javascript',
+      label: 'JavaScript',
+      desc: 'Web Development',
+    ),
+    TargetLanguageOption(
+      id: 'typescript',
+      label: 'TypeScript',
+      desc: 'Typed Web Apps',
+    ),
     TargetLanguageOption(id: 'java', label: 'Java', desc: 'Object-Oriented'),
     TargetLanguageOption(id: 'cpp', label: 'C++', desc: 'High Performance'),
     TargetLanguageOption(id: 'csharp', label: 'C#', desc: 'Enterprise & Games'),
@@ -83,9 +111,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   static const List<SkillLevelOption> _skillLevels = <SkillLevelOption>[
-    SkillLevelOption(id: 'beginner', label: 'Beginner', desc: '0–1 years experience'),
-    SkillLevelOption(id: 'intermediate', label: 'Intermediate', desc: '1–3 years experience'),
-    SkillLevelOption(id: 'advanced', label: 'Advanced', desc: '3+ years experience'),
+    SkillLevelOption(
+      id: 'beginner',
+      label: 'Beginner',
+      desc: '0–1 years experience',
+    ),
+    SkillLevelOption(
+      id: 'intermediate',
+      label: 'Intermediate',
+      desc: '1–3 years experience',
+    ),
+    SkillLevelOption(
+      id: 'advanced',
+      label: 'Advanced',
+      desc: '3+ years experience',
+    ),
   ];
 
   @override
@@ -96,7 +136,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      final String? fullName = (user.userMetadata?['full_name'] as String?) ??
+      final String? fullName =
+          (user.userMetadata?['full_name'] as String?) ??
           (user.userMetadata?['name'] as String?);
       if (fullName != null && fullName.isNotEmpty) {
         if (fullName.contains(',')) {
@@ -157,11 +198,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
       final Uint8List bytes = await File(image.path).readAsBytes();
       final String fileExt = image.path.split('.').last.toLowerCase();
-      final String fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final String fileName =
+          '${user.id}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
 
       await Supabase.instance.client.storage
           .from('avatars')
-          .uploadBinary(fileName, bytes, fileOptions: const FileOptions(upsert: true));
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
 
       final String publicUrl = Supabase.instance.client.storage
           .from('avatars')
@@ -227,7 +273,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
 
     try {
-      final String rawRole = (user.userMetadata?['role'] as String?) ?? 'learner';
+      final String rawRole =
+          (user.userMetadata?['role'] as String?) ?? 'learner';
       final String userRole = rawRole == 'student' ? 'learner' : rawRole;
       final ProfileModel profile = ProfileModel(
         userId: user.id,
@@ -237,7 +284,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         role: userRole,
         primaryLanguage: _selectedLanguage,
         skillLevel: _selectedSkillLevel,
-        avatarUrl: _customAvatarUrl ??
+        avatarUrl:
+            _customAvatarUrl ??
             'https://api.dicebear.com/7.x/avataaars/png?seed=$_selectedAvatarSeed',
         phoneNumber: '',
         city: '',
@@ -272,12 +320,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color backgroundColor =
-        isDark ? AppColors.darkBackground : AppColors.lightBackground;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color backgroundColor = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -357,17 +408,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       color: isPassed
                           ? AppColors.primary
                           : (isActive
-                              ? AppColors.primary.withValues(alpha: 0.15)
-                              : (isDark
-                                  ? AppColors.darkSurface
-                                  : AppColors.lightSurface)),
+                                ? AppColors.primary.withValues(alpha: 0.15)
+                                : (isDark
+                                      ? AppColors.darkSurface
+                                      : AppColors.lightSurface)),
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: isActive || isPassed
                             ? AppColors.primary
                             : (isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder),
+                                  ? AppColors.darkBorder
+                                  : AppColors.lightBorder),
                         width: 1.5,
                       ),
                     ),
@@ -400,8 +451,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       color: isPassed
                           ? AppColors.primary
                           : (isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder),
+                                ? AppColors.darkBorder
+                                : AppColors.lightBorder),
                     ),
                 ],
               );
@@ -415,7 +466,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildCurrentStep(bool isDark, Color textPrimary, Color textSecondary) {
+  Widget _buildCurrentStep(
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
     switch (_currentStep) {
       case 1:
         return _buildStep1Identity(isDark, textPrimary, textSecondary);
@@ -429,8 +484,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // ==========================================
   // STEP 1: PERSONAL IDENTITY & AVATAR
   // ==========================================
-  Widget _buildStep1Identity(bool isDark, Color textPrimary, Color textSecondary) {
-    final String currentAvatarUrl = _customAvatarUrl ??
+  Widget _buildStep1Identity(
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final String currentAvatarUrl =
+        _customAvatarUrl ??
         'https://api.dicebear.com/7.x/avataaars/png?seed=$_selectedAvatarSeed';
 
     return Column(
@@ -470,10 +530,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   height: 84.0,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.primary,
-                      width: 2.5,
-                    ),
+                    border: Border.all(color: AppColors.primary, width: 2.5),
                     boxShadow: <BoxShadow>[
                       BoxShadow(
                         color: AppColors.primary.withValues(alpha: 0.25),
@@ -485,7 +542,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: ClipOval(
                     child: _isUploadingAvatar
                         ? Container(
-                            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                            color: isDark
+                                ? AppColors.darkSurface
+                                : AppColors.lightSurface,
                             child: const Center(
                               child: SizedBox(
                                 width: 24.0,
@@ -500,11 +559,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         : Image.network(
                             currentAvatarUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => const Icon(
-                              Icons.person_rounded,
-                              size: 40.0,
-                              color: AppColors.primary,
-                            ),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(
+                                  Icons.person_rounded,
+                                  size: 40.0,
+                                  color: AppColors.primary,
+                                ),
                           ),
                   ),
                 ),
@@ -521,7 +581,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                        color: isDark
+                            ? AppColors.darkBackground
+                            : AppColors.lightBackground,
                         width: 2.0,
                       ),
                     ),
@@ -557,7 +619,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 side: BorderSide(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 10.0,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                 ),
@@ -575,14 +640,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                backgroundColor: isDark
+                    ? AppColors.darkSurface
+                    : AppColors.lightSurface,
                 foregroundColor: textPrimary,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 10.0,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                   side: BorderSide(
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    color: isDark
+                        ? AppColors.darkBorder
+                        : AppColors.lightBorder,
                   ),
                 ),
               ),
@@ -604,7 +676,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           itemCount: _currentAvatarSeeds.length,
           itemBuilder: (BuildContext context, int index) {
             final String seed = _currentAvatarSeeds[index];
-            final bool isSelected = _customAvatarUrl == null && _selectedAvatarSeed == seed;
+            final bool isSelected =
+                _customAvatarUrl == null && _selectedAvatarSeed == seed;
 
             return InkWell(
               onTap: () {
@@ -617,12 +690,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               borderRadius: BorderRadius.circular(14.0),
               child: Container(
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                  color: isDark
+                      ? AppColors.darkSurface
+                      : AppColors.lightSurface,
                   borderRadius: BorderRadius.circular(14.0),
                   border: Border.all(
                     color: isSelected
                         ? AppColors.primary
-                        : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        : (isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder),
                     width: isSelected ? 2.0 : 1.0,
                   ),
                 ),
@@ -647,7 +724,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         // Error Banner if needed
         if (_step1Error != null) ...<Widget>[
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14.0,
+              vertical: 10.0,
+            ),
             decoration: BoxDecoration(
               color: AppColors.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10.0),
@@ -766,7 +846,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // ==========================================
   // STEP 2: LEARNING PATHWAY (Learner-only)
   // ==========================================
-  Widget _buildStep2Pathway(bool isDark, Color textPrimary, Color textSecondary) {
+  Widget _buildStep2Pathway(
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -839,16 +923,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               },
               borderRadius: BorderRadius.circular(12.0),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12.0,
+                  vertical: 8.0,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppColors.primary.withValues(alpha: 0.12)
-                      : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
+                      : (isDark
+                            ? AppColors.darkSurface
+                            : AppColors.lightSurface),
                   borderRadius: BorderRadius.circular(12.0),
                   border: Border.all(
                     color: isSelected
                         ? AppColors.primary
-                        : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        : (isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder),
                     width: isSelected ? 1.5 : 1.0,
                   ),
                 ),
@@ -870,7 +961,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13.0,
                               fontWeight: FontWeight.w700,
-                              color: isSelected ? AppColors.primary : textPrimary,
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : textPrimary,
                             ),
                           ),
                           Text(
@@ -916,16 +1009,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               borderRadius: BorderRadius.circular(12.0),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8.0),
-                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14.0,
+                  vertical: 12.0,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppColors.primary.withValues(alpha: 0.12)
-                      : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
+                      : (isDark
+                            ? AppColors.darkSurface
+                            : AppColors.lightSurface),
                   borderRadius: BorderRadius.circular(12.0),
                   border: Border.all(
                     color: isSelected
                         ? AppColors.primary
-                        : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        : (isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder),
                     width: isSelected ? 1.5 : 1.0,
                   ),
                 ),
@@ -940,13 +1040,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           color: isSelected ? AppColors.primary : textSecondary,
                           width: 1.5,
                         ),
-                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.transparent,
                       ),
                       child: isSelected
                           ? Icon(
                               Icons.check_rounded,
                               size: 12.0,
-                              color: isDark ? AppColors.onPrimaryDark : Colors.white,
+                              color: isDark
+                                  ? AppColors.onPrimaryDark
+                                  : Colors.white,
                             )
                           : null,
                     ),
@@ -960,7 +1064,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
-                              color: isSelected ? AppColors.primary : textPrimary,
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : textPrimary,
                             ),
                           ),
                           Text(
@@ -1011,7 +1117,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15.0,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? AppColors.onPrimaryDark : Colors.white,
+                          color: isDark
+                              ? AppColors.onPrimaryDark
+                              : Colors.white,
                         ),
                       ),
                       const SizedBox(width: 6.0),

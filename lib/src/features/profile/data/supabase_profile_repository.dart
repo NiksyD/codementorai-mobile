@@ -30,9 +30,19 @@ class SupabaseProfileRepository implements ProfileRepository {
           final ProfileModel fallback = ProfileModel(
             userId: userId,
             email: authUser.email ?? '',
-            firstName: (meta['first_name'] as String?) ?? (meta['full_name'] as String?)?.split(' ').first,
-            lastName: (meta['last_name'] as String?) ?? ((meta['full_name'] as String?)?.contains(' ') == true ? (meta['full_name'] as String).split(' ').sublist(1).join(' ') : null),
-            avatarUrl: (meta['avatar_url'] as String?) ?? (meta['picture'] as String?),
+            firstName:
+                (meta['first_name'] as String?) ??
+                (meta['full_name'] as String?)?.split(' ').first,
+            lastName:
+                (meta['last_name'] as String?) ??
+                ((meta['full_name'] as String?)?.contains(' ') == true
+                    ? (meta['full_name'] as String)
+                          .split(' ')
+                          .sublist(1)
+                          .join(' ')
+                    : null),
+            avatarUrl:
+                (meta['avatar_url'] as String?) ?? (meta['picture'] as String?),
             role: (meta['role'] as String?) ?? 'learner',
             userOnboarded: false,
           );
@@ -41,18 +51,30 @@ class SupabaseProfileRepository implements ProfileRepository {
         }
         return null;
       }
-      final Map<String, dynamic> row = Map<String, dynamic>.from(response.first);
+      final Map<String, dynamic> row = Map<String, dynamic>.from(
+        response.first,
+      );
       final authUser = _supabase.auth.currentUser;
       if (authUser != null && authUser.id == userId) {
         final meta = authUser.userMetadata ?? <String, dynamic>{};
         if ((row['user_avatar_url'] as String?)?.trim().isNotEmpty != true) {
-          row['user_avatar_url'] = (meta['avatar_url'] as String?) ?? (meta['picture'] as String?);
+          row['user_avatar_url'] =
+              (meta['avatar_url'] as String?) ?? (meta['picture'] as String?);
         }
         if ((row['user_first_name'] as String?)?.trim().isNotEmpty != true) {
-          row['user_first_name'] = (meta['first_name'] as String?) ?? (meta['full_name'] as String?)?.split(' ').first;
+          row['user_first_name'] =
+              (meta['first_name'] as String?) ??
+              (meta['full_name'] as String?)?.split(' ').first;
         }
         if ((row['user_last_name'] as String?)?.trim().isNotEmpty != true) {
-          row['user_last_name'] = (meta['last_name'] as String?) ?? ((meta['full_name'] as String?)?.contains(' ') == true ? (meta['full_name'] as String).split(' ').sublist(1).join(' ') : null);
+          row['user_last_name'] =
+              (meta['last_name'] as String?) ??
+              ((meta['full_name'] as String?)?.contains(' ') == true
+                  ? (meta['full_name'] as String)
+                        .split(' ')
+                        .sublist(1)
+                        .join(' ')
+                  : null);
         }
       }
       final ProfileModel p = ProfileModel.fromJson(row);
@@ -93,9 +115,7 @@ class SupabaseProfileRepository implements ProfileRepository {
       }
 
       await _supabase.auth.updateUser(
-        supabase.UserAttributes(
-          data: metaUpdate,
-        ),
+        supabase.UserAttributes(data: metaUpdate),
       );
     } catch (_) {
       // Non-blocking metadata sync

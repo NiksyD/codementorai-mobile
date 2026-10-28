@@ -68,15 +68,13 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _titleSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.3, 0.8, curve: Curves.easeOutCubic),
-      ),
-    );
+    _titleSlide = Tween<Offset>(begin: const Offset(0.0, 0.3), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: const Interval(0.3, 0.8, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _taglineFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -85,15 +83,13 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _taglineSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.4),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic),
-      ),
-    );
+    _taglineSlide =
+        Tween<Offset>(begin: const Offset(0.0, 0.4), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
 
     // 2. Ambient Breathing Aura
     _pulseController = AnimationController(
@@ -149,7 +145,8 @@ class _SplashScreenState extends State<SplashScreen>
         if (!mounted) return;
 
         final ProfileModel? profile = results[0] as ProfileModel?;
-        final bool hasCompleted = profile?.userOnboarded ??
+        final bool hasCompleted =
+            profile?.userOnboarded ??
             ((profile?.firstName?.isNotEmpty ?? false) &&
                 (profile?.lastName?.isNotEmpty ?? false));
 
@@ -276,7 +273,9 @@ class _SplashScreenState extends State<SplashScreen>
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.darkTextSecondary.withValues(alpha: 0.8),
+                        color: AppColors.darkTextSecondary.withValues(
+                          alpha: 0.8,
+                        ),
                         letterSpacing: -0.1,
                       ),
                     ),

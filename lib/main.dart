@@ -49,8 +49,9 @@ class _CodeMentorAppState extends State<CodeMentorApp> {
           final session = data.session;
           if (session != null) {
             const profileRepo = SupabaseProfileRepository();
-            final bool hasCompleted =
-                await profileRepo.hasCompletedProfile(session.user.id);
+            final bool hasCompleted = await profileRepo.hasCompletedProfile(
+              session.user.id,
+            );
             if (!hasCompleted) {
               appRouter.go('/onboarding');
             } else {
