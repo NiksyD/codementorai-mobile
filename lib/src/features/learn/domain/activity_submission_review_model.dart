@@ -396,6 +396,26 @@ class AcfEvaluationModel {
   }
 }
 
+class FeedbackCommentModel {
+  const FeedbackCommentModel({
+    required this.id,
+    required this.text,
+    this.authorId,
+    this.authorName,
+    this.authorRole = 'mentor',
+    this.authorAvatarUrl,
+    this.createdAt,
+  });
+
+  final String id;
+  final String text;
+  final String? authorId;
+  final String? authorName;
+  final String authorRole;
+  final String? authorAvatarUrl;
+  final DateTime? createdAt;
+}
+
 class MentorFeedbackModel {
   const MentorFeedbackModel({
     required this.id,
@@ -405,6 +425,7 @@ class MentorFeedbackModel {
     this.mentorName,
     this.mentorAvatarUrl,
     this.createdAt,
+    this.comments = const <FeedbackCommentModel>[],
   });
 
   final String id;
@@ -414,6 +435,7 @@ class MentorFeedbackModel {
   final String? mentorName;
   final String? mentorAvatarUrl;
   final DateTime? createdAt;
+  final List<FeedbackCommentModel> comments;
 
   factory MentorFeedbackModel.fromJson(Map<String, dynamic> json) {
     String? mentorName;
@@ -427,9 +449,66 @@ class MentorFeedbackModel {
       mentorAvatar = p['user_avatar_url']?.toString();
     }
 
+    final String rawText = json['feedback_text']?.toString() ?? '';
+    List<FeedbackCommentModel> comments = <FeedbackCommentModel>[];
+    String displayText = rawText;
+
+    if (rawText.trim().startsWith('[') && rawText.trim().endsWith(']')) {
+      try {
+        final dynamic parsed = jsonDecode(rawText);
+        if (parsed is List) {
+          comments = parsed.map((dynamic item) {
+            if (item is Map) {
+              return FeedbackCommentModel(
+                id: item['id']?.toString() ?? '',
+                text: item['text']?.toString() ?? '',
+                authorId: item['authorId']?.toString(),
+                authorName: item['authorName']?.toString() ?? mentorName ?? 'Mentor',
+                authorRole: item['authorRole']?.toString() ?? 'mentor',
+                authorAvatarUrl: item['authorAvatarUrl']?.toString() ?? mentorAvatar,
+                createdAt: item['createdAt'] != null
+                    ? DateTime.tryParse(item['createdAt'].toString())
+                    : null,
+              );
+            } else if (item is String) {
+              return FeedbackCommentModel(
+                id: 'comment-${comments.length}',
+                text: item,
+                authorName: mentorName ?? 'Mentor',
+                authorRole: 'mentor',
+                authorAvatarUrl: mentorAvatar,
+              );
+            }
+            return null;
+          }).whereType<FeedbackCommentModel>().where((FeedbackCommentModel c) => c.text.trim().isNotEmpty).toList();
+
+          if (comments.isNotEmpty) {
+            displayText = comments.map((FeedbackCommentModel c) => c.text).join('\n\n');
+          }
+        }
+      } catch (_) {
+        // Fallback to raw string
+      }
+    }
+
+    if (comments.isEmpty && rawText.trim().isNotEmpty) {
+      comments = <FeedbackCommentModel>[
+        FeedbackCommentModel(
+          id: 'initial',
+          text: rawText.trim(),
+          authorName: mentorName ?? 'Mentor',
+          authorRole: 'mentor',
+          authorAvatarUrl: mentorAvatar,
+          createdAt: json['created_at'] != null
+              ? DateTime.tryParse(json['created_at'].toString())
+              : null,
+        ),
+      ];
+    }
+
     return MentorFeedbackModel(
       id: json['id']?.toString() ?? '',
-      feedbackText: json['feedback_text']?.toString() ?? '',
+      feedbackText: displayText,
       status: json['status']?.toString() ?? 'published',
       gradeOverride: json['grade_override']?.toString(),
       mentorName: mentorName,
@@ -437,6 +516,7 @@ class MentorFeedbackModel {
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
+      comments: comments,
     );
   }
 }

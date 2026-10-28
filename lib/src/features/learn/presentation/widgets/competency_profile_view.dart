@@ -5,12 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../constants/app_colors.dart';
 import '../../domain/learn_dashboard_data.dart';
 
-class _MetricRowData {
-  const _MetricRowData({required this.label, required this.value});
-  final String label;
-  final int value;
-}
-
 /// Represents a validated learner tier aligned with Web:
 /// "Competition Ready" (>=85), "Nearly Competition Ready" (>=70), "Developing" (>=50), "Beginner" (<50), or "Uncalibrated".
 class LearnerTierData {
@@ -298,20 +292,16 @@ class CompetencyProfileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        // CARD 1: PRACTICE COMPETENCY (ACF)
+        // CARD 1: PROGRAMMING COMPETENCY (ACF)
         _buildCard(
           context: context,
           icon: Icons.menu_book_rounded,
-          title: 'Practice Competency',
+          title: 'Programming Competency',
           scoreText: '${acf.compositeScore}%',
           subtitle: '· Based on ${submissions.length} ${submissions.length == 1 ? "submission" : "submissions"}',
           tier: practiceTier,
-          metrics: <_MetricRowData>[
-            _MetricRowData(label: 'Correctness & Logic', value: acf.correctness),
-            _MetricRowData(label: 'Readability & Style', value: acf.readability),
-            _MetricRowData(label: 'Maintainability & Structure', value: acf.maintainability),
-            _MetricRowData(label: 'Algorithmic Efficiency', value: acf.efficiency),
-          ],
+          acf: acf,
+          scoreValue: acf.compositeScore,
         ),
         const SizedBox(height: 16.0),
 
@@ -325,6 +315,86 @@ class CompetencyProfileView extends StatelessWidget {
     );
   }
 
+  Widget _buildPipMeter({required int? value}) {
+    final bool isUncalibrated = value == null;
+    final int safeValue = isUncalibrated ? 0 : value.clamp(0, 100);
+    final int activeCount = (isUncalibrated || safeValue == 0)
+        ? 0
+        : (safeValue / 10).round().clamp(1, 10);
+
+    Color activeColor;
+    if (safeValue >= 80) {
+      activeColor = const Color(0xFF34D399);
+    } else if (safeValue >= 70) {
+      activeColor = const Color(0xFF38BDF8);
+    } else if (safeValue >= 50) {
+      activeColor = const Color(0xFFFBBF24);
+    } else {
+      activeColor = const Color(0xFFFB7185);
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List<Widget>.generate(10, (int index) {
+        final bool isActive = !isUncalibrated && index < activeCount;
+        return Container(
+          margin: EdgeInsets.only(right: index < 9 ? 2.5 : 0.0),
+          width: 6.5,
+          height: 8.5,
+          decoration: BoxDecoration(
+            color: isUncalibrated
+                ? Colors.transparent
+                : isActive
+                    ? activeColor
+                    : (isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.05)),
+            borderRadius: BorderRadius.circular(2.0),
+            border: Border.all(
+              color: isUncalibrated
+                  ? borderColor.withValues(alpha: 0.7)
+                  : isActive
+                      ? activeColor.withValues(alpha: 0.8)
+                      : borderColor.withValues(alpha: 0.45),
+              width: 0.8,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildMiniRadialGauge({required int? value, double size = 42.0}) {
+    final bool isUncalibrated = value == null;
+    final double progress = isUncalibrated ? 0.0 : (value.clamp(0, 100) / 100.0);
+    Color progressColor = const Color(0xFF34D399);
+    if (!isUncalibrated) {
+      if (value >= 80) {
+        progressColor = const Color(0xFF34D399);
+      } else if (value >= 70) {
+        progressColor = const Color(0xFF38BDF8);
+      } else if (value >= 50) {
+        progressColor = const Color(0xFFFBBF24);
+      } else {
+        progressColor = const Color(0xFFFB7185);
+      }
+    }
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CircularProgressIndicator(
+        value: isUncalibrated ? 0.0 : progress,
+        strokeWidth: 3.5,
+        strokeCap: StrokeCap.round,
+        backgroundColor: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.06),
+        valueColor: AlwaysStoppedAnimation<Color>(
+          isUncalibrated ? textSecondary.withValues(alpha: 0.25) : progressColor,
+        ),
+      ),
+    );
+  }
+
   Widget _buildCard({
     required BuildContext context,
     required IconData icon,
@@ -332,7 +402,8 @@ class CompetencyProfileView extends StatelessWidget {
     required String scoreText,
     required String subtitle,
     required LearnerTierData tier,
-    required List<_MetricRowData> metrics,
+    required AcfAnalysisResult acf,
+    required int scoreValue,
   }) {
     return Container(
       padding: const EdgeInsets.all(18.0),
@@ -353,72 +424,133 @@ class CompetencyProfileView extends StatelessWidget {
         children: <Widget>[
           // Header Row
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Icon(icon, size: 16.0, color: textSecondary),
-                        const SizedBox(width: 6.0),
-                        Text(
-                          title,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14.0,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ],
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 28.0,
+                    height: 28.0,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: borderColor.withValues(alpha: 0.7)),
                     ),
-                    const SizedBox(height: 6.0),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: <Widget>[
-                        Text(
-                          scoreText,
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 30.0,
-                            fontWeight: FontWeight.w800,
-                            color: textPrimary,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        Flexible(
-                          child: Text(
-                            subtitle,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                    child: Icon(icon, size: 15.0, color: textSecondary),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Text(
+                    title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
               _buildTierBadge(context, tier, profileType: 'Practice'),
             ],
           ),
-          const SizedBox(height: 16.0),
-
-          // Divider
-          Divider(height: 1.0, color: borderColor.withValues(alpha: 0.6)),
           const SizedBox(height: 14.0),
 
-          // Metric Progress Bars
-          for (final _MetricRowData m in metrics) ...<Widget>[
-            _buildMetricBar(label: m.label, value: m.value),
-            const SizedBox(height: 11.0),
-          ],
+          // Hero Score Row with Mini Radial Gauge
+          Row(
+            children: <Widget>[
+              _buildMiniRadialGauge(value: scoreValue),
+              const SizedBox(width: 14.0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      scoreText,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 28.0,
+                        fontWeight: FontWeight.w800,
+                        color: textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.0,
+                        fontWeight: FontWeight.w500,
+                        color: textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14.0),
+
+          // Horizontal Tier Spectrum Rail
+          _buildTierSpectrumRail(
+            value: scoreValue,
+            onTap: () => _showTierBenchmarksSheet(context, tier, 'Practice'),
+          ),
+          const SizedBox(height: 16.0),
+
+          // 2x2 Partitioned Bento Quadrant Grid
+          _buildBentoGrid(
+            q1: _buildBentoQuadrant(
+              icon: Icons.check_circle_rounded,
+              label: 'Correctness',
+              sublabel: 'Edge cases & functional specs',
+              value: acf.correctness,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+            q2: _buildBentoQuadrant(
+              icon: Icons.visibility_rounded,
+              label: 'Readability',
+              sublabel: 'Idiomatic layout & naming',
+              value: acf.readability,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+            q3: _buildBentoQuadrant(
+              icon: Icons.build_rounded,
+              label: 'Maintainability',
+              sublabel: 'Modular architecture & logic',
+              value: acf.maintainability,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+            q4: _buildBentoQuadrant(
+              icon: Icons.bolt_rounded,
+              label: 'Efficiency',
+              sublabel: 'Optimal runtime & memory',
+              value: acf.efficiency,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+          ),
+
+          const SizedBox(height: 14.0),
+          Divider(height: 1.0, color: borderColor.withValues(alpha: 0.5)),
+          const SizedBox(height: 10.0),
+
+          // Footer
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Text(
+                'Derived from automated reviews',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.0,
+                  color: textSecondary,
+                ),
+              ),
+              Text(
+                'ACF Evaluation',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 10.0,
+                  color: textSecondary.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -450,209 +582,386 @@ class CompetencyProfileView extends StatelessWidget {
         children: <Widget>[
           // Header Row
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Icon(Icons.emoji_events_outlined, size: 16.0, color: textSecondary),
-                        const SizedBox(width: 6.0),
-                        Text(
-                          'Competition Readiness',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14.0,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ],
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 28.0,
+                    height: 28.0,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: borderColor.withValues(alpha: 0.7)),
                     ),
-                    const SizedBox(height: 6.0),
-                    if (hasExams)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: <Widget>[
-                          Text(
-                            '${cra.readinessIndex}%',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 30.0,
-                              fontWeight: FontWeight.w800,
-                              color: textPrimary,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(width: 8.0),
-                          Flexible(
-                            child: Text(
-                              '· Based on ${assessmentAttempts.length} ${assessmentAttempts.length == 1 ? "assessment" : "assessments"}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                                color: textSecondary,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      Text(
-                        'Timed challenges & assessment performance.',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: textSecondary,
-                        ),
-                      ),
-                  ],
-                ),
+                    child: Icon(Icons.emoji_events_outlined, size: 15.0, color: textSecondary),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Text(
+                    'Competition Readiness',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
+                  ),
+                ],
               ),
               _buildTierBadge(context, tier, profileType: 'Competition'),
             ],
           ),
-          const SizedBox(height: 16.0),
-
-          // Divider
-          Divider(height: 1.0, color: borderColor.withValues(alpha: 0.6)),
           const SizedBox(height: 14.0),
 
-          // Empty state or Pillar metrics
-          if (!hasExams)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14.0),
-              child: Center(
+          // Hero Score Row with Mini Radial Gauge
+          Row(
+            children: <Widget>[
+              _buildMiniRadialGauge(value: hasExams ? cra.readinessIndex : null),
+              const SizedBox(width: 14.0),
+              Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Container(
-                      width: 44.0,
-                      height: 44.0,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.05)
-                            : Colors.black.withValues(alpha: 0.04),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: borderColor.withValues(alpha: 0.8)),
+                    Text(
+                      hasExams ? '${cra.readinessIndex}%' : '--%',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 28.0,
+                        fontWeight: FontWeight.w800,
+                        color: hasExams ? textPrimary : textSecondary.withValues(alpha: 0.5),
+                        letterSpacing: -0.5,
                       ),
-                      child: Icon(
-                        Icons.assignment_outlined,
-                        size: 22.0,
+                    ),
+                    Text(
+                      hasExams
+                          ? '· Based on ${assessmentAttempts.length} ${assessmentAttempts.length == 1 ? "assessment" : "assessments"}'
+                          : 'Complete a timed challenge to calibrate',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.0,
+                        fontWeight: FontWeight.w500,
                         color: textSecondary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 10.0),
-                    Text(
-                      'No assessment attempts yet',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.0,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4.0),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 260.0),
-                      child: Text(
-                        'Take a timed assessment to measure your First-Pass Accuracy, Speed, Breadth, and Consistency.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.0,
-                          color: textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                    if (onExploreAssessments != null) ...<Widget>[
-                      const SizedBox(height: 12.0),
-                      TextButton.icon(
-                        onPressed: onExploreAssessments,
-                        icon: const Icon(Icons.arrow_outward_rounded, size: 14.0),
-                        label: const Text('Explore Assessments'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          textStyle: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
-            )
-          else ...<Widget>[
-            _buildMetricBar(label: 'First-Pass Accuracy', value: cra.accuracy),
-            const SizedBox(height: 11.0),
-            _buildMetricBar(label: 'Speed & Runtime Execution', value: cra.efficiency),
-            const SizedBox(height: 11.0),
-            _buildMetricBar(label: 'Problem Breadth', value: cra.problemBreadth),
-            const SizedBox(height: 11.0),
-            _buildMetricBar(label: 'Score Consistency', value: cra.consistency),
-          ],
+            ],
+          ),
+          const SizedBox(height: 14.0),
+
+          // Horizontal Tier Spectrum Rail
+          _buildTierSpectrumRail(
+            value: hasExams ? cra.readinessIndex : null,
+            onTap: () => _showTierBenchmarksSheet(context, tier, 'Competition'),
+          ),
+          const SizedBox(height: 16.0),
+
+          // 2x2 Partitioned Bento Quadrant Grid (Always visible for exact 1:1 symmetry!)
+          _buildBentoGrid(
+            q1: _buildBentoQuadrant(
+              icon: Icons.track_changes_rounded,
+              label: 'Accuracy',
+              sublabel: 'Passing rate in timed runs',
+              value: hasExams ? cra.accuracy : null,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+            q2: _buildBentoQuadrant(
+              icon: Icons.speed_rounded,
+              label: 'Efficiency',
+              sublabel: 'Average pacing score',
+              value: hasExams ? cra.efficiency : null,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+            q3: _buildBentoQuadrant(
+              icon: Icons.explore_rounded,
+              label: 'Problem Breadth',
+              sublabel: 'Multi-domain problem variety',
+              value: hasExams ? cra.problemBreadth : null,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+            q4: _buildBentoQuadrant(
+              icon: Icons.trending_up_rounded,
+              label: 'Consistency',
+              sublabel: 'Low variance across tests',
+              value: hasExams ? cra.consistency : null,
+              iconColor: textSecondary.withValues(alpha: 0.8),
+            ),
+          ),
+
+          const SizedBox(height: 14.0),
+          Divider(height: 1.0, color: borderColor.withValues(alpha: 0.5)),
+          const SizedBox(height: 10.0),
+
+          // Footer with CTA
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Text(
+                hasExams ? 'CRA Standard Benchmark' : 'Awaiting calibration',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.0,
+                  color: textSecondary,
+                ),
+              ),
+              if (onExploreAssessments != null)
+                GestureDetector(
+                  onTap: onExploreAssessments,
+                  child: Row(
+                    children: <Widget>[
+                      Text(
+                        hasExams ? 'New Challenge' : 'Explore Challenges',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 3.0),
+                      const Icon(Icons.arrow_outward_rounded, size: 13.0, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildMetricBar({required String label, required int value}) {
-    final double pct = (value / 100.0).clamp(0.0, 1.0);
+  Widget _buildTierSpectrumRail({required int? value, required VoidCallback onTap}) {
+    final bool isUncalibrated = value == null;
+    final double safeValue = isUncalibrated ? 0.0 : value.clamp(0, 100).toDouble();
 
-    return Row(
-      children: <Widget>[
-        Expanded(
-          flex: 5,
-          child: Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-              color: textSecondary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: <Widget>[
+          // Segmented Bar
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double totalWidth = constraints.maxWidth;
+              final double indicatorLeft = (safeValue / 100.0) * totalWidth;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Container(
+                    height: 7.0,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(999.0),
+                      border: Border.all(color: borderColor.withValues(alpha: 0.7)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          flex: 50,
+                          child: Container(
+                            color: const Color(0xFFF43F5E).withValues(alpha: 0.2),
+                          ),
+                        ),
+                        Container(width: 1.0, color: borderColor.withValues(alpha: 0.5)),
+                        Expanded(
+                          flex: 20,
+                          child: Container(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                          ),
+                        ),
+                        Container(width: 1.0, color: borderColor.withValues(alpha: 0.5)),
+                        Expanded(
+                          flex: 15,
+                          child: Container(
+                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
+                          ),
+                        ),
+                        Container(width: 1.0, color: borderColor.withValues(alpha: 0.5)),
+                        Expanded(
+                          flex: 15,
+                          child: Container(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!isUncalibrated)
+                    Positioned(
+                      left: (indicatorLeft - 4.0).clamp(0.0, totalWidth - 8.0),
+                      top: 0.0,
+                      bottom: 0.0,
+                      child: Container(
+                        width: 8.0,
+                        decoration: BoxDecoration(
+                          color: textPrimary,
+                          shape: BoxShape.circle,
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: textPrimary.withValues(alpha: 0.5),
+                              blurRadius: 4.0,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
-        ),
-        const SizedBox(width: 8.0),
-        SizedBox(
-          width: 38.0,
-          child: Text(
-            '$value%',
-            textAlign: TextAlign.right,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10.0),
-        Expanded(
-          flex: 4,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999.0),
-            child: SizedBox(
-              height: 5.5,
-              child: LinearProgressIndicator(
-                value: pct,
-                backgroundColor: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.06),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  value >= 70
-                      ? AppColors.primary
-                      : (value >= 50 ? const Color(0xFFF59E0B) : const Color(0xFFF43F5E)),
+          const SizedBox(height: 4.0),
+          // Benchmark Labels
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Text(
+                '0% Beginner',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 9.0,
+                  fontWeight: safeValue < 50 && !isUncalibrated ? FontWeight.w700 : FontWeight.w500,
+                  color: safeValue < 50 && !isUncalibrated ? const Color(0xFFF43F5E) : textSecondary.withValues(alpha: 0.7),
                 ),
               ),
+              Text(
+                '50%',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 9.0,
+                  fontWeight: safeValue >= 50 && safeValue < 70 && !isUncalibrated ? FontWeight.w700 : FontWeight.w500,
+                  color: safeValue >= 50 && safeValue < 70 && !isUncalibrated ? const Color(0xFFF59E0B) : textSecondary.withValues(alpha: 0.7),
+                ),
+              ),
+              Text(
+                '70%',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 9.0,
+                  fontWeight: safeValue >= 70 && safeValue < 85 && !isUncalibrated ? FontWeight.w700 : FontWeight.w500,
+                  color: safeValue >= 70 && safeValue < 85 && !isUncalibrated ? const Color(0xFF0EA5E9) : textSecondary.withValues(alpha: 0.7),
+                ),
+              ),
+              Text(
+                '85%+ Expert',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 9.0,
+                  fontWeight: safeValue >= 85 && !isUncalibrated ? FontWeight.w700 : FontWeight.w500,
+                  color: safeValue >= 85 && !isUncalibrated ? const Color(0xFF10B981) : textSecondary.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBentoQuadrant({
+    required IconData icon,
+    required String label,
+    required String sublabel,
+    required int? value,
+    required Color iconColor,
+  }) {
+    final bool isUncalibrated = value == null;
+    return Container(
+      padding: const EdgeInsets.all(10.0),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1F).withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.02),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          // Top row: Icon + Label + Score
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(icon, size: 12.0, color: iconColor),
+                  const SizedBox(width: 4.0),
+                  Text(
+                    label.toUpperCase(),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: textSecondary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                !isUncalibrated ? '$value%' : '—',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w800,
+                  color: !isUncalibrated ? textPrimary : textSecondary.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4.0),
+          // Diagnostic caption
+          Text(
+            sublabel,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
+              color: textSecondary.withValues(alpha: 0.8),
+              height: 1.2,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6.0),
+          // Pip meter
+          Align(
+            alignment: Alignment.centerRight,
+            child: _buildPipMeter(value: value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBentoGrid({
+    required Widget q1,
+    required Widget q2,
+    required Widget q3,
+    required Widget q4,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14.0),
+        border: Border.all(color: borderColor.withValues(alpha: 0.7)),
+        color: borderColor.withValues(alpha: 0.7),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: <Widget>[
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Expanded(child: q1),
+                Container(width: 1.0, color: borderColor.withValues(alpha: 0.7)),
+                Expanded(child: q2),
+              ],
             ),
           ),
-        ),
-      ],
+          Container(height: 1.0, color: borderColor.withValues(alpha: 0.7)),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Expanded(child: q3),
+                Container(width: 1.0, color: borderColor.withValues(alpha: 0.7)),
+                Expanded(child: q4),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -717,16 +1026,18 @@ class CompetencyProfileView extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 18.0),
+                const SizedBox(height: 16.0),
 
                 // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     Text(
-                      'Competency Benchmarks',
+                      profileType == 'Practice'
+                          ? 'Programming Competency Standards'
+                          : 'Competition Readiness Standards',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 17.0,
+                        fontSize: 16.0,
                         fontWeight: FontWeight.w800,
                         color: textPrimary,
                         letterSpacing: -0.3,
@@ -743,81 +1054,91 @@ class CompetencyProfileView extends StatelessWidget {
 
                 // List of tiers
                 Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: LearnerTierData.allTiers.length,
-                    separatorBuilder: (BuildContext _, int _) => const SizedBox(height: 10.0),
-                    itemBuilder: (BuildContext _, int index) {
-                      final LearnerTierData t = LearnerTierData.allTiers[index];
-                      final bool isCurrent = t.label == currentTier.label;
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14.0),
+                      border: Border.all(color: borderColor.withValues(alpha: 0.7)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: LearnerTierData.allTiers.length,
+                      separatorBuilder: (BuildContext _, int _) => Divider(height: 1.0, color: borderColor.withValues(alpha: 0.6)),
+                      itemBuilder: (BuildContext _, int index) {
+                        final LearnerTierData t = LearnerTierData.allTiers[index];
+                        final bool isCurrent = t.label == currentTier.label;
 
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
-                        decoration: BoxDecoration(
-                          color: isCurrent
-                              ? t.badgeBg.withValues(alpha: 0.25)
-                              : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
-                          borderRadius: BorderRadius.circular(14.0),
-                          border: Border.all(
-                            color: isCurrent ? t.badgeColor : borderColor,
-                            width: isCurrent ? 1.4 : 1.0,
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 11.0),
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? AppColors.primary.withValues(alpha: 0.05)
+                                : (isDark ? AppColors.darkSurfaceCard : Colors.white),
+                            border: isCurrent
+                                ? const Border(left: BorderSide(color: AppColors.primary, width: 2.5))
+                                : null,
                           ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.0),
-                              decoration: BoxDecoration(
-                                color: t.badgeBg,
-                                borderRadius: BorderRadius.circular(6.0),
-                                border: Border.all(color: t.badgeBorder, width: 0.8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: <Widget>[
+                                  Row(
+                                    children: <Widget>[
+                                      Text(
+                                        t.label,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: textPrimary,
+                                        ),
+                                      ),
+                                      if (isCurrent) ...<Widget>[
+                                        const SizedBox(width: 6.0),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(4.0),
+                                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 0.8),
+                                          ),
+                                          child: Text(
+                                            'ACTIVE',
+                                            style: GoogleFonts.jetBrainsMono(
+                                              fontSize: 8.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  Text(
+                                    t.range,
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 11.0,
+                                      fontWeight: FontWeight.w700,
+                                      color: textPrimary,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              child: Text(
-                                t.label,
+                              const SizedBox(height: 4.0),
+                              Text(
+                                t.description,
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10.0,
-                                  fontWeight: FontWeight.w700,
-                                  color: t.badgeColor,
+                                  fontSize: 10.5,
+                                  color: textSecondary,
+                                  height: 1.25,
                                 ),
                               ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              t.range,
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: isCurrent ? t.badgeColor : textPrimary,
-                              ),
-                            ),
-                            if (isCurrent) ...<Widget>[
-                              const SizedBox(width: 8.0),
-                              Icon(Icons.check_circle_rounded, size: 15.0, color: t.badgeColor),
                             ],
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-
-                // Formula context note
-                Container(
-                  padding: const EdgeInsets.all(12.0),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                    borderRadius: BorderRadius.circular(12.0),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Text(
-                    'Composite scores are calculated from Correctness (24.8%), Readability (24.5%), Maintainability (25.2%), and Efficiency (25.5%).',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.0,
-                      color: textSecondary,
-                      height: 1.35,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),

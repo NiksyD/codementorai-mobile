@@ -924,7 +924,7 @@ class _ActivitySubmissionReviewScreenState
     );
   }
 
-  // ── 4. Verified Mentor Feedback (Hollow Row, NO CARD) ──────────────────────
+  // ── 4. Verified Mentor Feedback (Conversation Thread, NO CARD) ────────────
   Widget _buildMentorFeedbackSection({
     required MentorFeedbackModel feedback,
     required bool isDark,
@@ -933,6 +933,19 @@ class _ActivitySubmissionReviewScreenState
     required Color textPrimary,
     required Color textSecondary,
   }) {
+    final List<FeedbackCommentModel> comments = feedback.comments.isNotEmpty
+        ? feedback.comments
+        : <FeedbackCommentModel>[
+            FeedbackCommentModel(
+              id: 'initial',
+              text: feedback.feedbackText,
+              authorName: feedback.mentorName ?? 'Verified Mentor',
+              authorRole: 'mentor',
+              authorAvatarUrl: feedback.mentorAvatarUrl,
+              createdAt: feedback.createdAt,
+            ),
+          ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -940,13 +953,37 @@ class _ActivitySubmissionReviewScreenState
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Text(
-              'Mentor Feedback',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: textPrimary,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'Mentor Feedback',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                if (comments.length > 1) ...<Widget>[
+                  const SizedBox(width: 8.0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(10.0),
+                      border: Border.all(color: borderColor.withValues(alpha: 0.6)),
+                    ),
+                    child: Text(
+                      '${comments.length} notes',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 10.0,
+                        fontWeight: FontWeight.w600,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             if (feedback.gradeOverride != null)
               Text(
@@ -967,66 +1004,97 @@ class _ActivitySubmissionReviewScreenState
         ),
         const SizedBox(height: 12.0),
 
-        // Mentor Details Row
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            CircleAvatar(
-              radius: 15.0,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-              child: Text(
-                (feedback.mentorName != null && feedback.mentorName!.isNotEmpty)
-                    ? feedback.mentorName![0].toUpperCase()
-                    : 'M',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12.0,
-                  color: AppColors.primary,
+        // Conversation thread comments list
+        ...comments.asMap().entries.map((MapEntry<int, FeedbackCommentModel> entry) {
+          final int idx = entry.key;
+          final FeedbackCommentModel comment = entry.value;
+          final bool isMentor = comment.authorRole != 'learner';
+          final String name = comment.authorName ?? (isMentor ? 'Verified Mentor' : 'Learner');
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: idx < comments.length - 1 ? 12.0 : 0.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                CircleAvatar(
+                  radius: 13.0,
+                  backgroundColor: isMentor
+                      ? AppColors.primary.withValues(alpha: 0.15)
+                      : surface,
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : (isMentor ? 'M' : 'L'),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.0,
+                      color: isMentor ? AppColors.primary : textSecondary,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10.0),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
+                const SizedBox(width: 10.0),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        feedback.mentorName ?? 'Verified Mentor',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
+                      Row(
+                        children: <Widget>[
+                          Text(
+                            name,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.0,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6.0),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
+                            decoration: BoxDecoration(
+                              color: isMentor
+                                  ? AppColors.primary.withValues(alpha: 0.12)
+                                  : surface,
+                              borderRadius: BorderRadius.circular(4.0),
+                              border: Border.all(
+                                color: isMentor
+                                    ? AppColors.primary.withValues(alpha: 0.3)
+                                    : borderColor.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: Text(
+                              isMentor ? 'Mentor' : 'Learner',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: isMentor ? AppColors.primary : textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6.0),
-                      Text('·', style: TextStyle(color: textSecondary, fontSize: 11.0)),
-                      const SizedBox(width: 6.0),
-                      Text(
-                        'Verified',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 10.5,
-                          color: textSecondary,
+                      const SizedBox(height: 5.0),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10.0),
+                        decoration: BoxDecoration(
+                          color: surface.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(10.0),
+                          border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          comment.text,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            height: 1.45,
+                            color: textPrimary.withValues(alpha: 0.9),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4.0),
-                  Text(
-                    '“${feedback.feedbackText}”',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      fontStyle: FontStyle.italic,
-                      height: 1.45,
-                      color: textPrimary.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        }),
       ],
     );
   }

@@ -1996,6 +1996,86 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         }
       }
 
+      // 5b. Fetch attached assessments from hub_assessments with resilient fallback
+      final Map<String, List<RoomAssessmentSummary>> assessmentsMap =
+          <String, List<RoomAssessmentSummary>>{};
+      try {
+        final List<Map<String, dynamic>> haRows = await _supabase
+            .from('hub_assessments')
+            .select('''
+              hub_id,
+              assessment_id,
+              display_order,
+              assessments (
+                id,
+                title,
+                description,
+                stack,
+                difficulty,
+                duration_mins,
+                passing_score,
+                status,
+                assessment_challenges (id)
+              )
+            ''')
+            .inFilter('hub_id', allRoomIds)
+            .order('display_order', ascending: true);
+
+        final List<String> assessIds = haRows
+            .map((Map<String, dynamic> r) => r['assessment_id'] as String? ?? '')
+            .where((String id) => id.isNotEmpty)
+            .toSet()
+            .toList();
+
+        final Map<String, Map<String, dynamic>> userLibMap =
+            <String, Map<String, dynamic>>{};
+        if (assessIds.isNotEmpty) {
+          try {
+            final List<Map<String, dynamic>> userLibRows = await _supabase
+                .from('user_assessment_library')
+                .select('assessment_id, status, best_score')
+                .eq('user_id', userId)
+                .inFilter('assessment_id', assessIds);
+
+            for (final Map<String, dynamic> ul in userLibRows) {
+              final String aid = ul['assessment_id'] as String? ?? '';
+              if (aid.isNotEmpty) {
+                userLibMap[aid] = ul;
+              }
+            }
+          } catch (_) {
+            // Non-blocking
+          }
+        }
+
+        for (final Map<String, dynamic> r in haRows) {
+          final String rId = r['hub_id'] as String? ?? '';
+          final dynamic rawAssess = r['assessments'];
+          final Map<String, dynamic>? assessData = rawAssess is List
+              ? (rawAssess.isNotEmpty ? rawAssess.first as Map<String, dynamic> : null)
+              : rawAssess as Map<String, dynamic>?;
+
+          if (assessData != null) {
+            final String aId = assessData['id'] as String? ?? '';
+            final dynamic rawChallenges = assessData['assessment_challenges'];
+            final int cCount = rawChallenges is List ? rawChallenges.length : 0;
+            final Map<String, dynamic>? userAttempt = userLibMap[aId];
+
+            assessmentsMap.putIfAbsent(rId, () => <RoomAssessmentSummary>[]).add(
+                  RoomAssessmentSummary.fromJson(<String, dynamic>{
+                    ...assessData,
+                    'challengesCount': cCount,
+                    'displayOrder': r['display_order'] ?? 0,
+                    'userStatus': userAttempt?['status'] ?? 'not_started',
+                    'userBestScore': userAttempt?['best_score'],
+                  }),
+                );
+          }
+        }
+      } catch (_) {
+        // Table may not exist yet or offline fallback
+      }
+
       // 6. Fetch mentor profiles
       final List<String> mentorIds = allRooms
           .map((Map<String, dynamic> r) => r['mentor_id'] as String?)
@@ -2087,10 +2167,12 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
           targetLanguage: room['target_language'] as String? ?? 'python',
           description: room['description'] as String? ?? '',
           status: status,
+          joinedVia: membership?['joined_via'] as String? ?? 'code',
           mentorName: mentor?['name'] as String? ?? 'Mentor',
           mentorEmail: mentor?['email'] as String?,
           mentorAvatarUrl: mentor?['avatarUrl'] as String?,
           curriculumModules: roomMods,
+          assessments: assessmentsMap[rId] ?? const <RoomAssessmentSummary>[],
           completedActivitiesCount: completedActivitiesCount,
           enrolledAt: membership?['enrolled_at'] as String? ??
               room['created_at'] as String?,
@@ -2211,6 +2293,77 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         'success': false,
         'error': e.toString(),
       };
+    }
+  }
+
+  @override
+  Future<bool> acceptRoomInvitation(String roomId) async {
+    try {
+      final dynamic res = await apiClient.patch(
+        '/api/classrooms/$roomId/members',
+        body: <String, dynamic>{'action': 'accept_invite'},
+      );
+      if (res is Map && res['success'] == true) return true;
+    } catch (_) {}
+
+    try {
+      final String? uid = _supabase.auth.currentUser?.id;
+      if (uid == null) return false;
+      await _supabase
+          .from('hub_members')
+          .update(<String, dynamic>{
+            'status': 'active',
+            'enrolled_at': DateTime.now().toIso8601String(),
+          })
+          .eq('hub_id', roomId)
+          .eq('learner_id', uid);
+
+      try {
+        await _supabase
+            .from('notifications')
+            .update(<String, dynamic>{'notif_is_read': true})
+            .eq('user_id', uid)
+            .eq('notif_source_id', roomId);
+      } catch (_) {}
+
+      return true;
+    } catch (e) {
+      debugPrint('acceptRoomInvitation fallback error: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> declineRoomInvitation(String roomId) async {
+    try {
+      final dynamic res = await apiClient.patch(
+        '/api/classrooms/$roomId/members',
+        body: <String, dynamic>{'action': 'decline_invite'},
+      );
+      if (res is Map && res['success'] == true) return true;
+    } catch (_) {}
+
+    try {
+      final String? uid = _supabase.auth.currentUser?.id;
+      if (uid == null) return false;
+      await _supabase
+          .from('hub_members')
+          .delete()
+          .eq('hub_id', roomId)
+          .eq('learner_id', uid);
+
+      try {
+        await _supabase
+            .from('notifications')
+            .update(<String, dynamic>{'notif_is_read': true})
+            .eq('user_id', uid)
+            .eq('notif_source_id', roomId);
+      } catch (_) {}
+
+      return true;
+    } catch (e) {
+      debugPrint('declineRoomInvitation fallback error: $e');
+      return false;
     }
   }
 

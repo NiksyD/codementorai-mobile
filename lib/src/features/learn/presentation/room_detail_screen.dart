@@ -29,6 +29,7 @@ class RoomDetailScreen extends StatefulWidget {
 class _RoomDetailScreenState extends State<RoomDetailScreen> {
   RoomModel? _room;
   bool _isLoading = false;
+  int _selectedTabIndex = 0;
 
   @override
   void initState() {
@@ -122,73 +123,49 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                 ),
                                 const SizedBox(height: 24.0),
 
-                                // Modules Section Header
-                                Row(
-                                  children: <Widget>[
-                                    Text(
-                                      'Curriculum Modules',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 16.0,
-                                        fontWeight: FontWeight.w800,
-                                        color: textPrimary,
-                                        letterSpacing: -0.2,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8.0),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8.0,
-                                        vertical: 2.0,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? AppColors.darkSurface
-                                            : AppColors.lightSurface,
-                                        borderRadius:
-                                            BorderRadius.circular(10.0),
-                                        border: Border.all(
-                                          color: isDark
-                                              ? AppColors.darkBorder
-                                              : AppColors.lightBorder,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        '${_room!.curriculumModules.length}',
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 11.0,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6.0),
-                                Text(
-                                  'Complete attached modules to earn room completion credits.',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.0,
-                                    color: textSecondary,
-                                  ),
+                                // Segmented Tab Switcher (Modules vs Assessments)
+                                _buildSegmentedTabBar(
+                                  isDark: isDark,
+                                  textPrimary: textPrimary,
+                                  textSecondary: textSecondary,
                                 ),
                                 const SizedBox(height: 16.0),
 
-                                // Modules List or Empty State
-                                if (_room!.curriculumModules.isEmpty)
-                                  _buildEmptyModules(
-                                    isDark: isDark,
-                                    textPrimary: textPrimary,
-                                    textSecondary: textSecondary,
-                                  )
-                                else
-                                  ..._room!.curriculumModules.map(
-                                    (RoomModuleSummary mod) => _buildModuleCard(
-                                      module: mod,
+                                // Tab Content
+                                if (_selectedTabIndex == 0) ...<Widget>[
+                                  if (_room!.curriculumModules.isEmpty)
+                                    _buildEmptyModules(
                                       isDark: isDark,
                                       textPrimary: textPrimary,
                                       textSecondary: textSecondary,
+                                    )
+                                  else
+                                    ..._room!.curriculumModules.map(
+                                      (RoomModuleSummary mod) => _buildModuleCard(
+                                        module: mod,
+                                        isDark: isDark,
+                                        textPrimary: textPrimary,
+                                        textSecondary: textSecondary,
+                                      ),
                                     ),
-                                  ),
+                                ] else ...<Widget>[
+                                  if (_room!.assessments.isEmpty)
+                                    _buildEmptyAssessments(
+                                      isDark: isDark,
+                                      textPrimary: textPrimary,
+                                      textSecondary: textSecondary,
+                                    )
+                                  else
+                                    ..._room!.assessments.map(
+                                      (RoomAssessmentSummary assess) =>
+                                          _buildAssessmentCard(
+                                        assessment: assess,
+                                        isDark: isDark,
+                                        textPrimary: textPrimary,
+                                        textSecondary: textSecondary,
+                                      ),
+                                    ),
+                                ],
                               ],
                             ),
                           ),
@@ -710,6 +687,466 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
               child: const Text('Back to Hubs'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSegmentedTabBar({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final int modulesCount = _room!.curriculumModules.length;
+    final int assessmentsCount = _room!.assessments.length;
+
+    return Container(
+      padding: const EdgeInsets.all(4.0),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: _buildTabButton(
+              title: 'Learning Modules',
+              count: modulesCount,
+              icon: Icons.layers_rounded,
+              isSelected: _selectedTabIndex == 0,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedTabIndex = 0);
+              },
+              isDark: isDark,
+            ),
+          ),
+          const SizedBox(width: 4.0),
+          Expanded(
+            child: _buildTabButton(
+              title: 'Assessments',
+              count: assessmentsCount,
+              icon: Icons.track_changes_rounded,
+              isSelected: _selectedTabIndex == 1,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedTabIndex = 1);
+              },
+              isDark: isDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton({
+    required String title,
+    required int count,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9.0, horizontal: 8.0),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? (isDark ? AppColors.darkSurface : Colors.white)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12.0),
+            boxShadow: isSelected
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                      blurRadius: 4.0,
+                      offset: const Offset(0, 1.5),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                icon,
+                size: 15.0,
+                color: isSelected
+                    ? AppColors.primary
+                    : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+              ),
+              const SizedBox(width: 6.0),
+              Flexible(
+                child: Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected
+                        ? (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary)
+                        : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 5.0),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withValues(alpha: 0.15)
+                      : (isDark ? AppColors.darkSurface : AppColors.lightBorder),
+                  borderRadius: BorderRadius.circular(999.0),
+                ),
+                child: Text(
+                  '$count',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected
+                        ? AppColors.primary
+                        : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyAssessments({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(20.0),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Column(
+        children: <Widget>[
+          Icon(
+            Icons.track_changes_rounded,
+            size: 40.0,
+            color: textSecondary.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 14.0),
+          Text(
+            'No Assessments Assigned Yet',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15.0,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6.0),
+          Text(
+            'Your mentor has not assigned any milestone assessments to this hub yet.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              color: textSecondary,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAssessmentCard({
+    required RoomAssessmentSummary assessment,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final bool isCompleted = assessment.isCompleted;
+    final bool isInProgress = assessment.isInProgress;
+
+    Color diffBg;
+    Color diffText;
+    switch (assessment.difficulty.toLowerCase()) {
+      case 'easy':
+      case 'beginner':
+        diffBg = const Color(0xFF10B981).withValues(alpha: 0.12);
+        diffText = const Color(0xFF10B981);
+        break;
+      case 'hard':
+      case 'advanced':
+        diffBg = const Color(0xFFEF4444).withValues(alpha: 0.12);
+        diffText = const Color(0xFFEF4444);
+        break;
+      case 'intermediate':
+      case 'medium':
+      default:
+        diffBg = const Color(0xFFF59E0B).withValues(alpha: 0.12);
+        diffText = const Color(0xFFF59E0B);
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14.0),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(20.0),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/assessments/${assessment.id}/take');
+          },
+          borderRadius: BorderRadius.circular(20.0),
+          child: Padding(
+            padding: const EdgeInsets.all(18.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Badges row
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0,
+                        vertical: 3.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6.0),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Text(
+                        'CRA BENCHMARK',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6.0),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0,
+                        vertical: 3.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: diffBg,
+                        borderRadius: BorderRadius.circular(6.0),
+                      ),
+                      child: Text(
+                        assessment.difficulty.toUpperCase(),
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: diffText,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (isCompleted)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8.0,
+                          vertical: 3.0,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999.0),
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              size: 11.0,
+                              color: Color(0xFF10B981),
+                            ),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              assessment.userBestScore != null
+                                  ? '${assessment.userBestScore}%'
+                                  : 'Done',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 10.0,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF10B981),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10.0),
+
+                // Title
+                Text(
+                  assessment.title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15.0,
+                    fontWeight: FontWeight.w800,
+                    color: textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                if (assessment.description.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4.0),
+                  Text(
+                    assessment.description,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      color: textSecondary,
+                      height: 1.35,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 14.0),
+
+                // Meta Row (Duration, Passing score, Challenge count)
+                Wrap(
+                  spacing: 12.0,
+                  runSpacing: 6.0,
+                  children: <Widget>[
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.schedule_rounded,
+                          size: 13.0,
+                          color: textSecondary,
+                        ),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          '${assessment.durationMins} mins',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.emoji_events_outlined,
+                          size: 13.0,
+                          color: Color(0xFFF59E0B),
+                        ),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          'Pass: ${assessment.passingScore}%',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.code_rounded,
+                          size: 13.0,
+                          color: textSecondary,
+                        ),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          '${assessment.challengesCount} ${assessment.challengesCount == 1 ? 'challenge' : 'challenges'}',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16.0),
+
+                // Action Row
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      context.push('/assessments/${assessment.id}/take');
+                    },
+                    icon: Icon(
+                      isCompleted
+                          ? Icons.replay_rounded
+                          : isInProgress
+                              ? Icons.play_arrow_rounded
+                              : Icons.arrow_forward_rounded,
+                      size: 15.0,
+                    ),
+                    label: Text(
+                      isCompleted
+                          ? 'Review Assessment'
+                          : isInProgress
+                              ? 'Resume Assessment'
+                              : 'Start Assessment',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isCompleted
+                          ? (isDark ? AppColors.darkSurface : AppColors.lightSurface)
+                          : AppColors.primary,
+                      foregroundColor: isCompleted
+                          ? textPrimary
+                          : (isDark ? AppColors.onPrimaryDark : Colors.white),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 10.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                        side: isCompleted
+                            ? BorderSide(
+                                color: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder,
+                              )
+                            : BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

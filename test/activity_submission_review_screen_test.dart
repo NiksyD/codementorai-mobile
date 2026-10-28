@@ -150,6 +150,12 @@ class MockReviewPathwayRepository implements PathwayRepository {
     required String userId,
   }) async =>
       const <String, dynamic>{'success': true};
+
+  @override
+  Future<bool> acceptRoomInvitation(String roomId) async => true;
+
+  @override
+  Future<bool> declineRoomInvitation(String roomId) async => true;
 }
 
 void main() {
@@ -285,7 +291,7 @@ public class RefactoredSolution {
 
       // Mentor Feedback Row
       expect(find.text('Sarah Connor'), findsOneWidget);
-      expect(find.text('“Superb switch syntax usage!”'), findsOneWidget);
+      expect(find.text('Superb switch syntax usage!'), findsOneWidget);
 
       // Code Review Section
       expect(find.text('(solution.java)'), findsOneWidget);

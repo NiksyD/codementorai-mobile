@@ -47,6 +47,74 @@ class RoomModuleSummary {
   }
 }
 
+class RoomAssessmentSummary {
+  const RoomAssessmentSummary({
+    required this.id,
+    required this.title,
+    required this.description,
+    this.stack = const <String>[],
+    this.difficulty = 'Intermediate',
+    this.durationMins = 60,
+    this.passingScore = 70,
+    this.challengesCount = 0,
+    this.displayOrder = 0,
+    this.userStatus = 'not_started',
+    this.userBestScore,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final List<String> stack;
+  final String difficulty;
+  final int durationMins;
+  final int passingScore;
+  final int challengesCount;
+  final int displayOrder;
+  final String userStatus;
+  final int? userBestScore;
+
+  bool get isCompleted =>
+      userStatus == 'completed' ||
+      (userBestScore != null && userBestScore! >= passingScore);
+  bool get isInProgress => userStatus == 'in_progress';
+
+  factory RoomAssessmentSummary.fromJson(Map<String, dynamic> json) {
+    List<String> stackList = <String>[];
+    final dynamic rawStack = json['stack'];
+    if (rawStack is List) {
+      stackList = rawStack.map((dynamic e) => e.toString().toLowerCase()).toList();
+    } else if (rawStack is String && rawStack.isNotEmpty) {
+      stackList = rawStack.split(',').map((String s) => s.trim().toLowerCase()).toList();
+    }
+
+    return RoomAssessmentSummary(
+      id: json['id'] as String? ??
+          json['assessmentId'] as String? ??
+          json['assessment_id'] as String? ??
+          '',
+      title: json['title'] as String? ?? 'Assessment',
+      description: (json['description'] as String?)?.trim() ?? '',
+      stack: stackList,
+      difficulty: json['difficulty'] as String? ?? 'Intermediate',
+      durationMins: (json['durationMins'] as num?)?.toInt() ??
+          (json['duration_mins'] as num?)?.toInt() ??
+          60,
+      passingScore: (json['passingScore'] as num?)?.toInt() ??
+          (json['passing_score'] as num?)?.toInt() ??
+          70,
+      challengesCount: (json['challengesCount'] as num?)?.toInt() ??
+          (json['challengeCount'] as num?)?.toInt() ??
+          0,
+      displayOrder: (json['displayOrder'] as num?)?.toInt() ??
+          (json['display_order'] as num?)?.toInt() ??
+          0,
+      userStatus: json['userStatus'] as String? ?? 'not_started',
+      userBestScore: (json['userBestScore'] as num?)?.toInt(),
+    );
+  }
+}
+
 class RoomModel {
   const RoomModel({
     required this.id,
@@ -60,7 +128,9 @@ class RoomModel {
     this.mentorEmail,
     this.mentorAvatarUrl,
     this.curriculumModules = const <RoomModuleSummary>[],
+    this.assessments = const <RoomAssessmentSummary>[],
     this.completedActivitiesCount = 0,
+    this.joinedVia = 'code',
     this.enrolledAt,
     this.requestedAt,
     this.isArchived = false,
@@ -73,16 +143,19 @@ class RoomModel {
   final String targetLanguage;
   final String description;
   final String status;
+  final String joinedVia;
   final String mentorName;
   final String? mentorEmail;
   final String? mentorAvatarUrl;
   final List<RoomModuleSummary> curriculumModules;
+  final List<RoomAssessmentSummary> assessments;
   final int completedActivitiesCount;
   final String? enrolledAt;
   final String? requestedAt;
   final bool isArchived;
 
   bool get isPending => status.toLowerCase() == 'pending';
+  bool get isEmailInvite => isPending && joinedVia.toLowerCase() == 'email_invite';
   bool get isActive => status.toLowerCase() == 'active';
 
   int get totalTopics => curriculumModules.fold<int>(
@@ -110,6 +183,11 @@ class RoomModel {
         .map((dynamic m) => RoomModuleSummary.fromJson(m as Map<String, dynamic>))
         .toList();
 
+    final List<dynamic> rawAssess = (json['assessments'] as List<dynamic>?) ?? <dynamic>[];
+    final List<RoomAssessmentSummary> assessmentsList = rawAssess
+        .map((dynamic a) => RoomAssessmentSummary.fromJson(a as Map<String, dynamic>))
+        .toList();
+
     return RoomModel(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? 'Collaborative Room',
@@ -118,10 +196,12 @@ class RoomModel {
       targetLanguage: json['targetLanguage'] as String? ?? json['target_language'] as String? ?? 'python',
       description: json['description'] as String? ?? '',
       status: json['status'] as String? ?? 'active',
+      joinedVia: json['joinedVia'] as String? ?? json['joined_via'] as String? ?? 'code',
       mentorName: json['mentorName'] as String? ?? 'Mentor',
       mentorEmail: json['mentorEmail'] as String?,
       mentorAvatarUrl: json['mentorAvatarUrl'] as String?,
       curriculumModules: modules,
+      assessments: assessmentsList,
       completedActivitiesCount: (json['completedActivitiesCount'] as num?)?.toInt() ?? 0,
       enrolledAt: json['enrolledAt'] as String?,
       requestedAt: json['requestedAt'] as String?,

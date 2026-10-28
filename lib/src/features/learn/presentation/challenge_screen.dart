@@ -267,7 +267,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       code: _codeController.text,
       language: _selectedLanguage,
       testCases: testCases,
-      apiBaseUrl: dotenv.env['API_BASE_URL'],
+      apiBaseUrl: dotenv.env['WEB_API_URL'] ?? dotenv.env['API_BASE_URL'],
     );
 
     if (mounted) {
@@ -297,7 +297,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       code: _codeController.text,
       language: _selectedLanguage,
       testCases: testCases,
-      apiBaseUrl: dotenv.env['API_BASE_URL'],
+      apiBaseUrl: dotenv.env['WEB_API_URL'] ?? dotenv.env['API_BASE_URL'],
     );
 
     if (!mounted) return;

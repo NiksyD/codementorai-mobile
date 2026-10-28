@@ -60,6 +60,10 @@ class NotificationModel {
       normalizedType = 'report';
     } else if (rawType.contains('achievement') || rawType.contains('unlock')) {
       normalizedType = 'achievement';
+    } else if (rawType.contains('room_submission') || rawType.contains('hub_submission')) {
+      normalizedType = 'room_submission';
+    } else if (rawType.contains('hub_member') || rawType.contains('room_member')) {
+      normalizedType = 'hub_member';
     } else {
       normalizedType = 'system';
     }
@@ -73,39 +77,66 @@ class NotificationModel {
       createdDate = DateTime.now();
     }
 
+    final String rawTitle = (json['notif_title'] ?? json['title'] ?? 'Notification').toString();
+    final String rawMsg = (json['notif_message'] ?? json['message'] ?? '').toString();
+    final String lowerTitle = rawTitle.toLowerCase();
+    final String? sourceId = json['notif_source_id']?.toString();
+    final RegExp subIdRegex = RegExp(r'\[subId:([^\]]+)\]');
+    final RegExpMatch? subMatch = subIdRegex.firstMatch(rawMsg);
+    final String? resolvedSubId = subMatch != null
+        ? subMatch.group(1)
+        : (sourceId != null && sourceId.isNotEmpty ? sourceId : null);
+
+    final String cleanMessage = rawMsg.replaceAll(RegExp(r'\s*\[(modId|actId|subId|hubId):[^\]]+\]'), '').trim();
+
     // Determine intuitive action labels & deep link targets if not stored
     String? url = json['action_url'] as String?;
     String? label = json['action_text'] as String?;
 
     if (url == null || url.isEmpty) {
-      switch (normalizedType) {
-        case 'ai':
-          url = '/learn/activity';
-          label = 'View Review';
-          break;
-        case 'streak':
-          url = '/learn/modules';
-          label = 'Practice Now';
-          break;
-        case 'report':
-          url = '/learn/modules';
-          label = 'View Status';
-          break;
-        case 'achievement':
-          url = '/profile';
-          label = 'View Badges';
-          break;
-        default:
-          url = '/learn';
-          label = 'Explore';
+      if (lowerTitle.contains('feedback') ||
+          rawType.contains('submission') ||
+          rawType.contains('room_submission') ||
+          rawType.contains('hub_submission')) {
+        url = resolvedSubId != null ? '/learn/activity/$resolvedSubId' : '/learn/activity';
+        label = 'View Feedback';
+      } else {
+        switch (normalizedType) {
+          case 'ai':
+            url = resolvedSubId != null ? '/learn/activity/$resolvedSubId' : '/learn/activity';
+            label = 'View Review';
+            break;
+          case 'streak':
+            url = '/learn/modules';
+            label = 'Practice Now';
+            break;
+          case 'report':
+            url = '/learn/modules';
+            label = 'View Status';
+            break;
+          case 'achievement':
+            url = '/profile';
+            label = 'View Badges';
+            break;
+          case 'hub_member':
+          case 'room_member':
+            url = '/hubs';
+            label = (lowerTitle.contains('invitation') || lowerTitle.contains('invite'))
+                ? 'Review Invitation'
+                : 'View Hub';
+            break;
+          default:
+            url = '/learn';
+            label = 'Explore';
+        }
       }
     }
 
     return NotificationModel(
       id: (json['notif_id'] ?? json['id'] ?? '').toString(),
       userId: (json['user_id'] ?? '').toString(),
-      title: (json['notif_title'] ?? json['title'] ?? 'Notification').toString(),
-      message: (json['notif_message'] ?? json['message'] ?? '').toString(),
+      title: rawTitle,
+      message: cleanMessage,
       isRead: json['notif_is_read'] == true || json['read'] == true,
       type: normalizedType,
       createdAt: createdDate,

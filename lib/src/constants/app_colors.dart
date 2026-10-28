@@ -12,6 +12,8 @@ abstract class AppColors {
   static const Color darkBackground = Color(0xFF1E1E1E); // Web --surface (outer canvas background)
   static const Color darkSurface = Color(0xFF252526);    // Web --background / canvas primary surface
   static const Color darkSurfaceCard = Color(0xFF2D2D2D);// Web --surface-container (cards & elevated surfaces)
+  static const Color darkSurfaceLowest = Color(0xFF181818); // Web --surface-container-lowest
+  static const Color darkSurfaceHighest = Color(0xFF333333); // Web --surface-container-highest
   static const Color darkBorder = Color(0xFF3C3C3C);     // Web --outline (clean neutral borders)
   static const Color darkBorderVariant = Color(0xFF454545); // Web --outline-variant
   static const Color darkTextPrimary = Color(0xFFF4F5F7); // Web --foreground / text primary

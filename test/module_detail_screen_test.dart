@@ -88,6 +88,12 @@ class FakeDetailPathwayRepository implements PathwayRepository {
   Future<Map<String, dynamic>> joinRoom({required String code, required String userId}) async => <String, dynamic>{'success': true};
 
   @override
+  Future<bool> acceptRoomInvitation(String roomId) async => true;
+
+  @override
+  Future<bool> declineRoomInvitation(String roomId) async => true;
+
+  @override
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,

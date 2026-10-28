@@ -190,6 +190,29 @@ class ApiClient {
     }
   }
 
+  Future<dynamic> patch(
+    String endpoint, {
+    dynamic body,
+    Map<String, dynamic>? queryParams,
+    Map<String, String>? headers,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final Uri uri = _resolveUri(endpoint, queryParams);
+    try {
+      final http.Response response = await client
+          .patch(
+            uri,
+            headers: _buildHeaders(customHeaders: headers),
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(timeout);
+
+      return _handleResponse(response);
+    } catch (e) {
+      _handleError(e);
+    }
+  }
+
   Future<dynamic> delete(
     String endpoint, {
     dynamic body,

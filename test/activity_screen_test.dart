@@ -138,6 +138,12 @@ class FakeActivityPathwayRepository implements PathwayRepository {
   }) async => const <String, dynamic>{};
 
   @override
+  Future<bool> acceptRoomInvitation(String roomId) async => true;
+
+  @override
+  Future<bool> declineRoomInvitation(String roomId) async => true;
+
+  @override
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,

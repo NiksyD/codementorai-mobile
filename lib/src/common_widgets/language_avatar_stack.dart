@@ -9,18 +9,20 @@ class LanguageAvatarStack extends StatelessWidget {
     this.size = 24.0,
     this.maxVisible = 3,
     this.overlap = 8.0,
+    this.borderColor,
   });
 
   final List<String> languages;
   final double size;
   final int maxVisible;
   final double overlap;
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color ringColor =
-        isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard;
+    final Color ringColor = borderColor ??
+        (isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard);
 
     final List<String> uniqueLangs = languages
         .where((String l) => l.trim().isNotEmpty)

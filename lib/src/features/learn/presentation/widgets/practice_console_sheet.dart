@@ -100,33 +100,17 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
                 Row(
                   children: <Widget>[
                     Icon(
-                      !hasRun
-                          ? Icons.code_rounded
-                          : (isSuccess
-                              ? Icons.check_circle_rounded
-                              : (widget.result!.isCompileError
-                                  ? Icons.error_outline_rounded
-                                  : Icons.info_outline_rounded)),
-                      color: !hasRun
-                          ? AppColors.primary
-                          : (isSuccess ? const Color(0xFF10B981) : AppColors.error),
+                      Icons.code_rounded,
+                      color: textSecondary,
                       size: 20.0,
                     ),
                     const SizedBox(width: 8.0),
                     Text(
-                      !hasRun
-                          ? 'Console & Testcases'
-                          : (isSuccess
-                              ? 'All Tests Passed (${widget.result!.passedTestCases}/${widget.result!.totalTestCases})'
-                              : (widget.result!.isCompileError
-                                  ? 'Compilation Error'
-                                  : 'Test Results (${widget.result!.passedTestCases}/${widget.result!.totalTestCases} Passed)')),
+                      'Console & Tests',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 15.0,
-                        fontWeight: FontWeight.w800,
-                        color: !hasRun
-                            ? textPrimary
-                            : (isSuccess ? const Color(0xFF10B981) : AppColors.error),
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
                       ),
                     ),
                   ],

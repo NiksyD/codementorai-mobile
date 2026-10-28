@@ -77,7 +77,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Console & Testcases'), findsOneWidget);
+      expect(find.text('Console & Tests'), findsOneWidget);
       expect(find.text('Testcase'), findsOneWidget);
       expect(find.text('Case 1'), findsOneWidget);
       expect(find.text('Case 2'), findsOneWidget);
@@ -131,7 +131,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Test Results (0/2 Passed)'), findsOneWidget);
+      expect(find.text('Console & Tests'), findsOneWidget);
       expect(find.text('Wrong Answer (0/2 passed)'), findsOneWidget);
       expect(find.text('Actual Output (stdout):'), findsOneWidget);
       expect(find.text('Invalid'), findsOneWidget);
@@ -179,7 +179,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('All Tests Passed (2/2)'), findsOneWidget);
+      expect(find.text('Console & Tests'), findsOneWidget);
       expect(find.text('Accepted (2/2 passed)'), findsOneWidget);
       expect(find.text('Submit Solution →'), findsOneWidget);
 

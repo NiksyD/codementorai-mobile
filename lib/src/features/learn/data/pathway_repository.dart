@@ -68,6 +68,8 @@ abstract class PathwayRepository {
     required String code,
     required String userId,
   });
+  Future<bool> acceptRoomInvitation(String roomId) async => false;
+  Future<bool> declineRoomInvitation(String roomId) async => false;
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,
