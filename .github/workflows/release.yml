@@ -44,9 +44,19 @@ jobs:
         run: |
           if [ -n "${{ secrets.ENV_FILE }}" ]; then
             echo "${{ secrets.ENV_FILE }}" > .env
+          elif [ -n "${{ secrets.SUPABASE_URL }}" ]; then
+            echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+            echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+            echo "API_BASE_URL=${{ secrets.API_BASE_URL || 'https://codementorai-ejkd.onrender.com' }}" >> .env
+            echo "WEB_API_URL=${{ secrets.WEB_API_URL || 'https://codementoraihub.vercel.app' }}" >> .env
           else
-            echo "SUPABASE_URL=${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}" > .env
-            echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY || 'placeholder' }}" >> .env
+            echo "::error::No environment variables or secrets found! Please configure ENV_FILE or SUPABASE_URL in GitHub repo secrets."
+            exit 1
+          fi
+
+          if grep -q "placeholder.supabase.co" .env; then
+            echo "::error::.env contains invalid placeholder Supabase URL!"
+            exit 1
           fi
 
       - name: Install dependencies
