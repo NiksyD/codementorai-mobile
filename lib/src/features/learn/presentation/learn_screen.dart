@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
 import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
@@ -39,6 +40,7 @@ class _LearnScreenState extends State<LearnScreen> {
   ProfileModel? _profile;
   LearnDashboardData? _dashboardData;
   List<NotificationModel> _notifications = <NotificationModel>[];
+  int _walletBalance = 0;
   bool _isLoading = true;
 
   @override
@@ -84,6 +86,55 @@ class _LearnScreenState extends State<LearnScreen> {
     _loadData();
   }
 
+  Future<int> _fetchWalletBalance(String userId) async {
+    try {
+      String resolvedId = userId;
+      if (resolvedId.isEmpty || resolvedId == 'current_user') {
+        resolvedId = Supabase.instance.client.auth.currentUser?.id ?? '';
+      }
+      if (resolvedId.isEmpty) return 0;
+
+      final dynamic res = await Supabase.instance.client
+          .from('user_wallets')
+          .select('balance_coins')
+          .eq('user_id', resolvedId)
+          .maybeSingle();
+
+      if (res is Map<String, dynamic>) {
+        final dynamic coins = res['balance_coins'];
+        if (coins is num) {
+          return coins.toInt();
+        }
+      } else if (res == null) {
+        // Auto-provision 250 welcome bonus if user has no wallet row yet
+        try {
+          final dynamic inserted = await Supabase.instance.client
+              .from('user_wallets')
+              .insert(<String, dynamic>{
+                'user_id': resolvedId,
+                'balance_coins': 250,
+                'total_earned_coins': 0,
+              })
+              .select('balance_coins')
+              .maybeSingle();
+
+          if (inserted is Map<String, dynamic> && inserted['balance_coins'] is num) {
+            await Supabase.instance.client.from('coin_transactions').insert(<String, dynamic>{
+              'user_id': resolvedId,
+              'amount_coins': 250,
+              'balance_after': 250,
+              'tx_type': 'welcome_bonus',
+              'reference_id': 'onboarding_gift',
+              'description': 'Welcome to CodeMentorAI! 250 CodeCoins starter bonus',
+            });
+            return (inserted['balance_coins'] as num).toInt();
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return 0;
+  }
+
   Future<void> _loadData() async {
     final User? user = _getAuthUser();
     final String userId = user?.id ?? _profile?.userId ?? 'current_user';
@@ -92,6 +143,7 @@ class _LearnScreenState extends State<LearnScreen> {
         widget.profileRepository.getProfile(userId),
         widget.pathwayRepository.getLearnDashboardData(userId),
         widget.notificationRepository.getNotifications(userId),
+        _fetchWalletBalance(userId),
       ]);
 
       if (mounted) {
@@ -99,6 +151,7 @@ class _LearnScreenState extends State<LearnScreen> {
           _profile = results[0] as ProfileModel?;
           _dashboardData = results[1] as LearnDashboardData?;
           _notifications = results[2] as List<NotificationModel>;
+          _walletBalance = results[3] as int;
           _isLoading = false;
         });
       }
@@ -186,7 +239,7 @@ class _LearnScreenState extends State<LearnScreen> {
                         totalActiveDays: _dashboardData?.totalActiveDays ?? 0,
                         currentStreak: _dashboardData?.currentStreak ?? 0,
                       ),
-                      const SizedBox(height: 32.0),
+                      const SizedBox(height: 96.0),
                     ],
                   ),
                 ),
@@ -313,50 +366,117 @@ class _LearnScreenState extends State<LearnScreen> {
           ),
           const SizedBox(width: 10.0),
 
-          // Action Cluster: My Hubs Button + Notification Bell
+          // Action Cluster: CodeCoins + Streak Badge + Notification Bell (1:1 Web Header Parity)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              InkWell(
-                onTap: _handleOpenHubs,
-                borderRadius: BorderRadius.circular(12.0),
-                child: Container(
-                  height: 38.0,
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                    borderRadius: BorderRadius.circular(12.0),
-                    border: Border.all(
-                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                      width: 1.0,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        Icons.hub_outlined,
-                        size: 15.0,
-                        color: textPrimary,
-                      ),
-                      const SizedBox(width: 5.0),
-                      Text(
-                        'My Hubs',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildCoinBadge(isDark, textPrimary),
+              const SizedBox(width: 8.0),
+              _buildStreakBadge(isDark, textPrimary),
               const SizedBox(width: 8.0),
               _buildNotificationBell(isDark, textPrimary, textSecondary),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCoinBadge(bool isDark, Color textPrimary) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        AppToast.showInfo(
+          context,
+          'CodeCoins: $_walletBalance coins. Complete daily challenges and practice to earn more!',
+        );
+      },
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        height: 38.0,
+        padding: const EdgeInsets.symmetric(horizontal: 9.0),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: _walletBalance > 0
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
+                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(
+              Icons.monetization_on_rounded,
+              size: 16.0,
+              color: Color(0xFFF59E0B),
+            ),
+            const SizedBox(width: 4.0),
+            Text(
+              _walletBalance > 9999
+                  ? '${(_walletBalance / 1000).toStringAsFixed(1)}k'
+                  : '$_walletBalance',
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStreakBadge(bool isDark, Color textPrimary) {
+    final int streak = _dashboardData?.currentStreak ?? 0;
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        AppToast.showInfo(
+          context,
+          streak > 0
+              ? '$streak-day streak! Keep up the momentum.'
+              : 'Complete a practice exercise or challenge today to start your streak!',
+        );
+      },
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        height: 38.0,
+        padding: const EdgeInsets.symmetric(horizontal: 9.0),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: streak > 0
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
+                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.local_fire_department_rounded,
+              size: 16.0,
+              color: streak > 0
+                  ? const Color(0xFFF59E0B)
+                  : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+            ),
+            const SizedBox(width: 4.0),
+            Text(
+              '${streak}d',
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -418,14 +538,6 @@ class _LearnScreenState extends State<LearnScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _handleOpenHubs() async {
-    HapticFeedback.lightImpact();
-    await context.push('/hubs');
-    if (mounted) {
-      _loadData();
-    }
   }
 
   void _handleOpenNotifications() {

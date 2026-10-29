@@ -674,14 +674,14 @@ class _RoomsScreenState extends State<RoomsScreen> {
               // ── Hubs List / Empty State / Skeleton ──
               if (_isLoading)
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20.0, 4.0, 20.0, 32.0),
+                  padding: const EdgeInsets.fromLTRB(20.0, 4.0, 20.0, 96.0),
                   sliver: SliverToBoxAdapter(
                     child: _buildSkeletonList(isDark: isDark),
                   ),
                 )
               else if (displayRooms.isEmpty)
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20.0, 4.0, 20.0, 32.0),
+                  padding: const EdgeInsets.fromLTRB(20.0, 4.0, 20.0, 96.0),
                   sliver: SliverToBoxAdapter(
                     child: _buildEmptyState(
                       isDark: isDark,
@@ -692,7 +692,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20.0, 4.0, 20.0, 32.0),
+                  padding: const EdgeInsets.fromLTRB(20.0, 4.0, 20.0, 96.0),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (BuildContext context, int index) {
@@ -1381,117 +1381,112 @@ class _RoomsScreenState extends State<RoomsScreen> {
             ? 'You have no pending requests or invitations awaiting admission.'
             : 'Have an invitation code from your mentor or instructor? Enter the 6-character hub code to join.';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 56.0,
+              height: 56.0,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.darkSurfaceCard
+                    : AppColors.lightSurfaceCard,
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor),
+              ),
+              child: Icon(
+                isSearchActive
+                    ? Icons.search_off_rounded
+                    : _activeFilter == 'pending'
+                        ? Icons.hourglass_empty_rounded
+                        : Icons.hub_outlined,
+                size: 26.0,
+                color: textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16.0),
+            Text(
+              heading,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16.0,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6.0),
+            Text(
+              caption,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                height: 1.4,
+                color: textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16.0),
+            if (isSearchActive || isFilterActive)
+              OutlinedButton(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  _searchController.clear();
+                  setState(() {
+                    _searchQuery = '';
+                    _activeFilter = 'all';
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: borderColor),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+                child: Text(
+                  'Clear Filters',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: () => _handleJoinRoom(),
+                icon: const Icon(Icons.key_rounded, size: 14.0),
+                label: Text(
+                  'Enter Hub Code',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor:
+                      isDark ? AppColors.onPrimaryDark : Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+          ],
         ),
-      ),
-      child: Column(
-        children: <Widget>[
-          Container(
-            width: 50.0,
-            height: 50.0,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              borderRadius: BorderRadius.circular(16.0),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              ),
-            ),
-            child: Icon(
-              isSearchActive
-                  ? Icons.search_off_rounded
-                  : _activeFilter == 'pending'
-                      ? Icons.hourglass_empty_rounded
-                      : Icons.hub_outlined,
-              size: 24.0,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 14.0),
-          Text(
-            heading,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 16.0,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          Text(
-            caption,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              height: 1.5,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 20.0),
-          if (isSearchActive || isFilterActive)
-            OutlinedButton.icon(
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                _searchController.clear();
-                setState(() {
-                  _searchQuery = '';
-                  _activeFilter = 'all';
-                });
-              },
-              icon: const Icon(Icons.filter_alt_off_rounded, size: 15.0),
-              label: Text(
-                'Clear Search & Filters',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: textPrimary,
-                side: BorderSide(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 10.0,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-              ),
-            )
-          else
-            ElevatedButton.icon(
-              onPressed: () => _handleJoinRoom(),
-              icon: const Icon(Icons.key_rounded, size: 16.0),
-              label: Text(
-                'Enter Hub Code',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13.0,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor:
-                    isDark ? AppColors.onPrimaryDark : Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18.0,
-                  vertical: 11.0,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }

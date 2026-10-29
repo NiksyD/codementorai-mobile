@@ -113,6 +113,7 @@ class ModuleDetailModel {
     required this.rating,
     required this.completion,
     required this.isEnrolled,
+    this.isPurchased = false,
     this.isBookmarked = false,
     this.coachAvatar,
     this.topics = const <ModuleTopicModel>[],
@@ -129,6 +130,7 @@ class ModuleDetailModel {
   final double rating;
   final int completion;
   final bool isEnrolled;
+  final bool isPurchased;
   final bool isBookmarked;
   final List<ModuleTopicModel> topics;
   final List<ModuleActivityModel> challenges;
@@ -144,6 +146,7 @@ class ModuleDetailModel {
     double? rating,
     int? completion,
     bool? isEnrolled,
+    bool? isPurchased,
     bool? isBookmarked,
     List<ModuleTopicModel>? topics,
     List<ModuleActivityModel>? challenges,
@@ -159,6 +162,7 @@ class ModuleDetailModel {
       rating: rating ?? this.rating,
       completion: completion ?? this.completion,
       isEnrolled: isEnrolled ?? this.isEnrolled,
+      isPurchased: isPurchased ?? this.isPurchased,
       isBookmarked: isBookmarked ?? this.isBookmarked,
       topics: topics ?? this.topics,
       challenges: challenges ?? this.challenges,

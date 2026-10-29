@@ -4,6 +4,7 @@ import '../../../constants/app_colors.dart';
 import '../../learn/presentation/activity_screen.dart';
 import '../../learn/presentation/learn_screen.dart';
 import '../../learn/presentation/modules_screen.dart';
+import '../../learn/presentation/rooms_screen.dart';
 import '../../profile/presentation/profile_screen.dart';
 
 class MainShellScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: const <Widget>[
@@ -33,10 +35,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
           // TAB 1: Modules (/learn/modules parity)
           ModulesScreen(),
 
-          // TAB 2: My Activity (/learn/activity parity)
+          // TAB 2: Hubs (/learn/hubs parity)
+          RoomsScreen(),
+
+          // TAB 3: My Activity (/learn/activity parity)
           ActivityScreen(),
 
-          // TAB 3: Profile & Settings (/profile parity)
+          // TAB 4: Profile & Settings (/profile parity)
           ProfileScreen(),
         ],
       ),

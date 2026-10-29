@@ -75,7 +75,7 @@ void main() {
       // Should now display the inline activity breakdown
       expect(find.text('Two Sum in Python'), findsOneWidget);
       expect(find.text('Python Essentials'), findsOneWidget);
-      expect(find.text('Easy'), findsOneWidget);
+      expect(find.text('PYTHON'), findsOneWidget);
       expect(find.text('Passed'), findsOneWidget);
       expect(find.text('98%'), findsOneWidget);
 

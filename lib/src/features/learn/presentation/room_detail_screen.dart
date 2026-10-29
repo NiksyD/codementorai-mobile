@@ -588,54 +588,52 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(28.0),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
-      ),
-      child: Column(
-        children: <Widget>[
-          Container(
-            width: 52.0,
-            height: 52.0,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              borderRadius: BorderRadius.circular(14.0),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 56.0,
+              height: 56.0,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.darkSurfaceCard
+                    : AppColors.lightSurfaceCard,
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor),
+              ),
+              child: Icon(
+                Icons.layers_outlined,
+                size: 26.0,
+                color: textSecondary,
               ),
             ),
-            child: const Icon(
-              Icons.layers_outlined,
-              size: 24.0,
-              color: AppColors.primary,
+            const SizedBox(height: 16.0),
+            Text(
+              'No Modules Attached Yet',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16.0,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 14.0),
-          Text(
-            'No Modules Attached Yet',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15.0,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
+            const SizedBox(height: 6.0),
+            Text(
+              'Your mentor has not attached any learning modules to this hub yet. Check back soon.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: textSecondary,
+                height: 1.4,
+              ),
             ),
-          ),
-          const SizedBox(height: 6.0),
-          Text(
-            'Your mentor has not attached any course modules to this room yet. Check back soon.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              color: textSecondary,
-              height: 1.4,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -831,43 +829,52 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 56.0,
+              height: 56.0,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.darkSurfaceCard
+                    : AppColors.lightSurfaceCard,
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor),
+              ),
+              child: Icon(
+                Icons.track_changes_rounded,
+                size: 26.0,
+                color: textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16.0),
+            Text(
+              'No Assessments Assigned Yet',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16.0,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6.0),
+            Text(
+              'Your mentor has not assigned any milestone assessments to this hub yet.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ],
         ),
-      ),
-      child: Column(
-        children: <Widget>[
-          Icon(
-            Icons.track_changes_rounded,
-            size: 40.0,
-            color: textSecondary.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 14.0),
-          Text(
-            'No Assessments Assigned Yet',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15.0,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          Text(
-            'Your mentor has not assigned any milestone assessments to this hub yet.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              color: textSecondary,
-              height: 1.45,
-            ),
-          ),
-        ],
       ),
     );
   }

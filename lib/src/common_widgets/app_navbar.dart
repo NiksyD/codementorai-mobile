@@ -38,7 +38,12 @@ class AppNavbar extends StatelessWidget {
       activeIcon: Icons.layers_rounded,
     ),
     NavItemData(
-      label: 'My Activity',
+      label: 'Hubs',
+      icon: Icons.hub_outlined,
+      activeIcon: Icons.hub_rounded,
+    ),
+    NavItemData(
+      label: 'Activity',
       icon: Icons.insights_outlined,
       activeIcon: Icons.insights_rounded,
     ),
@@ -55,97 +60,127 @@ class AppNavbar extends StatelessWidget {
     final Color slateColor =
         isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
     final Color activeColor = AppColors.primary;
+    final Color activePillBg = isDark
+        ? AppColors.primary.withValues(alpha: 0.20)
+        : AppColors.primary.withValues(alpha: 0.12);
+    final Color activePillBorder = isDark
+        ? AppColors.primary.withValues(alpha: 0.55)
+        : AppColors.primary.withValues(alpha: 0.40);
+    final Color activeTextColor = isDark ? Colors.white : AppColors.primaryVariant;
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 10.0),
         child: Container(
+          height: 60.0,
           decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.darkSurface.withValues(alpha: 0.88)
-                : Colors.white.withValues(alpha: 0.88),
-            border: Border(
-              top: BorderSide(
-                color: isDark
-                    ? AppColors.darkBorder.withValues(alpha: 0.85)
-                    : const Color(0xFFE2E8F0),
-                width: 0.8,
+            borderRadius: BorderRadius.circular(36.0),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.08),
+                blurRadius: 20.0,
+                offset: const Offset(0, 8),
               ),
-            ),
+            ],
           ),
-          child: SafeArea(
-            top: false,
-            bottom: true,
-            child: SizedBox(
-              height: 58.0,
-              child: Row(
-                children: List<Widget>.generate(items.length, (int index) {
-                  final NavItemData item = items[index];
-                  final bool isSelected = selectedIndex == index;
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(36.0),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppColors.darkSurfaceCard.withValues(alpha: 0.82)
+                      : Colors.white.withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(36.0),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : const Color(0xFFE2E8F0),
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: List<Widget>.generate(items.length, (int index) {
+                    final NavItemData item = items[index];
+                    final bool isSelected = selectedIndex == index;
 
-                  return Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        onItemSelected(index);
-                      },
-                      splashColor: Colors.transparent,
-                      highlightColor: Colors.transparent,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          AnimatedScale(
-                            scale: isSelected ? 1.08 : 1.0,
-                            duration: const Duration(milliseconds: 180),
-                            curve: Curves.easeOutCubic,
-                            child: Icon(
-                              isSelected ? item.activeIcon : item.icon,
-                              size: 22.0,
-                              color: isSelected ? activeColor : slateColor,
+                    return Semantics(
+                      label: item.label,
+                      selected: isSelected,
+                      button: true,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          onItemSelected(index);
+                        },
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        borderRadius: BorderRadius.circular(24.0),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeOutCubic,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSelected ? 14.0 : 10.0,
+                            vertical: 8.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected ? activePillBg : Colors.transparent,
+                            borderRadius: BorderRadius.circular(24.0),
+                            border: Border.all(
+                              color: isSelected ? activePillBorder : Colors.transparent,
+                              width: 1.0,
                             ),
                           ),
-                          const SizedBox(height: 3.5),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 180),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: isSelected ? activeColor : slateColor,
-                              letterSpacing: -0.1,
-                            ),
-                            child: Text(
-                              item.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(
+                                isSelected ? item.activeIcon : item.icon,
+                                size: 20.0,
+                                color: isSelected ? activeColor : slateColor,
+                              ),
+                              ClipRect(
+                                child: AnimatedCrossFade(
+                                  firstChild: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        const SizedBox(width: 6.0),
+                                        Text(
+                                          item.label,
+                                          maxLines: 1,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 12.0,
+                                            fontWeight: FontWeight.w700,
+                                            color: activeTextColor,
+                                            letterSpacing: -0.2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  secondChild: const SizedBox.shrink(),
+                                  crossFadeState: isSelected
+                                      ? CrossFadeState.showFirst
+                                      : CrossFadeState.showSecond,
+                                  duration: const Duration(milliseconds: 200),
+                                  sizeCurve: Curves.easeOutCubic,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 3.0),
-                          // Subtle active indicator micro-dot
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeOutCubic,
-                            width: isSelected ? 4.0 : 0.0,
-                            height: isSelected ? 4.0 : 0.0,
-                            decoration: BoxDecoration(
-                              color: isSelected ? activeColor : Colors.transparent,
-                              shape: BoxShape.circle,
-                              boxShadow: isSelected
-                                  ? <BoxShadow>[
-                                      BoxShadow(
-                                        color: activeColor.withValues(alpha: 0.6),
-                                        blurRadius: 4.0,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
             ),
           ),

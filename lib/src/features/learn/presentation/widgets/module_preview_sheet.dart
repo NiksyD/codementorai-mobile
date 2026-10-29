@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../common_widgets/language_avatar_stack.dart';
 import '../../../../constants/app_colors.dart';
 import '../../../../utils/currency_formatter.dart';
@@ -39,8 +40,83 @@ class ModulePreviewSheet extends StatefulWidget {
 }
 
 class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
-  String _selectedTier = 'free'; // 'free' or 'pro'
+  int _walletBalance = 250;
+  bool _isLoadingWallet = true;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWallet();
+  }
+
+  Future<void> _loadWallet() async {
+    try {
+      final String? userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null && userId.isNotEmpty) {
+        final Map<String, dynamic>? data = await Supabase.instance.client
+            .from('user_wallets')
+            .select('balance_coins')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (data != null && data['balance_coins'] != null) {
+          if (mounted) {
+            setState(() {
+              _walletBalance = (data['balance_coins'] as num).toInt();
+              _isLoadingWallet = false;
+            });
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _isLoadingWallet = false;
+      });
+    }
+  }
+
+  Future<void> _handleUnlock(int priceCoins) async {
+    final String? userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to unlock challenges')),
+      );
+      return;
+    }
+
+    if (_walletBalance < priceCoins) {
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await widget.onEnroll('pro');
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to unlock: $e')),
+        );
+      }
+    }
+  }
+
+  String _cleanCoachName(String? name) {
+    if (name == null || name.trim().isEmpty) return 'CodeMentor AI';
+    final String cleaned = name.replaceAll(RegExp(r'TEST\d*'), '').trim();
+    return cleaned.isNotEmpty ? cleaned : name;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +131,10 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final PathwayModel mod = widget.module;
-    final double proPrice = mod.price > 0 ? mod.price : 19.0;
+    final double rawPrice = mod.price > 0 ? mod.price : 0.84;
+    final int priceCoins = (rawPrice * 100).round();
+    final bool hasSufficientCoins = _walletBalance >= priceCoins;
+    final int missingCoins = priceCoins - _walletBalance;
     final List<String> stack =
         mod.stack.isNotEmpty ? mod.stack : <String>[mod.language];
 
@@ -98,28 +177,54 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'Enroll in Module',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18.0,
-                            fontWeight: FontWeight.w800,
-                            color: textPrimary,
-                            letterSpacing: -0.3,
+                    Expanded(
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            width: 38.0,
+                            height: 38.0,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10.0),
+                              border: Border.all(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.lock_rounded,
+                              size: 18.0,
+                              color: Color(0xFFF59E0B),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2.0),
-                        Text(
-                          'Select your learning plan to get started',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.5,
-                            color: textSecondary,
+                          const SizedBox(width: 12.0),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'Unlock Coding Challenges',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: textPrimary,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 2.0),
+                                Text(
+                                  'Full access to all algorithmic benchmarks',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.0,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8.0),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded, size: 20.0),
@@ -129,7 +234,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                 ),
               ),
 
-              const Divider(height: 1.0),
+              Divider(height: 1.0, thickness: 1.0, color: borderColor),
 
               Flexible(
                 child: SingleChildScrollView(
@@ -140,21 +245,24 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                     children: <Widget>[
                       // Module Summary Banner
                       Container(
-                        padding: const EdgeInsets.all(14.0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14.0,
+                          vertical: 10.0,
+                        ),
                         decoration: BoxDecoration(
                           color: isDark
                               ? AppColors.darkSurface
                               : AppColors.lightSurfaceCard,
-                          borderRadius: BorderRadius.circular(16.0),
+                          borderRadius: BorderRadius.circular(14.0),
                           border: Border.all(color: borderColor),
                         ),
                         child: Row(
                           children: <Widget>[
                             LanguageAvatarStack(
                               languages: stack,
-                              size: 32.0,
+                              size: 28.0,
                             ),
-                            const SizedBox(width: 14.0),
+                            const SizedBox(width: 12.0),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,35 +270,39 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                                   Text(
                                     mod.title,
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14.5,
-                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
                                       color: textPrimary,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 3.0),
+                                  const SizedBox(height: 2.0),
                                   Row(
                                     children: <Widget>[
-                                      Text(
-                                        'by ${mod.coachName ?? 'CodeMentor AI'}',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w500,
-                                          color: textSecondary,
+                                      Flexible(
+                                        child: Text(
+                                          'by ${_cleanCoachName(mod.coachName)}',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11.0,
+                                            fontWeight: FontWeight.w500,
+                                            color: textSecondary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                       const SizedBox(width: 8.0),
                                       const Icon(
                                         Icons.star_rounded,
-                                        size: 14.0,
+                                        size: 13.5,
                                         color: Color(0xFFF59E0B),
                                       ),
                                       const SizedBox(width: 2.0),
                                       Text(
                                         mod.rating.toStringAsFixed(1),
                                         style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 11.0,
+                                          fontSize: 10.5,
                                           fontWeight: FontWeight.w700,
                                           color: textPrimary,
                                         ),
@@ -203,43 +315,204 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 18.0),
+                      const SizedBox(height: 14.0),
 
-                      // Plan 1: Free Guided Practice
-                      _buildPlanCard(
-                        id: 'free',
-                        title: 'Guided Practice',
-                        price: 'Free',
-                        description:
-                            'Core practice exercises with structured guided tasks and daily AI hints.',
-                        perks: const <String>[
-                          'Guided Lessons & Sandbox',
-                          '5 Daily AI Mentor Hints',
-                          'Progress & Streak Tracking',
-                        ],
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
+
+                      // What's Included Card
+                      Container(
+                        padding: const EdgeInsets.all(14.0),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkSurface.withValues(alpha: 0.6)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(14.0),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              "WHAT'S INCLUDED",
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 10.0,
+                                fontWeight: FontWeight.w800,
+                                color: textSecondary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 10.0),
+                            _buildPerkRow(
+                              'Full access to all coding challenges in this module',
+                              textPrimary,
+                            ),
+                            const SizedBox(height: 6.0),
+                            _buildPerkRow(
+                              'Automated test suite execution & instant feedback',
+                              textPrimary,
+                            ),
+                            const SizedBox(height: 6.0),
+                            _buildPerkRow(
+                              'Challenge completion credit & progress tracking',
+                              textPrimary,
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 12.0),
+                      const SizedBox(height: 14.0),
 
-                      // Plan 2: Complete Mastery Pro
-                      _buildPlanCard(
-                        id: 'pro',
-                        title: 'Complete Mastery',
-                        price: CurrencyFormatter.formatCodeCoins(proPrice),
-                        subPrice: '≈ \$${proPrice.toStringAsFixed(0)} USD',
-                        badge: 'RECOMMENDED',
-                        description:
-                            'Unlock algorithmic challenges, unlimited AI code reviews, and certification.',
-                        perks: const <String>[
-                          'All Algorithmic Challenges',
-                          'Unlimited AI Code Reviews',
-                          'Verified Certificate of Completion',
-                        ],
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
+                      // Transaction / Wallet Receipt Card (1:1 Web Parity)
+                      Container(
+                        padding: const EdgeInsets.all(14.0),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkSurface.withValues(alpha: 0.7)
+                              : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14.0),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Column(
+                          children: <Widget>[
+                            // Price Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Text(
+                                  'Unlock Price',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.0,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                                Row(
+                                  children: <Widget>[
+                                    const Icon(
+                                      Icons.monetization_on_rounded,
+                                      size: 14.0,
+                                      color: Color(0xFFF59E0B),
+                                    ),
+                                    const SizedBox(width: 4.0),
+                                    Text(
+                                      '$priceCoins CodeCoins',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 12.0,
+                                        fontWeight: FontWeight.w700,
+                                        color: textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4.0),
+                                    Text(
+                                      '(${CurrencyFormatter.formatConvertedPhp(rawPrice)})',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 11.0,
+                                        color: textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8.0),
+
+                            // Balance Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Text(
+                                  'Your Balance',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.0,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                                _isLoadingWallet
+                                    ? const SizedBox(
+                                        width: 14.0,
+                                        height: 14.0,
+                                        child: CircularProgressIndicator(strokeWidth: 2.0),
+                                      )
+                                    : Row(
+                                        children: <Widget>[
+                                          const Icon(
+                                            Icons.account_balance_wallet_rounded,
+                                            size: 13.0,
+                                            color: Color(0xFFF59E0B),
+                                          ),
+                                          const SizedBox(width: 4.0),
+                                          Text(
+                                            '$_walletBalance CodeCoins',
+                                            style: GoogleFonts.jetBrainsMono(
+                                              fontSize: 12.0,
+                                              fontWeight: FontWeight.w600,
+                                              color: textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ],
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Divider(
+                                height: 1.0,
+                                thickness: 1.0,
+                                color: borderColor,
+                              ),
+                            ),
+
+                            // Balance Outcome / Shortfall
+                            hasSufficientCoins
+                                ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: <Widget>[
+                                      Text(
+                                        'Balance After',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12.0,
+                                          color: textSecondary,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${_walletBalance - priceCoins} CodeCoins',
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 12.0,
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFF10B981),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: <Widget>[
+                                      Row(
+                                        children: <Widget>[
+                                          const Icon(
+                                            Icons.warning_amber_rounded,
+                                            size: 14.0,
+                                            color: Color(0xFFF59E0B),
+                                          ),
+                                          const SizedBox(width: 4.0),
+                                          Text(
+                                            'Need $missingCoins more CodeCoins',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFFF59E0B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Text(
+                                        'Low Balance',
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 10.5,
+                                          color: textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -251,7 +524,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                 padding: const EdgeInsets.fromLTRB(22.0, 14.0, 22.0, 16.0),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF131927)
+                      ? AppColors.darkSurface
                       : AppColors.lightSurfaceCard,
                   border: Border(top: BorderSide(color: borderColor)),
                 ),
@@ -273,18 +546,9 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                       child: SizedBox(
                         height: 48.0,
                         child: ElevatedButton(
-                          onPressed: _isSubmitting
+                          onPressed: (_isSubmitting || !hasSufficientCoins)
                               ? null
-                              : () async {
-                                  final NavigatorState navigator =
-                                      Navigator.of(context);
-                                  HapticFeedback.mediumImpact();
-                                  setState(() {
-                                    _isSubmitting = true;
-                                  });
-                                  await widget.onEnroll(_selectedTier);
-                                  navigator.pop();
-                                },
+                              : () => _handleUnlock(priceCoins),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: isDark
@@ -307,19 +571,24 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: <Widget>[
+                                    const Icon(
+                                      Icons.lock_open_rounded,
+                                      size: 15.0,
+                                    ),
+                                    const SizedBox(width: 6.0),
                                     Text(
-                                      _selectedTier == 'pro'
-                                          ? 'Upgrade & Enroll • ${CurrencyFormatter.formatCodeCoins(proPrice)}'
-                                          : 'Enroll for Free',
+                                      hasSufficientCoins
+                                          ? 'Unlock Challenges ($priceCoins Coins)'
+                                          : 'Need $missingCoins More Coins',
                                       style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 13.5,
+                                        fontSize: 13.0,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                     const SizedBox(width: 6.0),
                                     const Icon(
                                       Icons.arrow_forward_rounded,
-                                      size: 16.0,
+                                      size: 15.0,
                                     ),
                                   ],
                                 ),
@@ -336,183 +605,27 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
     );
   }
 
-  Widget _buildPlanCard({
-    required String id,
-    required String title,
-    required String price,
-    String? subPrice,
-    required String description,
-    required List<String> perks,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    String? badge,
-  }) {
-    final bool isSelected = _selectedTier == id;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() {
-          _selectedTier = id;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(15.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08)
-              : (isDark
-                  ? AppColors.darkSurface.withValues(alpha: 0.6)
-                  : Colors.white),
-          borderRadius: BorderRadius.circular(18.0),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.primary
-                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-            width: isSelected ? 1.5 : 1.0,
+  Widget _buildPerkRow(String text, Color textPrimary) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Icon(
+          Icons.check_circle_rounded,
+          size: 14.0,
+          color: Color(0xFF10B981),
+        ),
+        const SizedBox(width: 8.0),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              fontWeight: FontWeight.w500,
+              color: textPrimary,
+            ),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Radio Indicator
-                Container(
-                  width: 18.0,
-                  height: 18.0,
-                  margin: const EdgeInsets.only(top: 2.0),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected ? AppColors.primary : Colors.transparent,
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary
-                          : textSecondary.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: isSelected
-                      ? const Icon(
-                          Icons.check,
-                          size: 12.0,
-                          color: Colors.white,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 10.0),
-                // Title and Badge (Responsive Wrap inside Expanded)
-                Expanded(
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8.0,
-                    runSpacing: 4.0,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
-                      ),
-                      if (badge != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6.0,
-                            vertical: 2.0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6.0),
-                          ),
-                          child: Text(
-                            badge,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 9.0,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8.0),
-                // Price & USD equivalent column
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      price,
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 13.0,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
-                    ),
-                    if (subPrice != null) ...<Widget>[
-                      const SizedBox(height: 1.0),
-                      Text(
-                        subPrice,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 10.0,
-                          color: textSecondary.withValues(alpha: 0.75),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 6.0),
-            Padding(
-              padding: const EdgeInsets.only(left: 28.0),
-              child: Text(
-                description,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  color: textSecondary,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10.0),
-            Padding(
-              padding: const EdgeInsets.only(left: 28.0),
-              child: Column(
-                children: perks.map((String perk) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 4.0),
-                    child: Row(
-                      children: <Widget>[
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          size: 14.0,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 6.0),
-                        Text(
-                          perk,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

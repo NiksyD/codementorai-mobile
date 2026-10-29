@@ -54,8 +54,24 @@ class CurrencyFormatter {
   static String formatConvertedPhp(double usdAmount,
       {double? rate, bool showDecimals = true}) {
     if (usdAmount <= 0) return 'Free';
+    // Platform fee baseline 0.84 USD maps to 49.00 PHP (1:1 Web Parity)
+    if ((usdAmount - 0.84).abs() < 0.005) {
+      return formatPHP(49.0, showDecimals: showDecimals);
+    }
     final double effectiveRate = rate ?? _liveRate;
     return formatPHP(usdAmount * effectiveRate, showDecimals: showDecimals);
+  }
+
+  /// Formats CodeCoins equivalent in PHP (100 coins = 1 USD -> converted to PHP).
+  /// Example: 1900 coins -> "₱1,102.00", 84 coins -> "₱49.00"
+  static String formatCoinsToPhp(int coins,
+      {double? rate, bool showDecimals = true}) {
+    if (coins <= 0) return 'Free';
+    if (coins == 84) {
+      return formatPHP(49.0, showDecimals: showDecimals);
+    }
+    return formatConvertedPhp(coins / 100.0,
+        rate: rate, showDecimals: showDecimals);
   }
 
   /// Formats amount in CodeCoins (1 USD = 100 CodeCoins)

@@ -24,6 +24,12 @@ class FakePathwayRepository implements PathwayRepository {
   Future<bool> enrollModule(String userId, String moduleId) async => true;
 
   @override
+  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins) async => true;
+
+  @override
+  Future<bool> isModulePurchased(String userId, String moduleId) async => true;
+
+  @override
   Future<bool> toggleBookmark(
     String userId,
     String moduleId,
@@ -274,10 +280,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No modules matching "haskell"'), findsOneWidget);
-      expect(find.text('Clear Search & Filters'), findsOneWidget);
+      expect(find.text('Clear Filters'), findsOneWidget);
 
-      // Tap Clear Search & Filters
-      await tester.tap(find.text('Clear Search & Filters'));
+      // Tap Clear Filters
+      await tester.tap(find.text('Clear Filters'));
       await tester.pumpAndSettle();
 
       expect(find.text('Python Essentials'), findsOneWidget);

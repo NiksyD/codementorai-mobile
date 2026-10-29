@@ -10,6 +10,7 @@ class PathwayModel {
     required this.totalModules,
     required this.currentModule,
     this.isEnrolled = false,
+    this.isPurchased = false,
     this.isBookmarked = false,
     this.coachName,
     this.coachAvatar,
@@ -27,6 +28,7 @@ class PathwayModel {
   final int totalModules;
   final String currentModule;
   final bool isEnrolled;
+  final bool isPurchased;
   final bool isBookmarked;
   final String? coachName;
   final String? coachAvatar;
@@ -44,6 +46,7 @@ class PathwayModel {
     int? totalModules,
     String? currentModule,
     bool? isEnrolled,
+    bool? isPurchased,
     bool? isBookmarked,
     String? coachName,
     String? coachAvatar,
@@ -61,6 +64,7 @@ class PathwayModel {
       totalModules: totalModules ?? this.totalModules,
       currentModule: currentModule ?? this.currentModule,
       isEnrolled: isEnrolled ?? this.isEnrolled,
+      isPurchased: isPurchased ?? this.isPurchased,
       isBookmarked: isBookmarked ?? this.isBookmarked,
       coachName: coachName ?? this.coachName,
       coachAvatar: coachAvatar ?? this.coachAvatar,
@@ -74,6 +78,7 @@ class PathwayModel {
     List<Map<String, dynamic>> topics = const <Map<String, dynamic>>[],
     int userProgress = 0,
     bool isEnrolled = false,
+    bool isPurchased = false,
     bool isBookmarked = false,
   }) {
     final String id = moduleData['mod_id'] as String? ?? '';
@@ -119,11 +124,14 @@ class PathwayModel {
       totalModules: topics.isNotEmpty ? topics.length : 8,
       currentModule: currentTopicTitle,
       isEnrolled: isEnrolled,
+      isPurchased: isPurchased,
       isBookmarked: isBookmarked,
       coachName: moduleData['coach_name'] as String?,
       coachAvatar: moduleData['coach_avatar'] as String?,
       rating: (moduleData['mod_rating'] as num?)?.toDouble() ?? 5.0,
-      price: (moduleData['mod_price'] as num?)?.toDouble() ?? 0.0,
+      price: ((moduleData['mod_price'] as num?)?.toDouble() ?? 0.0) > 0
+          ? ((moduleData['mod_price'] as num?)?.toDouble() ?? 0.0)
+          : 0.84,
     );
   }
 }

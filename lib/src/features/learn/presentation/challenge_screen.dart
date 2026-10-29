@@ -11,10 +11,13 @@ import '../../../constants/app_colors.dart';
 import '../data/code_execution_service.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
+import '../domain/module_detail_model.dart';
+import '../domain/pathway_model.dart';
 import '../domain/practice_exercise_model.dart';
 import '../domain/submission_history_model.dart';
 import 'widgets/challenge_completion_modal.dart';
 import 'widgets/markdown_content_view.dart';
+import 'widgets/module_preview_sheet.dart';
 import 'widgets/module_review_modal.dart';
 import 'widgets/practice_code_editor.dart';
 import 'widgets/practice_console_sheet.dart';
@@ -40,6 +43,9 @@ class ChallengeScreen extends StatefulWidget {
 class _ChallengeScreenState extends State<ChallengeScreen> {
   PracticeExerciseModel? _challenge;
   bool _isLoading = true;
+  bool _isLocked = false;
+  double _modulePrice = 0.0;
+  String _moduleTitle = 'Module';
   String _selectedLanguage = 'java';
   String _activeTab = 'description'; // 'description', 'editor', 'testcases', or 'submissions'
   bool _isExecuting = false;
@@ -94,12 +100,30 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     final String userId = user?.id ?? '';
 
+    // Check module paid & purchase status (1:1 Web parity)
+    bool isLocked = false;
+    double price = 0.0;
+    String modTitle = 'Module';
+
+    final ModuleDetailModel? mod =
+        await widget.pathwayRepository.getModuleDetails(widget.moduleId, userId);
+    if (mod != null) {
+      price = mod.price > 0 ? mod.price : 0.84;
+      modTitle = mod.title;
+      if (!mod.isPurchased) {
+        isLocked = true;
+      }
+    }
+
     final PracticeExerciseModel? ch = await widget.pathwayRepository
         .getChallengeExercise(widget.moduleId, widget.challengeId, userId);
 
     if (mounted) {
       setState(() {
         _challenge = ch;
+        _isLocked = isLocked;
+        _modulePrice = price;
+        _moduleTitle = modTitle;
         _isLoading = false;
         if (ch != null) {
           final String initialLang =
@@ -373,19 +397,6 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     }
   }
 
-  Color _getDifficultyColor(String diff) {
-    switch (diff.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF3ECF8E);
-      case 'medium':
-        return const Color(0xFFF59E0B);
-      case 'hard':
-        return AppColors.error;
-      default:
-        return const Color(0xFF3ECF8E);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -438,6 +449,231 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                     borderRadius: 16.0,
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_isLocked && !_isLoading) {
+      final double effectivePrice = _modulePrice > 0 ? _modulePrice : 0.84;
+      final int priceCoins = (effectivePrice * 100).round();
+      return PopScope(
+        canPop: Navigator.of(context).canPop(),
+        onPopInvokedWithResult: (bool didPop, dynamic result) {
+          if (!didPop) {
+            _popOrFallback();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: backgroundColor,
+          appBar: AppBar(
+            backgroundColor: backgroundColor,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              color: textPrimary,
+              onPressed: _popOrFallback,
+            ),
+          ),
+          body: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420.0),
+                child: Container(
+                  padding: const EdgeInsets.all(24.0),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(24.0),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        width: 56.0,
+                        height: 56.0,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16.0),
+                          border: Border.all(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.lock_rounded,
+                          color: Color(0xFFF59E0B),
+                          size: 28.0,
+                        ),
+                      ),
+                      const SizedBox(height: 16.0),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6.0),
+                          border: Border.all(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          'CODING CHALLENGE BENCHMARK',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10.0,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFF59E0B),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12.0),
+                      Text(
+                        'Unlock Coding Challenges',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20.0,
+                          fontWeight: FontWeight.w800,
+                          color: textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8.0),
+                      Text(
+                        'This benchmark challenge in $_moduleTitle requires CodeCoins or module unlock.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.0,
+                          color: textSecondary,
+                          height: 1.4,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16.0),
+                      Container(
+                        padding: const EdgeInsets.all(12.0),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12.0),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Icon(
+                              Icons.lightbulb_outline_rounded,
+                              size: 16.0,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 8.0),
+                            Expanded(
+                              child: Text(
+                                'Good to know: All guided practice exercises in this module are 100% free to access.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.0,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20.0),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46.0,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final user = Supabase.instance.client.auth.currentUser;
+                            final String userId = user?.id ?? '';
+                            final PathwayModel tempPathway = PathwayModel(
+                              id: widget.moduleId,
+                              title: _moduleTitle,
+                              description: '',
+                              language: 'java',
+                              stack: const <String>['java'],
+                              status: 'Not Started',
+                              completion: 0,
+                              totalModules: 1,
+                              currentModule: '',
+                              price: effectivePrice,
+                            );
+
+                            if (!context.mounted) return;
+                            await ModulePreviewSheet.show(
+                              context,
+                              module: tempPathway,
+                              onEnroll: (String tier) async {
+                                final bool ok = await widget.pathwayRepository.unlockModuleWithCoins(
+                                  userId,
+                                  widget.moduleId,
+                                  priceCoins,
+                                );
+                                if (ok && mounted) {
+                                  setState(() {
+                                    _isLocked = false;
+                                  });
+                                  final BuildContext currentCtx = this.context;
+                                  if (currentCtx.mounted) {
+                                    AppToast.showSuccess(currentCtx, 'Coding challenges unlocked successfully!');
+                                  }
+                                }
+                              },
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              const Icon(Icons.monetization_on_rounded, size: 16.0),
+                              const SizedBox(width: 6.0),
+                              Text(
+                                'Unlock Module ($priceCoins CodeCoins)',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.0,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 6.0),
+                              const Icon(Icons.arrow_forward_rounded, size: 14.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10.0),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 42.0,
+                        child: OutlinedButton(
+                          onPressed: _popOrFallback,
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: borderColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                          ),
+                          child: Text(
+                            'Back to Module & Free Practice',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -896,14 +1132,12 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     Color cardBg,
     Color borderColor,
   ) {
-    final Color diffColor = _getDifficultyColor(ch.difficulty);
-
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // SLA Benchmark & Difficulty Card (Essential for Challenges!)
+          // SLA Benchmark Card
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 11.0),
             decoration: BoxDecoration(
@@ -912,37 +1146,20 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
               border: Border.all(color: borderColor),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                    vertical: 3.0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: diffColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6.0),
-                  ),
-                  child: Text(
-                    ch.difficulty,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w700,
-                      color: diffColor,
-                    ),
-                  ),
+                Icon(
+                  Icons.speed_rounded,
+                  size: 16.0,
+                  color: AppColors.primary,
                 ),
-                Row(
-                  children: <Widget>[
-                    Text(
-                      'SLA: ${ch.targetTime} time · ${ch.targetSpace} space',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11.0,
-                        fontWeight: FontWeight.w600,
-                        color: textSecondary,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 8.0),
+                Text(
+                  'SLA Benchmark: ${ch.targetTime} time · ${ch.targetSpace} space',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11.0,
+                    fontWeight: FontWeight.w600,
+                    color: textSecondary,
+                  ),
                 ),
               ],
             ),

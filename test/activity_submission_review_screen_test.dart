@@ -44,6 +44,12 @@ class MockReviewPathwayRepository implements PathwayRepository {
   Future<bool> enrollModule(String userId, String moduleId) async => true;
 
   @override
+  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins) async => true;
+
+  @override
+  Future<bool> isModulePurchased(String userId, String moduleId) async => true;
+
+  @override
   Future<bool> toggleBookmark(
     String userId,
     String moduleId,

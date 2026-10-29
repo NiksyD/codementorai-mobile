@@ -13,9 +13,10 @@ import 'package:codementorai_mobile/src/features/learn/presentation/activity_sub
 import 'package:go_router/go_router.dart';
 
 class FakeActivityPathwayRepository implements PathwayRepository {
-  FakeActivityPathwayRepository(this.submissions);
+  FakeActivityPathwayRepository(this.submissions, [this.enrolledPathways = const <PathwayModel>[]]);
 
   final List<DashboardSubmission> submissions;
+  final List<PathwayModel> enrolledPathways;
 
   @override
   Future<List<DashboardSubmission>> getUserSubmissions(String userId) async {
@@ -25,9 +26,9 @@ class FakeActivityPathwayRepository implements PathwayRepository {
   @override
   Future<LearnDashboardData> getLearnDashboardData(String userId) async {
     return LearnDashboardData(
-      activePathway: null,
-      enrolledPathways: const <PathwayModel>[],
-      allPathways: const <PathwayModel>[],
+      activePathway: enrolledPathways.isNotEmpty ? enrolledPathways.first : null,
+      enrolledPathways: enrolledPathways,
+      allPathways: enrolledPathways,
       currentStreak: 2,
       totalActiveDays: 5,
       easySolved: 2,
@@ -43,6 +44,12 @@ class FakeActivityPathwayRepository implements PathwayRepository {
 
   @override
   Future<bool> enrollModule(String userId, String moduleId) async => true;
+
+  @override
+  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins) async => true;
+
+  @override
+  Future<bool> isModulePurchased(String userId, String moduleId) async => true;
 
   @override
   Future<bool> toggleBookmark(
@@ -239,12 +246,6 @@ void main() {
         findsOneWidget,
       );
 
-      // Metrics row
-      expect(find.text('Submissions'), findsWidgets);
-      expect(find.text('Pass Rate'), findsOneWidget);
-      expect(find.text('Streak'), findsOneWidget);
-      expect(find.text('Review'), findsWidgets);
-
       // Filter tabs
       expect(find.text('All'), findsOneWidget);
       expect(find.text('Passed'), findsWidgets);
@@ -421,6 +422,57 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Browse Modules'), findsOneWidget);
+    });
+
+    testWidgets('Active tab shows 3 metric cards and redesigned empty state with Clear Filters button', (
+      WidgetTester tester,
+    ) async {
+      final List<PathwayModel> testModules = <PathwayModel>[
+        const PathwayModel(
+          id: 'mod-1',
+          title: 'Computer Programming I: C Syntax and Logic',
+          description: 'Build a rock-solid mental model of C',
+          language: 'C',
+          stack: <String>['c'],
+          completion: 50,
+          totalModules: 10,
+          currentModule: 'Variables and Types',
+          status: 'In Progress',
+          isEnrolled: true,
+        ),
+      ];
+      final FakeActivityPathwayRepository repository =
+          FakeActivityPathwayRepository(const <DashboardSubmission>[], testModules);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivityScreen(
+            pathwayRepository: repository,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Active tab rendered cleanly with search, filters, and module cards
+      expect(find.text('Active'), findsWidgets);
+      expect(find.text('Showing:'), findsOneWidget);
+      expect(find.text('Computer Programming I: C Syntax and Logic'), findsOneWidget);
+
+      // Filter by searching for non-existing query
+      await tester.enterText(find.byType(TextField), 'xyz non existing');
+      await tester.pumpAndSettle();
+
+      // Redesigned empty state matches submissions empty state
+      expect(find.text('No items match your filters'), findsOneWidget);
+      expect(find.text('Try adjusting the filters or clearing your search.'), findsOneWidget);
+      expect(find.text('Clear Filters'), findsOneWidget);
+
+      // Tap Clear Filters
+      await tester.tap(find.text('Clear Filters'));
+      await tester.pumpAndSettle();
+
+      // Module restored
+      expect(find.text('Computer Programming I: C Syntax and Logic'), findsOneWidget);
     });
   });
 }

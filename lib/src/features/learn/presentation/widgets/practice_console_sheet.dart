@@ -310,20 +310,22 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
                   },
                   labelStyle: GoogleFonts.jetBrainsMono(
                     fontSize: 11.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
-                        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                        ? (isDark ? AppColors.primary : AppColors.primaryVariant)
                         : textSecondary,
                   ),
-                  selectedColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                  backgroundColor: cardBg,
+                  selectedColor: isDark
+                      ? AppColors.primary.withValues(alpha: 0.15)
+                      : AppColors.primary.withValues(alpha: 0.12),
+                  backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(20.0),
                     side: BorderSide(
                       color: isSelected
-                          ? (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1))
+                          ? AppColors.primary.withValues(alpha: 0.6)
                           : borderColor,
-                      width: isSelected ? 1.5 : 1.0,
+                      width: 1.0,
                     ),
                   ),
                 ),
@@ -643,20 +645,22 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
                   },
                   labelStyle: GoogleFonts.jetBrainsMono(
                     fontSize: 11.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
-                        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                        ? (isDark ? AppColors.primary : AppColors.primaryVariant)
                         : textSecondary,
                   ),
-                  selectedColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                  backgroundColor: cardBg,
+                  selectedColor: isDark
+                      ? AppColors.primary.withValues(alpha: 0.15)
+                      : AppColors.primary.withValues(alpha: 0.12),
+                  backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(20.0),
                     side: BorderSide(
                       color: isSelected
-                          ? (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1))
+                          ? AppColors.primary.withValues(alpha: 0.6)
                           : borderColor,
-                      width: isSelected ? 1.5 : 1.0,
+                      width: 1.0,
                     ),
                   ),
                 ),

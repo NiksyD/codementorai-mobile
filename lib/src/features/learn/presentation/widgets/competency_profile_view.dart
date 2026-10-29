@@ -24,30 +24,31 @@ class LearnerTierData {
   final String range;
   final String description;
 
-  static const List<LearnerTierData> allTiers = <LearnerTierData>[
+  // ── Practice / Programming Competency Benchmarks (1:1 with Web) ──
+  static const List<LearnerTierData> practiceTiers = <LearnerTierData>[
     LearnerTierData(
-      label: 'Competition Ready',
+      label: 'Expert',
       badgeColor: Color(0xFF10B981),
       badgeBg: Color(0x1F10B981),
       badgeBorder: Color(0x3310B981),
       range: '85% – 100%',
-      description: 'Mastered production algorithmic logic, exceptional readability, and clean maintainability.',
+      description: 'Production-ready algorithmic mastery, clean architecture, and optimal runtime bounds.',
     ),
     LearnerTierData(
-      label: 'Nearly Competition Ready',
+      label: 'Proficient',
       badgeColor: Color(0xFF0EA5E9),
       badgeBg: Color(0x1F0EA5E9),
       badgeBorder: Color(0x330EA5E9),
       range: '70% – 84%',
-      description: 'Solid algorithmic foundations with minor opportunities for style or runtime optimization.',
+      description: 'Strong problem solving with minor opportunities for style, maintainability, or efficiency improvements.',
     ),
     LearnerTierData(
-      label: 'Developing',
+      label: 'Competent',
       badgeColor: Color(0xFFF59E0B),
       badgeBg: Color(0x1FF59E0B),
       badgeBorder: Color(0x33F59E0B),
       range: '50% – 69%',
-      description: 'Working grasp of core problem solving; active review recommended on complexity and edge cases.',
+      description: 'Working grasp of core problem solving; active review recommended on edge cases and complexity.',
     ),
     LearnerTierData(
       label: 'Beginner',
@@ -59,22 +60,70 @@ class LearnerTierData {
     ),
   ];
 
-  static LearnerTierData forScore(int? score) {
-    if (score == null) {
-      return const LearnerTierData(
-        label: 'Uncalibrated',
-        badgeColor: Color(0xFF94A3B8),
-        badgeBg: Color(0x1F94A3B8),
-        badgeBorder: Color(0x3394A3B8),
-        range: 'No data',
-        description: 'Complete timed challenges or practice modules to establish your benchmark calibration.',
-      );
-    }
-    if (score >= 85) return allTiers[0];
-    if (score >= 70) return allTiers[1];
-    if (score >= 50) return allTiers[2];
-    return allTiers[3];
+  // ── Competition Readiness Benchmarks (1:1 with Web) ──
+  static const List<LearnerTierData> competitionTiers = <LearnerTierData>[
+    LearnerTierData(
+      label: 'Competition Ready',
+      badgeColor: Color(0xFF10B981),
+      badgeBg: Color(0x1F10B981),
+      badgeBorder: Color(0x3310B981),
+      range: '85% – 100%',
+      description: 'Consistently solves timed algorithmic challenges with optimal complexity and steady pacing.',
+    ),
+    LearnerTierData(
+      label: 'Nearly Competition Ready',
+      badgeColor: Color(0xFF0EA5E9),
+      badgeBg: Color(0x1F0EA5E9),
+      badgeBorder: Color(0x330EA5E9),
+      range: '70% – 84%',
+      description: 'Solid performance under time constraints; approaching competitive speed and low variance.',
+    ),
+    LearnerTierData(
+      label: 'Developing',
+      badgeColor: Color(0xFFF59E0B),
+      badgeBg: Color(0x1FF59E0B),
+      badgeBorder: Color(0x33F59E0B),
+      range: '50% – 69%',
+      description: 'Progressing in timed execution; additional attempts across varied problem archetypes recommended.',
+    ),
+    LearnerTierData(
+      label: 'Beginner',
+      badgeColor: Color(0xFFF43F5E),
+      badgeBg: Color(0x1FF43F5E),
+      badgeBorder: Color(0x33F43F5E),
+      range: '0% – 49%',
+      description: 'Initial calibration baseline; building speed and stamina through structured practice challenges.',
+    ),
+  ];
+
+  static const LearnerTierData uncalibrated = LearnerTierData(
+    label: 'Uncalibrated',
+    badgeColor: Color(0xFF94A3B8),
+    badgeBg: Color(0x1F94A3B8),
+    badgeBorder: Color(0x3394A3B8),
+    range: 'No data',
+    description: 'Complete timed challenges or practice modules to establish your benchmark calibration.',
+  );
+
+  static List<LearnerTierData> get allTiers => competitionTiers;
+
+  static LearnerTierData forPracticeScore(int? score) {
+    if (score == null) return uncalibrated;
+    if (score >= 85) return practiceTiers[0];
+    if (score >= 70) return practiceTiers[1];
+    if (score >= 50) return practiceTiers[2];
+    return practiceTiers[3];
   }
+
+  static LearnerTierData forCompetitionScore(int? score) {
+    if (score == null || score == 0) return uncalibrated;
+    if (score >= 85) return competitionTiers[0];
+    if (score >= 70) return competitionTiers[1];
+    if (score >= 50) return competitionTiers[2];
+    return competitionTiers[3];
+  }
+
+  static LearnerTierData forScore(int? score) => forCompetitionScore(score);
 }
 
 /// ACF practice metrics computed deterministically from submission AI audits.
@@ -284,10 +333,12 @@ class CompetencyProfileView extends StatelessWidget {
     final AcfAnalysisResult acf = AcfAnalysisResult.fromSubmissions(submissions);
     final CraAnalysisResult cra = CraAnalysisResult.fromAttempts(assessmentAttempts);
 
-    final LearnerTierData practiceTier = LearnerTierData.forScore(acf.compositeScore);
-    final LearnerTierData assessmentTier = cra.readinessIndex > 0
-        ? LearnerTierData.forScore(cra.readinessIndex)
-        : LearnerTierData.forScore(null);
+    final LearnerTierData practiceTier = LearnerTierData.forPracticeScore(
+      acf.hasData ? acf.compositeScore : null,
+    );
+    final LearnerTierData assessmentTier = LearnerTierData.forCompetitionScore(
+      cra.hasData && cra.readinessIndex > 0 ? cra.readinessIndex : null,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -491,6 +542,7 @@ class CompetencyProfileView extends StatelessWidget {
           // Horizontal Tier Spectrum Rail
           _buildTierSpectrumRail(
             value: scoreValue,
+            profileType: 'Practice',
             onTap: () => _showTierBenchmarksSheet(context, tier, 'Practice'),
           ),
           const SizedBox(height: 16.0),
@@ -651,6 +703,7 @@ class CompetencyProfileView extends StatelessWidget {
           // Horizontal Tier Spectrum Rail
           _buildTierSpectrumRail(
             value: hasExams ? cra.readinessIndex : null,
+            profileType: 'Competition',
             onTap: () => _showTierBenchmarksSheet(context, tier, 'Competition'),
           ),
           const SizedBox(height: 16.0),
@@ -727,7 +780,11 @@ class CompetencyProfileView extends StatelessWidget {
     );
   }
 
-  Widget _buildTierSpectrumRail({required int? value, required VoidCallback onTap}) {
+  Widget _buildTierSpectrumRail({
+    required int? value,
+    required VoidCallback onTap,
+    String profileType = 'Practice',
+  }) {
     final bool isUncalibrated = value == null;
     final double safeValue = isUncalibrated ? 0.0 : value.clamp(0, 100).toDouble();
 
@@ -839,7 +896,7 @@ class CompetencyProfileView extends StatelessWidget {
                 ),
               ),
               Text(
-                '85%+ Expert',
+                profileType == 'Competition' ? '85%+ Ready' : '85%+ Expert',
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: 9.0,
                   fontWeight: safeValue >= 85 && !isUncalibrated ? FontWeight.w700 : FontWeight.w500,
@@ -999,6 +1056,10 @@ class CompetencyProfileView extends StatelessWidget {
   }
 
   void _showTierBenchmarksSheet(BuildContext context, LearnerTierData currentTier, String profileType) {
+    final List<LearnerTierData> tiers = profileType == 'Practice'
+        ? LearnerTierData.practiceTiers
+        : LearnerTierData.competitionTiers;
+
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -1063,10 +1124,10 @@ class CompetencyProfileView extends StatelessWidget {
                     child: ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: LearnerTierData.allTiers.length,
+                      itemCount: tiers.length,
                       separatorBuilder: (BuildContext _, int _) => Divider(height: 1.0, color: borderColor.withValues(alpha: 0.6)),
                       itemBuilder: (BuildContext _, int index) {
-                        final LearnerTierData t = LearnerTierData.allTiers[index];
+                        final LearnerTierData t = tiers[index];
                         final bool isCurrent = t.label == currentTier.label;
 
                         return Container(

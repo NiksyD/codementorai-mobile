@@ -65,12 +65,44 @@ void main() {
       expect(find.text('Display Name'), findsOneWidget);
       expect(find.text('Email Address'), findsOneWidget);
 
+      // Trailing Affordances: Display Name has chevron (>), Email Address has lock
+      expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
+      expect(find.byIcon(Icons.lock_outline_rounded), findsWidgets);
+
       // Preferences items
       expect(find.text('Appearance'), findsOneWidget);
+      expect(find.text('Light Theme'), findsOneWidget);
+
+      // Tap email address shows informative toast
+      await tester.tap(find.text('Email Address'));
+      await tester.pump();
+      expect(
+        find.text('Email address is linked to your account and cannot be modified.'),
+        findsOneWidget,
+      );
 
       // Sign Out
       expect(find.text('Sign Out'), findsOneWidget);
       expect(find.text('CodeMentor AI v1.0.0 (Build 42)'), findsOneWidget);
+    });
+
+    testWidgets('Renders Dark Theme labels correctly in dark mode', (WidgetTester tester) async {
+      final FakeAuthRepository authRepo = FakeAuthRepository();
+      final FakeProfileRepository profileRepo = FakeProfileRepository(profile: sampleProfile);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: ProfileScreen(
+            authRepository: authRepo,
+            profileRepository: profileRepo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Profile & Settings'), findsOneWidget);
+      expect(find.text('Dark Theme'), findsOneWidget);
     });
   });
 }

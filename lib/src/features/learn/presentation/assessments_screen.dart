@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
+import '../../../common_widgets/filter_tab_bar.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
 import '../../../constants/app_colors.dart';
 import '../data/assessment_repository.dart';
@@ -255,65 +256,20 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
                       const SizedBox(height: 14.0),
 
                       // Category / Difficulty Pills
-                      SizedBox(
+                      FilterTabBar(
                         height: 36.0,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _difficultyFilters.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(width: 8.0),
-                          itemBuilder: (context, index) {
-                            final Map<String, String> cat =
-                                _difficultyFilters[index];
-                            final bool isSelected =
-                                _selectedDifficulty == cat['id'];
-
-                            return GestureDetector(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() {
-                                  _selectedDifficulty = cat['id']!;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14.0,
-                                ),
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : (isDark
-                                          ? AppColors.darkSurfaceCard
-                                          : AppColors.lightSurfaceCard),
-                                  borderRadius: BorderRadius.circular(20.0),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? AppColors.primary
-                                        : (isDark
-                                            ? AppColors.darkBorder
-                                            : AppColors.lightBorder),
-                                  ),
-                                ),
-                                child: Text(
-                                  cat['label']!,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.5,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                    color: isSelected
-                                        ? (isDark
-                                            ? AppColors.onPrimaryDark
-                                            : Colors.white)
-                                        : textSecondary,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                        tabs: _difficultyFilters.map((Map<String, String> cat) {
+                          return FilterTabItem(
+                            id: cat['id']!,
+                            label: cat['label']!,
+                          );
+                        }).toList(),
+                        selectedId: _selectedDifficulty,
+                        onTabSelected: (String id) {
+                          setState(() {
+                            _selectedDifficulty = id;
+                          });
+                        },
                       ),
                       const SizedBox(height: 16.0),
                     ],

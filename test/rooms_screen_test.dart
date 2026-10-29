@@ -290,7 +290,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No hubs matching "NonexistentQuery"'), findsOneWidget);
-      expect(find.text('Clear Search & Filters'), findsOneWidget);
+      expect(find.text('Clear Filters'), findsOneWidget);
     });
   });
 }

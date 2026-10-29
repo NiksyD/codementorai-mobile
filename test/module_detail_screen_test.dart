@@ -42,6 +42,13 @@ class FakeDetailPathwayRepository implements PathwayRepository {
   Future<bool> enrollModule(String userId, String moduleId) async => true;
 
   @override
+  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins) async => true;
+
+  @override
+  Future<bool> isModulePurchased(String userId, String moduleId) async =>
+      moduleDetail?.isPurchased ?? false;
+
+  @override
   Future<bool> toggleBookmark(String userId, String moduleId, bool isBookmarked) async => true;
 
   @override
@@ -213,8 +220,12 @@ void main() {
       // Module Outline checks
       expect(find.text('Module Outline'), findsOneWidget);
       expect(find.text('Memory Allocation & Pointers'), findsWidgets);
+      expect(find.text('EXPAND ALL'), findsOneWidget);
+      expect(find.text('COLLAPSE ALL'), findsNothing);
+
+      // Verify activities and metadata
       expect(find.text('Reference Counting Internals'), findsOneWidget);
-      expect(find.text('PRACTICE'), findsWidgets);
+      expect(find.text('Practice'), findsWidgets);
 
       // Learner Reviews section checks
       expect(find.text('Learner Reviews'), findsOneWidget);
@@ -260,7 +271,7 @@ void main() {
       expect(find.text('0% Complete'), findsOneWidget);
     });
 
-    testWidgets('Displays benchmark challenges with SLA and CHALLENGE badge in the outline', (WidgetTester tester) async {
+    testWidgets('Displays benchmark challenges with SLA and Challenge badge in the outline', (WidgetTester tester) async {
       final FakeDetailPathwayRepository repo = FakeDetailPathwayRepository(
         moduleDetail: sampleModule,
         reviews: sampleReviews,
@@ -275,9 +286,10 @@ void main() {
 
       expect(find.text('Benchmark Challenges'), findsOneWidget);
       expect(find.text('LRU Cache Benchmark'), findsOneWidget);
-      expect(find.text('CHALLENGE'), findsOneWidget);
+      expect(find.text('Challenge'), findsOneWidget);
       expect(find.text('· O(1)'), findsOneWidget);
-      expect(find.text('Solve'), findsNWidgets(2));
+      expect(find.text('Solve'), findsOneWidget); // Guided practice is free
+      expect(find.text('Locked'), findsOneWidget); // Challenge requires CodeCoins unlock
     });
 
     testWidgets('Learner Reviews section displays overall score, distribution and review cards', (WidgetTester tester) async {

@@ -172,7 +172,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   List<FilterTabItem> get _activeLearningFilterTabs => <FilterTabItem>[
-    FilterTabItem(id: 'all', label: 'All Items', count: _totalActiveCount),
+    FilterTabItem(id: 'all', label: 'All', count: _totalActiveCount),
     FilterTabItem(id: 'in-progress', label: 'In Progress', count: _inProgressModulesCount),
     FilterTabItem(id: 'completed', label: 'Mastered', count: _completedModulesCount),
     if (_activeAssessments.isNotEmpty)
@@ -298,40 +298,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  Color _getDifficultyColor(String diff) {
-    switch (diff.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF10B981);
-      case 'hard':
-        return const Color(0xFFF43F5E);
-      default:
-        return const Color(0xFFF59E0B);
-    }
-  }
-
-  Widget _buildDifficultyBadge(String difficulty) {
-    final Color color = _getDifficultyColor(difficulty);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4.0),
-        border: Border.all(
-          color: color.withValues(alpha: 0.25),
-          width: 1.0,
-        ),
-      ),
-      child: Text(
-        difficulty,
-        style: GoogleFonts.jetBrainsMono(
-          fontSize: 10.0,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
-      ),
-    );
-  }
-
   Widget _buildStatusBadge(String status) {
     final String s = DashboardSubmission.normalizeStatus(status);
     final bool isPassed = s == 'Passed';
@@ -400,7 +366,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 104.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -651,18 +617,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
             const SizedBox(width: 8.0),
             Expanded(
               child: _buildMetricBox(
-                label: 'Mastered',
-                value: '$_completedModulesCount',
-                icon: Icons.check_circle_outline_rounded,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                accentColor: const Color(0xFF10B981),
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: _buildMetricBox(
                 label: 'Streak',
                 value: '${_streak}d',
                 icon: Icons.local_fire_department_rounded,
@@ -687,16 +641,31 @@ class _ActivityScreenState extends State<ActivityScreen> {
         ),
         const SizedBox(height: 18.0),
 
-        // Filter Tabs
-        FilterTabBar(
-          height: 36.0,
-          tabs: _activeLearningFilterTabs,
-          selectedId: _activeLearningFilter,
-          onTabSelected: (String tabId) {
-            setState(() {
-              _activeLearningFilter = tabId;
-            });
-          },
+        // Filter Tabs (Showing: All | In Progress | Mastered)
+        Row(
+          children: <Widget>[
+            Text(
+              'Showing:',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: textSecondary,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: FilterTabBar(
+                height: 34.0,
+                tabs: _activeLearningFilterTabs,
+                selectedId: _activeLearningFilter,
+                onTabSelected: (String tabId) {
+                  setState(() {
+                    _activeLearningFilter = tabId;
+                  });
+                },
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12.0),
 
@@ -743,49 +712,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
         if (_isLoading && _enrolledModules.isEmpty && _activeAssessments.isEmpty)
           _buildLoadingSkeleton(isDark)
         else if (isEmpty)
-          _totalActiveCount == 0
-              ? _buildEmptyActiveLearningState(
-                  isDark: isDark,
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  borderColor: borderColor,
-                )
-              : Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40.0),
-                    child: Column(
-                      children: <Widget>[
-                        Text(
-                          'No items match your filter',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14.0,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4.0),
-                        Text(
-                          'Try resetting the search or filter options.',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 12.0),
-                        OutlinedButton(
-                          onPressed: () {
-                            setState(() {
-                              _activeLearningFilter = 'all';
-                              _activeLearningSearch = '';
-                              _activeLearningSearchController.clear();
-                            });
-                          },
-                          child: const Text('Reset Filters'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
+          _buildEmptyActiveLearningState(
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            borderColor: borderColor,
+          )
         else
           // Hollow Divided Table/List (Web 1:1 Parity)
           Container(
@@ -855,6 +787,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
     required Color textSecondary,
     required Color borderColor,
   }) {
+    final bool hasNoTotal = _totalActiveCount == 0;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
@@ -865,15 +799,23 @@ class _ActivityScreenState extends State<ActivityScreen> {
               width: 56.0,
               height: 56.0,
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+                color: isDark
+                    ? AppColors.darkSurfaceCard
+                    : AppColors.lightSurfaceCard,
                 shape: BoxShape.circle,
                 border: Border.all(color: borderColor),
               ),
-              child: Icon(Icons.menu_book_rounded, size: 26.0, color: textSecondary),
+              child: Icon(
+                hasNoTotal ? Icons.menu_book_rounded : Icons.filter_alt_off_rounded,
+                size: 26.0,
+                color: textSecondary,
+              ),
             ),
             const SizedBox(height: 16.0),
             Text(
-              'No Active Learning Yet',
+              hasNoTotal
+                  ? 'No Active Learning Yet'
+                  : 'No items match your filters',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16.0,
                 fontWeight: FontWeight.w700,
@@ -883,7 +825,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
             ),
             const SizedBox(height: 6.0),
             Text(
-              'Explore curated pathways to start learning and tracking your coding progress.',
+              hasNoTotal
+                  ? 'Explore curated modules to start learning and tracking your coding progress.'
+                  : 'Try adjusting the filters or clearing your search.',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12.5,
                 color: textSecondary,
@@ -892,27 +836,63 @@ class _ActivityScreenState extends State<ActivityScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16.0),
-            ElevatedButton.icon(
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                context.go('/learn/modules');
-              },
-              icon: const Icon(Icons.arrow_forward_rounded, size: 14.0),
-              label: Text(
-                'Explore Modules',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
+            if (hasNoTotal)
+              ElevatedButton.icon(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  context.go('/learn/modules');
+                },
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14.0),
+                label: Text(
+                  'Explore Modules',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor:
+                      isDark ? AppColors.onPrimaryDark : Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  elevation: 0,
+                ),
+              )
+            else
+              OutlinedButton(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _activeLearningFilter = 'all';
+                    _activeLearningSearch = '';
+                    _activeLearningSearchController.clear();
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: borderColor),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+                child: Text(
+                  'Clear Filters',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                elevation: 0,
-              ),
-            ),
           ],
         ),
       ),
@@ -1741,10 +1721,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       color: textPrimary,
                     ),
                   ),
-                  if (sub.difficulty.isNotEmpty) ...<Widget>[
-                    const SizedBox(width: 8.0),
-                    _buildDifficultyBadge(sub.difficulty),
-                  ],
                   const Spacer(),
                   Row(
                     mainAxisSize: MainAxisSize.min,

@@ -16,7 +16,7 @@ class FilterTabItem {
   final int? count;
 }
 
-/// Unified shadcn filter tab bar with standardized height, styling, and animations.
+/// Unified signature filter tab bar matching the emerald capsule design.
 class FilterTabBar extends StatelessWidget {
   const FilterTabBar({
     super.key,
@@ -24,29 +24,32 @@ class FilterTabBar extends StatelessWidget {
     required this.selectedId,
     required this.onTabSelected,
     this.height = 36.0,
+    this.padding = EdgeInsets.zero,
   });
 
   final List<FilterTabItem> tabs;
   final String selectedId;
   final ValueChanged<String> onTabSelected;
   final double height;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final Color textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return SizedBox(
       height: height,
       child: ListView.separated(
+        padding: padding,
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: tabs.length,
         separatorBuilder: (BuildContext context, int index) =>
-            const SizedBox(width: 8.0),
+            const SizedBox(width: 6.0),
         itemBuilder: (BuildContext context, int index) {
           final FilterTabItem tab = tabs[index];
           final bool isSelected = selectedId == tab.id;
@@ -58,24 +61,23 @@ class FilterTabBar extends StatelessWidget {
                 HapticFeedback.selectionClick();
                 onTabSelected(tab.id);
               },
-              borderRadius: BorderRadius.circular(10.0),
+              borderRadius: BorderRadius.circular(20.0),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
+                duration: const Duration(milliseconds: 150),
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                padding: const EdgeInsets.symmetric(horizontal: 11.0, vertical: 4.0),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10.0),
+                      ? (isDark
+                          ? AppColors.primary.withValues(alpha: 0.15)
+                          : AppColors.primary.withValues(alpha: 0.12))
+                      : (isDark ? AppColors.darkSurfaceCard : Colors.white),
+                  borderRadius: BorderRadius.circular(20.0),
                   border: Border.all(
                     color: isSelected
-                        ? (isDark
-                            ? const Color(0xFF334155)
-                            : const Color(0xFFCBD5E1))
-                        : (isDark
-                            ? AppColors.darkBorder
-                            : AppColors.lightBorder),
+                        ? AppColors.primary.withValues(alpha: 0.6)
+                        : borderColor,
+                    width: 1.0,
                   ),
                 ),
                 child: Row(
@@ -84,23 +86,29 @@ class FilterTabBar extends StatelessWidget {
                     Text(
                       tab.label,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
+                        fontSize: 11.5,
                         fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w600,
-                        color: isSelected ? textPrimary : textSecondary,
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected
+                            ? (isDark
+                                ? AppColors.primary
+                                : AppColors.primaryVariant)
+                            : textSecondary,
                       ),
                     ),
                     if (tab.count != null && tab.count! >= 0) ...<Widget>[
-                      const SizedBox(width: 6.0),
+                      const SizedBox(width: 4.5),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 5.5,
-                          vertical: 1.5,
+                          horizontal: 5.0,
+                          vertical: 1.0,
                         ),
                         decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF0F172A)
-                              : const Color(0xFFE2E8F0),
+                          color: isSelected
+                              ? AppColors.primary.withValues(alpha: 0.2)
+                              : (isDark
+                                  ? AppColors.darkSurface
+                                  : AppColors.lightSurfaceCard),
                           borderRadius: BorderRadius.circular(999.0),
                         ),
                         child: Text(
@@ -108,7 +116,11 @@ class FilterTabBar extends StatelessWidget {
                           style: GoogleFonts.jetBrainsMono(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? textPrimary : textSecondary,
+                            color: isSelected
+                                ? (isDark
+                                    ? AppColors.primary
+                                    : AppColors.primaryVariant)
+                                : textSecondary,
                           ),
                         ),
                       ),

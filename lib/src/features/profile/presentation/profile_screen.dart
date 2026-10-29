@@ -371,7 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final Color textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final Color iconColor =
+    final Color sectionHeaderColor =
         isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
     final Color cardBg =
         isDark ? AppColors.darkSurfaceCard : Colors.white;
@@ -409,7 +409,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    // 1. TOP TITLE
+                    // 1. TOP TITLE & CAPTION
                     Text(
                       'Profile & Settings',
                       style: GoogleFonts.plusJakartaSans(
@@ -419,30 +419,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         letterSpacing: -0.4,
                       ),
                     ),
+                    const SizedBox(height: 3.0),
+                    Text(
+                      'Manage your personal details, preferences, and account security.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.0,
+                        fontWeight: FontWeight.w500,
+                        color: textSecondary,
+                      ),
+                    ),
                     const SizedBox(height: 18.0),
 
-                    // 2. USER IDENTITY CARD
+                    // 2. USER PROFILE HERO CARD
                     Container(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.all(18.0),
                       decoration: BoxDecoration(
                         color: cardBg,
                         borderRadius: BorderRadius.circular(20.0),
                         border: Border.all(color: borderColor),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                            blurRadius: 12.0,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: <Widget>[
+                          // Avatar with camera micro-badge
                           GestureDetector(
-                            onTap: _handleAvatarUpload,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              _handleAvatarUpload();
+                            },
                             child: Stack(
+                              clipBehavior: Clip.none,
                               children: <Widget>[
                                 Container(
-                                  width: 56.0,
-                                  height: 56.0,
+                                  width: 64.0,
+                                  height: 64.0,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: borderColor,
-                                      width: 1.5,
+                                      color: AppColors.primary.withValues(alpha: 0.35),
+                                      width: 2.0,
                                     ),
                                   ),
                                   child: ClipOval(
@@ -464,40 +485,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 (context, error, stackTrace) =>
                                                     Icon(
                                               Icons.person_rounded,
-                                              size: 30.0,
-                                              color: iconColor,
+                                              size: 34.0,
+                                              color: textSecondary,
                                             ),
                                           ),
                                   ),
                                 ),
                                 Positioned(
-                                  bottom: 0,
-                                  right: 0,
+                                  bottom: -2.0,
+                                  right: -2.0,
                                   child: Container(
-                                    padding: const EdgeInsets.all(4.0),
+                                    width: 22.0,
+                                    height: 22.0,
                                     decoration: BoxDecoration(
-                                      color: isDark
-                                          ? const Color(0xFF334155)
-                                          : const Color(0xFFF1F5F9),
+                                      color: isDark ? const Color(0xFF262626) : Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: borderColor,
-                                        width: 1.0,
+                                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                                        width: 1.5,
                                       ),
+                                      boxShadow: <BoxShadow>[
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.25),
+                                          blurRadius: 4.0,
+                                        ),
+                                      ],
                                     ),
-                                    child: Icon(
-                                      Icons.camera_alt_rounded,
-                                      size: 11.0,
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFF334155),
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.camera_alt_rounded,
+                                        size: 11.0,
+                                        color: isDark
+                                            ? Colors.white
+                                            : const Color(0xFF334155),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 14.0),
+                          const SizedBox(width: 16.0),
+
+                          // Name + Email
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,30 +535,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Text(
                                   displayName,
                                   style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 17.5,
+                                    fontWeight: FontWeight.w800,
                                     color: textPrimary,
+                                    letterSpacing: -0.3,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 3.0),
                                 Text(
                                   email,
-                                  style: GoogleFonts.plusJakartaSans(
+                                  style: GoogleFonts.jetBrainsMono(
                                     fontSize: 12.0,
+                                    fontWeight: FontWeight.w400,
                                     color: textSecondary,
                                   ),
+                                  maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
+                          const SizedBox(width: 8.0),
+
+                          // Quick Edit Name Pencil Button
+                          IconButton(
+                            onPressed: _showEditNameSheet,
+                            icon: Icon(
+                              Icons.edit_outlined,
+                              size: 18.0,
+                              color: textSecondary,
+                            ),
+                            tooltip: 'Edit Name',
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20.0),
+                    const SizedBox(height: 22.0),
 
                     // 3. ACCOUNT DETAILS (1:1 Web /settings/account)
-                    _buildSectionHeader('ACCOUNT DETAILS', textSecondary),
+                    _buildSectionHeader('ACCOUNT DETAILS', sectionHeaderColor),
                     const SizedBox(height: 8.0),
                     Material(
                       color: cardBg,
@@ -539,71 +586,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: <Widget>[
-                          ListTile(
-                            leading: Icon(
-                              Icons.person_outline_rounded,
-                              color: iconColor,
+                          _buildSettingRow(
+                            icon: Icons.person_outline_rounded,
+                            title: 'Display Name',
+                            subtitle: displayName,
+                            trailing: Icon(
+                              Icons.chevron_right_rounded,
                               size: 20.0,
-                            ),
-                            title: Text(
-                              'Display Name',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Text(
-                                  displayName,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(width: 4.0),
-                                Icon(Icons.chevron_right_rounded, size: 20.0, color: textSecondary),
-                              ],
+                              color: textSecondary,
                             ),
                             onTap: _showEditNameSheet,
+                            textPrimary: textPrimary,
+                            textSecondary: textSecondary,
+                            isDark: isDark,
                           ),
                           Divider(
                             height: 1.0,
-                            color: borderColor,
+                            thickness: 1.0,
+                            indent: 66.0,
+                            endIndent: 16.0,
+                            color: isDark
+                                ? AppColors.darkBorder.withValues(alpha: 0.6)
+                                : const Color(0xFFF1F5F9),
                           ),
-                          ListTile(
-                            leading: Icon(
-                              Icons.alternate_email_rounded,
-                              color: iconColor,
-                              size: 20.0,
+                          _buildSettingRow(
+                            icon: Icons.alternate_email_rounded,
+                            title: 'Email Address',
+                            subtitle: email,
+                            trailing: Icon(
+                              Icons.lock_outline_rounded,
+                              size: 16.0,
+                              color: textSecondary.withValues(alpha: 0.7),
                             ),
-                            title: Text(
-                              'Email Address',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            trailing: Text(
-                              email,
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 12.0,
-                                fontWeight: FontWeight.w500,
-                                color: textSecondary,
-                              ),
-                            ),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              AppToast.showInfo(
+                                context,
+                                'Email address is linked to your account and cannot be modified.',
+                              );
+                            },
+                            textPrimary: textPrimary,
+                            textSecondary: textSecondary,
+                            isDark: isDark,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20.0),
+                    const SizedBox(height: 22.0),
 
                     // 4. PREFERENCES (1:1 Web /settings/notifications + Appearance)
-                    _buildSectionHeader('PREFERENCES', textSecondary),
+                    _buildSectionHeader('PREFERENCES', sectionHeaderColor),
                     const SizedBox(height: 8.0),
                     Material(
                       color: cardBg,
@@ -612,45 +644,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         side: BorderSide(color: borderColor),
                       ),
                       clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        children: <Widget>[
-                          ListTile(
-                            leading: Icon(
-                              Icons.palette_outlined,
-                              color: iconColor,
-                              size: 20.0,
-                            ),
-                            title: Text(
-                              'Appearance',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            subtitle: Text(
-                              isDark ? 'Dark Theme' : 'Light Theme',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
-                                color: textSecondary,
-                              ),
-                            ),
-                            trailing: Switch.adaptive(
-                              value: isDark,
-                              activeTrackColor: AppColors.primary,
-                              onChanged: (bool val) {
-                                HapticFeedback.selectionClick();
-                                themeModeController.toggleTheme();
-                              },
-                            ),
-                          ),
-                        ],
+                      child: _buildSettingRow(
+                        icon: Icons.palette_outlined,
+                        title: 'Appearance',
+                        subtitle: isDark ? 'Dark Theme' : 'Light Theme',
+                        trailing: Switch.adaptive(
+                          value: isDark,
+                          activeTrackColor: AppColors.primary,
+                          onChanged: (bool val) {
+                            HapticFeedback.selectionClick();
+                            themeModeController.toggleTheme();
+                          },
+                        ),
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                        isDark: isDark,
                       ),
                     ),
-                    const SizedBox(height: 20.0),
+                    const SizedBox(height: 22.0),
 
                     // 5. SECURITY & LEGAL (1:1 Web /settings/security)
-                    _buildSectionHeader('SECURITY & LEGAL', textSecondary),
+                    _buildSectionHeader('SECURITY & LEGAL', sectionHeaderColor),
                     const SizedBox(height: 8.0),
                     Material(
                       color: cardBg,
@@ -661,74 +675,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: <Widget>[
-                          ListTile(
-                            leading: Icon(
-                              Icons.lock_outline_rounded,
-                              color: iconColor,
+                          _buildSettingRow(
+                            icon: Icons.lock_outline_rounded,
+                            title: 'Change Password',
+                            subtitle: 'Update account credentials',
+                            trailing: Icon(
+                              Icons.chevron_right_rounded,
                               size: 20.0,
+                              color: textSecondary,
                             ),
-                            title: Text(
-                              'Change Password',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            trailing: Icon(Icons.chevron_right_rounded, size: 20.0, color: textSecondary),
                             onTap: _showChangePasswordSheet,
+                            textPrimary: textPrimary,
+                            textSecondary: textSecondary,
+                            isDark: isDark,
                           ),
                           Divider(
                             height: 1.0,
-                            color: borderColor,
+                            thickness: 1.0,
+                            indent: 66.0,
+                            endIndent: 16.0,
+                            color: isDark
+                                ? AppColors.darkBorder.withValues(alpha: 0.6)
+                                : const Color(0xFFF1F5F9),
                           ),
-                          ListTile(
-                            leading: Icon(
-                              Icons.description_outlined,
-                              color: iconColor,
+                          _buildSettingRow(
+                            icon: Icons.description_outlined,
+                            title: 'Privacy Policy & Terms',
+                            subtitle: 'Terms of service & privacy notice',
+                            trailing: Icon(
+                              Icons.chevron_right_rounded,
                               size: 20.0,
+                              color: textSecondary,
                             ),
-                            title: Text(
-                              'Privacy Policy & Terms',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: textPrimary,
-                              ),
-                            ),
-                            trailing: Icon(Icons.chevron_right_rounded, size: 20.0, color: textSecondary),
                             onTap: () => _showLegalDialog(
                               'Privacy & Terms',
                               'CodeMentor AI respects your data privacy. Code submissions and practice progress are securely stored in your personal account.',
                             ),
+                            textPrimary: textPrimary,
+                            textSecondary: textSecondary,
+                            isDark: isDark,
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 24.0),
 
-                    // 6. SIGN OUT BUTTON
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48.0,
-                      child: OutlinedButton.icon(
-                        onPressed: _handleSignOut,
-                        icon: const Icon(Icons.logout_rounded, size: 18.0),
-                        label: Text(
-                          'Sign Out',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14.0,
-                            fontWeight: FontWeight.w700,
+                    // 6. SIGN OUT BUTTON (Modern Destructive Card)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16.0),
+                      onTap: _handleSignOut,
+                      child: Container(
+                        height: 48.0,
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(16.0),
+                          border: Border.all(
+                            color: AppColors.error
+                                .withValues(alpha: isDark ? 0.30 : 0.20),
+                            width: 1.0,
                           ),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          side: BorderSide(
-                            color: AppColors.error.withValues(alpha: 0.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14.0),
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            const Icon(
+                              Icons.logout_rounded,
+                              size: 18.0,
+                              color: AppColors.error,
+                            ),
+                            const SizedBox(width: 8.0),
+                            Text(
+                              'Sign Out',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -740,14 +764,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         'CodeMentor AI v1.0.0 (Build 42)',
                         style: GoogleFonts.jetBrainsMono(
                           fontSize: 11.0,
-                          color: textSecondary.withValues(alpha: 0.7),
+                          fontWeight: FontWeight.w500,
+                          color: textSecondary.withValues(alpha: 0.6),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32.0),
+                    const SizedBox(height: 96.0),
                   ],
                 ),
               ),
+      ),
+    );
+  }
+
+  Widget _buildSettingRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required Widget trailing,
+    VoidCallback? onTap,
+    required Color textPrimary,
+    required Color textSecondary,
+    required bool isDark,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 13.0),
+          child: Row(
+            children: <Widget>[
+              // Monochromatic slate squircle leading icon container
+              Container(
+                width: 36.0,
+                height: 36.0,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+                child: Center(
+                  child: Icon(
+                    icon,
+                    size: 18.0,
+                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14.0),
+
+              // Title + subtitle
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                    if (subtitle != null) ...<Widget>[
+                      const SizedBox(height: 2.0),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.0,
+                          fontWeight: FontWeight.w400,
+                          color: textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8.0),
+
+              // Trailing widget
+              trailing,
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -758,9 +862,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Text(
         title,
         style: GoogleFonts.jetBrainsMono(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
+          fontSize: 11.0,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.0,
           color: color,
         ),
       ),

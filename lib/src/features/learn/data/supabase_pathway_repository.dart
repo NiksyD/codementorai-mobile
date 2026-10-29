@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../../../core/network/api_client.dart';
 import '../domain/activity_submission_review_model.dart';
@@ -29,6 +30,128 @@ class SupabasePathwayRepository implements PathwayRepository {
   /// IndexedStack-cached screens (Dashboard, Modules) know to reload.
   static final ValueNotifier<int> catalogRefreshNotifier =
       ValueNotifier<int>(0);
+
+  @override
+  Future<bool> isModulePurchased(String userId, String moduleId) async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> localPurchased =
+          prefs.getStringList('codementor_enrolled_modules_$userId') ??
+              prefs.getStringList('cma_user_enrolled_modules') ??
+              <String>[];
+      if (localPurchased.contains(moduleId)) return true;
+
+      if (userId.isNotEmpty) {
+        final List<Map<String, dynamic>> rows = await _supabase
+            .from('coin_transactions')
+            .select('reference_id')
+            .eq('user_id', userId)
+            .eq('tx_type', 'module_purchase')
+            .eq('reference_id', moduleId)
+            .limit(1);
+        if (rows.isNotEmpty) {
+          // Cache locally
+          if (!localPurchased.contains(moduleId)) {
+            localPurchased.add(moduleId);
+            await prefs.setStringList('codementor_enrolled_modules_$userId', localPurchased);
+            await prefs.setStringList('cma_user_enrolled_modules', localPurchased);
+          }
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  @override
+  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins) async {
+    try {
+      // 1. Deduct coins and log transaction
+      if (userId.isNotEmpty) {
+        final Map<String, dynamic>? wallet = await _supabase
+            .from('user_wallets')
+            .select('balance_coins')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        final int currentBalance = wallet != null && wallet['balance_coins'] != null
+            ? (wallet['balance_coins'] as num).toInt()
+            : 0;
+
+        if (currentBalance >= coins && coins > 0) {
+          final int newBalance = currentBalance - coins;
+          await _supabase
+              .from('user_wallets')
+              .update(<String, dynamic>{
+                'balance_coins': newBalance,
+                'updated_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .eq('user_id', userId);
+
+          await _supabase
+              .from('coin_transactions')
+              .insert(<String, dynamic>{
+                'user_id': userId,
+                'amount_coins': -coins,
+                'balance_after': newBalance,
+                'tx_type': 'module_purchase',
+                'reference_id': moduleId,
+                'description': 'Unlocked Coding Challenges for module',
+              });
+
+          try {
+            await _supabase.rpc<dynamic>('process_module_purchase_coins', params: <String, dynamic>{
+              'p_learner_id': userId,
+              'p_module_id': moduleId,
+            });
+          } catch (_) {}
+        }
+      }
+
+      // 2. Persist locally to match Web localStorage parity
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> list1 =
+          prefs.getStringList('codementor_enrolled_modules_$userId') ?? <String>[];
+      if (!list1.contains(moduleId)) {
+        list1.add(moduleId);
+        await prefs.setStringList('codementor_enrolled_modules_$userId', list1);
+      }
+      final List<String> list2 =
+          prefs.getStringList('cma_user_enrolled_modules') ?? <String>[];
+      if (!list2.contains(moduleId)) {
+        list2.add(moduleId);
+        await prefs.setStringList('cma_user_enrolled_modules', list2);
+      }
+
+      // 3. Update memory caches
+      if (_moduleDetailsCache.containsKey(moduleId)) {
+        _moduleDetailsCache[moduleId] =
+            _moduleDetailsCache[moduleId]!.copyWith(isPurchased: true);
+      }
+      if (cachedData != null) {
+        PathwayModel markPurchased(PathwayModel p) =>
+            p.id == moduleId ? p.copyWith(isPurchased: true) : p;
+
+        cachedData = LearnDashboardData(
+          activePathway: cachedData!.activePathway,
+          enrolledPathways: cachedData!.enrolledPathways.map(markPurchased).toList(),
+          allPathways: cachedData!.allPathways.map(markPurchased).toList(),
+          currentStreak: cachedData!.currentStreak,
+          totalActiveDays: cachedData!.totalActiveDays,
+          easySolved: cachedData!.easySolved,
+          mediumSolved: cachedData!.mediumSolved,
+          hardSolved: cachedData!.hardSolved,
+          recommendedChallenges: cachedData!.recommendedChallenges,
+          submissions: cachedData!.submissions,
+        );
+      }
+
+      catalogRefreshNotifier.value++;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   ModuleDetailModel? getCachedModuleDetails(String moduleId) =>
@@ -215,6 +338,32 @@ class SupabasePathwayRepository implements PathwayRepository {
     } catch (_) {
       // Non-blocking
     }
+
+    // 4a. Fetch User Purchased Modules (coin_transactions & local cache)
+    final Set<String> purchasedModIds = <String>{};
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> localPurchased =
+          prefs.getStringList('codementor_enrolled_modules_$userId') ??
+              prefs.getStringList('cma_user_enrolled_modules') ??
+              <String>[];
+      purchasedModIds.addAll(localPurchased);
+
+      if (userId.isNotEmpty) {
+        final List<Map<String, dynamic>> txRows = await _supabase
+            .from('coin_transactions')
+            .select('reference_id')
+            .eq('user_id', userId)
+            .eq('tx_type', 'module_purchase');
+
+        for (final Map<String, dynamic> r in txRows) {
+          final String? ref = r['reference_id'] as String?;
+          if (ref != null && ref.isNotEmpty) {
+            purchasedModIds.add(ref);
+          }
+        }
+      }
+    } catch (_) {}
 
     // 4b. Fetch accepted submissions to compute live per-module progress
     // trackId -> solved count
@@ -500,11 +649,16 @@ class SupabasePathwayRepository implements PathwayRepository {
       final int liveProgress =
           dynamicProgress > 0 ? dynamicProgress : (dbProgressMap[modId] ?? 0);
 
+      final bool isCreator = userId.isNotEmpty &&
+          (m['mentor_id'] == userId || m['user_id'] == userId);
+      final bool isPurchased = isCreator || purchasedModIds.contains(modId);
+
       mappedPathways.add(
         PathwayModel.fromDatabase(
           moduleData: m,
           topics: topics,
           isEnrolled: isEnrolled,
+          isPurchased: isPurchased,
           isBookmarked: isBookmarked,
           userProgress: liveProgress,
         ),
@@ -592,10 +746,15 @@ class SupabasePathwayRepository implements PathwayRepository {
       if (modRows.isEmpty) return null;
       final Map<String, dynamic> mod = modRows.first;
 
-      // 2. Check enrollment & progress & bookmark
+      // 2. Check enrollment & progress & bookmark & purchase status
       bool isEnrolled = false;
       int completion = 0;
       bool isBookmarked = bookmarkedIdsNotifier.value.contains(moduleId);
+      final double rawPrice = (mod['mod_price'] as num?)?.toDouble() ?? 0.0;
+      final double effectivePrice = rawPrice > 0 ? rawPrice : 0.84;
+      final bool isCreator = userId.isNotEmpty &&
+          (mod['mentor_id'] == userId || mod['user_id'] == userId);
+      bool isPurchased = isCreator ? true : await isModulePurchased(userId, moduleId);
 
       final Set<String> solvedItemIds = <String>{};
       if (userId.isNotEmpty) {
@@ -807,12 +966,13 @@ class SupabasePathwayRepository implements PathwayRepository {
         title: mod['mod_title'] as String? ?? 'Engineering Module',
         description: finalDesc,
         stack: stackList,
-        price: (mod['mod_price'] as num?)?.toDouble() ?? 0.0,
+        price: effectivePrice,
         coachName: coachName,
         coachAvatar: coachAvatar,
         rating: (mod['mod_rating'] as num?)?.toDouble() ?? 5.0,
         completion: effectiveCompletion,
         isEnrolled: isEnrolled,
+        isPurchased: isPurchased,
         isBookmarked: isBookmarked,
         topics: mappedTopics,
         challenges: moduleLevelChallenges,

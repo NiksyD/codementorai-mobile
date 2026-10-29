@@ -149,19 +149,6 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
     }
   }
 
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF10B981);
-      case 'medium':
-        return const Color(0xFFF59E0B);
-      case 'hard':
-        return const Color(0xFFEF4444);
-      default:
-        return AppColors.primary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -542,46 +529,22 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
                             itemBuilder: (context, index) {
                               final DashboardSubmission sub = selectedDaySubmissions[index];
                               final bool isPassed = sub.status == 'Passed';
-                              final Color diffColor = _getDifficultyColor(sub.difficulty);
 
                               return Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: <Widget>[
-                                    // Row 1: Title & Difficulty Badge
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: <Widget>[
-                                        Expanded(
-                                          child: Text(
-                                            sub.title,
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w700,
-                                              color: textPrimary,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8.0),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
-                                          decoration: BoxDecoration(
-                                            color: diffColor.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(5.0),
-                                          ),
-                                          child: Text(
-                                            sub.difficulty,
-                                            style: GoogleFonts.jetBrainsMono(
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.w700,
-                                              color: diffColor,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                    // Row 1: Title
+                                    Text(
+                                      sub.title,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 3.0),
 

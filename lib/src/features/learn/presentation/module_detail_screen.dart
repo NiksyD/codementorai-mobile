@@ -88,14 +88,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
 
   void _initializeExpandedTopics(ModuleDetailModel mod) {
     if (_hasInitializedAccordion) return;
-    final List<_DisplayTopic> topics = _getDisplayTopicsForModule(mod);
-    if (topics.isEmpty) return;
-
-    final _DisplayTopic active = topics.firstWhere(
-      (_DisplayTopic t) => t.activities.any((ModuleActivityModel a) => !a.isCompleted),
-      orElse: () => topics.first,
-    );
-    _expandedTopicIds.add(active.id);
+    _expandedTopicIds.clear();
     _hasInitializedAccordion = true;
   }
 
@@ -134,10 +127,10 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
   }
 
-  Future<void> _handleEnroll() async {
+  Future<void> _handleUnlockChallenges() async {
     final String userId = _getUserId();
     if (userId.isEmpty) {
-      AppToast.showError(context, 'Please log in to enroll');
+      AppToast.showError(context, 'Please log in to unlock challenges');
       return;
     }
 
@@ -156,25 +149,28 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
           _module!.topics.isNotEmpty ? _module!.topics.first.title : '',
       coachName: _module!.coachName,
       coachAvatar: _module!.coachAvatar,
-      price: _module!.price,
+      price: _module!.price > 0 ? _module!.price : 0.84,
     );
 
     await ModulePreviewSheet.show(
       context,
       module: tempPathway,
       onEnroll: (String tier) async {
-        final bool ok = await widget.pathwayRepository.enrollModule(
+        final double effectivePrice = _module!.price > 0 ? _module!.price : 0.84;
+        final int priceCoins = (effectivePrice * 100).round();
+        final bool ok = await widget.pathwayRepository.unlockModuleWithCoins(
           userId,
           widget.moduleId,
+          priceCoins,
         );
         if (ok) {
           await _loadModuleData();
           if (mounted) {
-            AppToast.showSuccess(context, 'Successfully enrolled in module!');
+            AppToast.showSuccess(context, 'Coding challenges unlocked successfully!');
           }
         } else {
           if (mounted) {
-            AppToast.showError(context, 'Enrollment failed. Please try again.');
+            AppToast.showError(context, 'Unlock failed. Please try again.');
           }
         }
       },
@@ -267,12 +263,23 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     HapticFeedback.lightImpact();
     if (_module == null) return;
 
-    if (!_module!.isEnrolled) {
-      await _handleEnroll();
+    final bool isChallenge = act.category == 'challenge';
+    final bool isChallengeLocked = isChallenge && !_module!.isPurchased;
+
+    if (isChallengeLocked) {
+      await _handleUnlockChallenges();
       return;
     }
 
-    if (act.category == 'challenge') {
+    // Auto-enroll user in free practice tracking if not already enrolled
+    final String userId = _getUserId();
+    if (!_module!.isEnrolled && userId.isNotEmpty) {
+      await widget.pathwayRepository.enrollModule(userId, widget.moduleId);
+    }
+
+    if (!mounted) return;
+
+    if (isChallenge) {
       await context.push(
         '/modules/${widget.moduleId}/challenges/${act.id}',
       );
@@ -291,18 +298,23 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     HapticFeedback.mediumImpact();
     if (_module == null) return;
 
-    if (!_module!.isEnrolled) {
-      await _handleEnroll();
-      return;
+    // Auto-enroll user in free practice tracking if not already enrolled
+    final String userId = _getUserId();
+    if (!_module!.isEnrolled && userId.isNotEmpty) {
+      await widget.pathwayRepository.enrollModule(userId, widget.moduleId);
     }
 
-    // Find first unsolved activity across all display topics
+    // Find first unsolved practice activity (or challenge if unlocked)
     ModuleActivityModel? firstUnsolved;
     for (final _DisplayTopic t in _displayTopics) {
       for (final ModuleActivityModel a in t.activities) {
         if (!a.isCompleted) {
-          firstUnsolved = a;
-          break;
+          final bool isChallenge = a.category == 'challenge';
+          final bool isLocked = isChallenge && !_module!.isPurchased;
+          if (!isLocked) {
+            firstUnsolved = a;
+            break;
+          }
         }
       }
       if (firstUnsolved != null) break;
@@ -594,7 +606,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                 cardBg: cardBg,
                 borderColor: borderColor,
               ),
-              const SizedBox(height: 24.0),
+              const SizedBox(height: 32.0),
 
               // ── MODULE OUTLINE (Unified Hollow Topics & Progression) ──
               _buildModuleOutline(
@@ -806,8 +818,8 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                         ),
                       ),
 
-                      // Price Tag (If Paid & Not Enrolled)
-                      if (!mod.isEnrolled && mod.price > 0) ...<Widget>[
+                      // Price Tag (If Not Purchased)
+                      if (!_module!.isPurchased) ...<Widget>[
                         Text(
                           '•',
                           style: TextStyle(
@@ -816,7 +828,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                           ),
                         ),
                         InkWell(
-                          onTap: _handleEnroll,
+                          onTap: _handleUnlockChallenges,
                           borderRadius: BorderRadius.circular(6.0),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
@@ -840,7 +852,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                                 ),
                                 const SizedBox(width: 3.5),
                                 Text(
-                                  '${(mod.price * 100).toInt()} Coins',
+                                  '${((mod.price > 0 ? mod.price : 0.84) * 100).round()} Coins',
                                   style: GoogleFonts.jetBrainsMono(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w700,
@@ -972,8 +984,8 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                       completion >= 100
                           ? 'All challenges passed'
                           : activeTopic != null && activeTopic.totalCount > 0
-                              ? '${activeTopic.solvedCount} of ${activeTopic.totalCount} exercises completed'
-                              : '$totalSolved of $totalExercises solved',
+                              ? '${activeTopic.solvedCount} of ${activeTopic.totalCount} Solved'
+                              : '$totalSolved of $totalExercises Solved',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11.5,
                         color: textSecondary,
@@ -1098,7 +1110,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 8.0),
+        const SizedBox(height: 14.0),
         Divider(
           height: 1.0,
           color: borderColor.withValues(alpha: 0.4),
@@ -1218,38 +1230,15 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                             ),
                             const SizedBox(width: 10.0),
 
-                            // Solved Status Indicator
+                            // Solved Status Indicator (Only clean checkmark when complete)
                             if (topic.isCompleted) ...<Widget>[
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  const Icon(
-                                    Icons.check_circle_rounded,
-                                    size: 13.0,
-                                    color: Color(0xFF10B981),
-                                  ),
-                                  const SizedBox(width: 4.0),
-                                  Text(
-                                    'Completed',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF10B981),
-                                    ),
-                                  ),
-                                ],
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                size: 16.0,
+                                color: Color(0xFF10B981),
                               ),
-                            ] else ...<Widget>[
-                              Text(
-                                '${topic.solvedCount} / ${topic.totalCount} Solved',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11.0,
-                                  fontWeight: FontWeight.w700,
-                                  color: textSecondary,
-                                ),
-                              ),
+                              const SizedBox(width: 8.0),
                             ],
-                            const SizedBox(width: 8.0),
 
                             // Rotating Chevron
                             AnimatedRotation(
@@ -1303,244 +1292,146 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                                   final ModuleActivityModel act = topic.activities[i];
                                   final bool isSolved = act.isCompleted;
                                   final bool isChallenge = act.category == 'challenge';
-                                  final bool isLocked = !_module!.isEnrolled;
+                                  final bool isLocked = isChallenge && !_module!.isPurchased;
 
-                                  return InkWell(
-                                    onTap: () => _navigateToActivity(act),
-                                    borderRadius: BorderRadius.circular(8.0),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 10.0,
-                                        horizontal: 4.0,
-                                      ),
-                                      child: Row(
-                                        children: <Widget>[
-                                          // Status indicator dot or checkmark
-                                          if (isSolved) ...<Widget>[
-                                            const Icon(
-                                              Icons.check_circle_rounded,
-                                              size: 15.0,
-                                              color: Color(0xFF10B981),
-                                            ),
-                                          ] else if (isLocked) ...<Widget>[
-                                            Icon(
-                                              Icons.lock_outline_rounded,
-                                              size: 14.0,
-                                              color: textSecondary.withValues(alpha: 0.5),
-                                            ),
-                                          ] else if (isChallenge) ...<Widget>[
-                                            Container(
-                                              width: 5.0,
-                                              height: 5.0,
-                                              decoration: const BoxDecoration(
-                                                color: Color(0xFFF59E0B),
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ] else ...<Widget>[
-                                            Container(
-                                              width: 5.0,
-                                              height: 5.0,
-                                              decoration: BoxDecoration(
-                                                color: textSecondary.withValues(alpha: 0.4),
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ],
-                                          const SizedBox(width: 10.0),
-
-                                          // Activity Title + Category Badge + SLA + Subtitle
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: <Widget>[
-                                                Row(
-                                                  children: <Widget>[
-                                                    Flexible(
-                                                      child: Text(
-                                                        act.title,
-                                                        style: GoogleFonts.plusJakartaSans(
-                                                          fontSize: 13.0,
-                                                          fontWeight: FontWeight.w600,
-                                                          color: textPrimary,
+                                  return Opacity(
+                                    opacity: isSolved ? 0.65 : 1.0,
+                                    child: InkWell(
+                                      onTap: () => _navigateToActivity(act),
+                                      borderRadius: BorderRadius.circular(8.0),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10.0,
+                                          horizontal: 4.0,
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: <Widget>[
+                                            // Status indicator: Green check if solved, Lock if locked, Amber/slate dot if pending
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2.5),
+                                              child: isSolved
+                                                  ? const Icon(
+                                                      Icons.check_circle_rounded,
+                                                      size: 15.0,
+                                                      color: Color(0xFF10B981),
+                                                    )
+                                                  : isLocked
+                                                      ? Icon(
+                                                          Icons.lock_outline_rounded,
+                                                          size: 14.0,
+                                                          color: textSecondary.withValues(alpha: 0.5),
+                                                        )
+                                                      : Container(
+                                                          margin: const EdgeInsets.symmetric(
+                                                            horizontal: 4.5,
+                                                            vertical: 4.5,
+                                                          ),
+                                                          width: 5.0,
+                                                          height: 5.0,
+                                                          decoration: BoxDecoration(
+                                                            color: isChallenge
+                                                                ? const Color(0xFFF59E0B)
+                                                                : textSecondary.withValues(alpha: 0.45),
+                                                            shape: BoxShape.circle,
+                                                          ),
                                                         ),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow.ellipsis,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 6.0),
+                                            ),
+                                            const SizedBox(width: 10.0),
 
-                                                    // Minimal Hollow Category Badge
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: 5.0,
-                                                        vertical: 1.5,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: isChallenge
-                                                            ? const Color(0xFFF59E0B).withValues(alpha: 0.08)
-                                                            : (isDark
-                                                                ? AppColors.darkSurfaceCard
-                                                                : AppColors.lightSurfaceCard),
-                                                        borderRadius: BorderRadius.circular(4.0),
-                                                        border: Border.all(
-                                                          color: isChallenge
-                                                              ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
-                                                              : borderColor.withValues(alpha: 0.5),
-                                                        ),
-                                                      ),
-                                                      child: Text(
-                                                        isChallenge ? 'CHALLENGE' : 'PRACTICE',
-                                                        style: GoogleFonts.jetBrainsMono(
-                                                          fontSize: 9.5,
-                                                          fontWeight: FontWeight.w700,
-                                                          color: isChallenge
-                                                              ? const Color(0xFFF59E0B)
-                                                              : textSecondary,
-                                                        ),
-                                                      ),
-                                                    ),
-
-                                                    // Time SLA
-                                                    if (isChallenge && act.timeSla.isNotEmpty && act.timeSla != '—') ...<Widget>[
-                                                      const SizedBox(width: 4.0),
-                                                      Text(
-                                                        '· ${act.timeSla}',
-                                                        style: GoogleFonts.jetBrainsMono(
-                                                          fontSize: 10.0,
-                                                          color: textSecondary.withValues(alpha: 0.7),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                ),
-
-                                                // Subtitle
-                                                if (act.description.isNotEmpty) ...<Widget>[
-                                                  const SizedBox(height: 2.0),
+                                            // Main Content Column
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: <Widget>[
+                                                  // Title (Full width breathing room)
                                                   Text(
-                                                    _cleanChallengeSummary(act.description),
+                                                    act.title,
                                                     style: GoogleFonts.plusJakartaSans(
-                                                      fontSize: 11.0,
-                                                      color: textSecondary,
+                                                      fontSize: 13.0,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: textPrimary,
                                                     ),
-                                                    maxLines: 1,
+                                                    maxLines: 2,
                                                     overflow: TextOverflow.ellipsis,
                                                   ),
-                                                ],
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8.0),
 
-                                          // Minimal Hollow Action Button
-                                          if (isLocked) ...<Widget>[
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: <Widget>[
-                                                Icon(
-                                                  Icons.lock_outline_rounded,
-                                                  size: 12.0,
-                                                  color: textSecondary.withValues(alpha: 0.6),
-                                                ),
-                                                const SizedBox(width: 3.0),
-                                                Text(
-                                                  'Locked',
-                                                  style: GoogleFonts.jetBrainsMono(
-                                                    fontSize: 11.0,
-                                                    color: textSecondary.withValues(alpha: 0.6),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ] else if (isSolved) ...<Widget>[
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: <Widget>[
-                                                Text(
-                                                  'Review',
-                                                  style: GoogleFonts.plusJakartaSans(
-                                                    fontSize: 11.5,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: textSecondary,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 2.0),
-                                                Icon(
-                                                  Icons.arrow_forward_rounded,
-                                                  size: 12.0,
-                                                  color: textSecondary,
-                                                ),
-                                              ],
-                                            ),
-                                          ] else if (isChallenge) ...<Widget>[
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 9.0,
-                                                vertical: 4.0,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
-                                                borderRadius: BorderRadius.circular(8.0),
-                                                border: Border.all(
-                                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: <Widget>[
-                                                  Text(
-                                                    'Solve',
-                                                    style: GoogleFonts.plusJakartaSans(
-                                                      fontSize: 11.5,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: const Color(0xFFF59E0B),
+                                                  // Secondary description: Strip away when completed to diminish visual clutter
+                                                  if (!isSolved &&
+                                                      act.description.trim().isNotEmpty) ...<Widget>[
+                                                    const SizedBox(height: 2.0),
+                                                    Text(
+                                                      _cleanChallengeSummary(act.description),
+                                                      style: GoogleFonts.plusJakartaSans(
+                                                        fontSize: 11.0,
+                                                        color: textSecondary,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
                                                     ),
-                                                  ),
-                                                  const SizedBox(width: 3.0),
-                                                  const Icon(
-                                                    Icons.arrow_forward_rounded,
-                                                    size: 11.0,
-                                                    color: Color(0xFFF59E0B),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ] else ...<Widget>[
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 10.0,
-                                                vertical: 4.0,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary.withValues(alpha: 0.08),
-                                                borderRadius: BorderRadius.circular(8.0),
-                                                border: Border.all(
-                                                  color: AppColors.primary.withValues(alpha: 0.35),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: <Widget>[
-                                                  Text(
-                                                    'Solve',
-                                                    style: GoogleFonts.plusJakartaSans(
-                                                      fontSize: 11.5,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: AppColors.primary,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 3.0),
-                                                  const Icon(
-                                                    Icons.arrow_forward_rounded,
-                                                    size: 11.0,
-                                                    color: AppColors.primary,
+                                                  ],
+
+                                                  const SizedBox(height: 6.0),
+
+                                                  // Bottom Row: Metadata (Left) + Standardized Action Button (Right)
+                                                  Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                                    children: <Widget>[
+                                                      // Metadata on the left
+                                                      Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: <Widget>[
+                                                          Text(
+                                                            '• ',
+                                                            style: TextStyle(
+                                                              fontSize: 10.5,
+                                                              color: isChallenge
+                                                                  ? const Color(0xFFF59E0B)
+                                                                  : textSecondary.withValues(alpha: 0.7),
+                                                            ),
+                                                          ),
+                                                          Text(
+                                                            isChallenge ? 'Challenge' : 'Practice',
+                                                            style: GoogleFonts.plusJakartaSans(
+                                                              fontSize: 11.5,
+                                                              fontWeight: FontWeight.w500,
+                                                              color: isChallenge
+                                                                  ? const Color(0xFFF59E0B)
+                                                                  : textSecondary,
+                                                            ),
+                                                          ),
+                                                          if (isChallenge &&
+                                                              act.timeSla.isNotEmpty &&
+                                                              act.timeSla != '—') ...<Widget>[
+                                                            const SizedBox(width: 4.0),
+                                                            Text(
+                                                              '· ${act.timeSla}',
+                                                              style: GoogleFonts.jetBrainsMono(
+                                                                fontSize: 10.0,
+                                                                color: textSecondary.withValues(alpha: 0.7),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ],
+                                                      ),
+
+                                                      // Standardized action button on the right
+                                                      _buildStandardizedActionButton(
+                                                        isSolved: isSolved,
+                                                        isLocked: isLocked,
+                                                        isChallenge: isChallenge,
+                                                        isDark: isDark,
+                                                        textSecondary: textSecondary,
+                                                        borderColor: borderColor,
+                                                      ),
+                                                    ],
                                                   ),
                                                 ],
                                               ),
                                             ),
                                           ],
-                                        ],
+                                        ),
                                       ),
                                     ),
                                   );
@@ -1560,6 +1451,68 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
             },
           ),
       ],
+    );
+  }
+
+  Widget _buildStandardizedActionButton({
+    required bool isSolved,
+    required bool isLocked,
+    required bool isChallenge,
+    required bool isDark,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    final String label;
+    final IconData icon;
+    final Color contentColor;
+
+    if (isLocked) {
+      label = 'Locked';
+      icon = Icons.lock_outline_rounded;
+      contentColor = textSecondary.withValues(alpha: 0.6);
+    } else if (isSolved) {
+      label = 'Review';
+      icon = Icons.arrow_forward_rounded;
+      contentColor = textSecondary;
+    } else {
+      label = 'Solve';
+      icon = Icons.arrow_forward_rounded;
+      contentColor = isChallenge ? const Color(0xFFF59E0B) : AppColors.primary;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10.0,
+        vertical: 4.0,
+      ),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkSurfaceCard.withValues(alpha: 0.8)
+            : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(6.0),
+        border: Border.all(
+          color: borderColor.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: contentColor,
+            ),
+          ),
+          const SizedBox(width: 3.5),
+          Icon(
+            icon,
+            size: 11.0,
+            color: contentColor,
+          ),
+        ],
+      ),
     );
   }
 

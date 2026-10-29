@@ -137,7 +137,7 @@ void main() {
       ],
     );
 
-    testWidgets('Renders header with greeting, subtitle, My Hubs, and Bell', (
+    testWidgets('Renders header with greeting, subtitle, CodeCoins, Streak, and Bell', (
       WidgetTester tester,
     ) async {
       final fakePathwayRepo = FakeLearnPathwayRepository(sampleData);
@@ -159,9 +159,13 @@ void main() {
       expect(find.text('Welcome back,'), findsOneWidget);
       expect(find.text('Alex'), findsOneWidget);
 
-      // My Hubs Action Button
-      expect(find.text('My Hubs'), findsOneWidget);
-      expect(find.byIcon(Icons.hub_outlined), findsOneWidget);
+      // CodeCoins Badge
+      expect(find.byIcon(Icons.monetization_on_rounded), findsOneWidget);
+      expect(find.text('0'), findsOneWidget);
+
+      // Streak Badge next to Notification Bell
+      expect(find.byIcon(Icons.local_fire_department_rounded), findsWidgets);
+      expect(find.text('4d'), findsOneWidget);
 
       // Notification Bell
       expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);

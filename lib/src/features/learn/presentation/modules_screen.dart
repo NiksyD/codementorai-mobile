@@ -11,7 +11,6 @@ import '../../../constants/app_colors.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/pathway_model.dart';
-import 'widgets/module_preview_sheet.dart';
 
 class ModulesScreen extends StatefulWidget {
   const ModulesScreen({
@@ -213,7 +212,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
               // ── Header & Search Controls (Matching Web 1:1) ──
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 0.0),
+                  padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 0.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -227,7 +226,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           letterSpacing: -0.4,
                         ),
                       ),
-                      const SizedBox(height: 4.0),
+                      const SizedBox(height: 2.0),
                       Text(
                         'Browse coding modules and practice challenges.',
                         style: GoogleFonts.plusJakartaSans(
@@ -236,7 +235,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           color: textSecondary,
                         ),
                       ),
-                      const SizedBox(height: 16.0),
+                      const SizedBox(height: 12.0),
 
                       // Shadcn Search Input
                       Container(
@@ -293,12 +292,12 @@ class _ModulesScreenState extends State<ModulesScreen> {
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 14.0,
-                              vertical: 12.0,
+                              vertical: 10.0,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 14.0),
+                      const SizedBox(height: 10.0),
 
                       // Shadcn Filter Tabs with Dynamic Count Badges (Standard 36.0 Height)
                       FilterTabBar(
@@ -318,12 +317,12 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           });
                         },
                       ),
-                      const SizedBox(height: 14.0),
+                      const SizedBox(height: 10.0),
 
                       // Summary Counter Header (Matching Web 1:1)
                       if (!_isLoading && displayModules.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 12.0),
+                          padding: const EdgeInsets.only(bottom: 8.0),
                           child: Text(
                             'Showing ${displayModules.length} module${displayModules.length == 1 ? '' : 's'}',
                             style: GoogleFonts.jetBrainsMono(
@@ -344,7 +343,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
               else if (displayModules.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 32.0),
+                    padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 96.0),
                     child: _buildEmptyState(
                       isDark: isDark,
                       textPrimary: textPrimary,
@@ -354,7 +353,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 32.0),
+                  padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 96.0),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (BuildContext context, int index) {
@@ -403,42 +402,9 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
     Future<void> handleCardAction() async {
       HapticFeedback.lightImpact();
-      if (isEnrolled) {
-        await context.push('/modules/${module.id}');
-        if (mounted) {
-          _loadModules();
-        }
-      } else {
-        await ModulePreviewSheet.show(
-          context,
-          module: module,
-          onEnroll: (String tier) async {
-            String userId = '';
-            try {
-              userId = Supabase.instance.client.auth.currentUser?.id ?? '';
-            } catch (_) {}
-            if (userId.isNotEmpty) {
-              final bool ok = await widget.pathwayRepository.enrollModule(
-                userId,
-                module.id,
-              );
-              if (ok) {
-                await _loadModules();
-                if (mounted) {
-                  AppToast.showSuccess(context, 'Enrolled successfully!');
-                  await context.push('/modules/${module.id}');
-                  if (mounted) {
-                    _loadModules();
-                  }
-                }
-              } else {
-                if (mounted) {
-                  AppToast.showError(context, 'Failed to enroll');
-                }
-              }
-            }
-          },
-        );
+      await context.push('/modules/${module.id}');
+      if (mounted) {
+        _loadModules();
       }
     }
 
@@ -476,10 +442,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
+      margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-        borderRadius: BorderRadius.circular(20.0),
+        borderRadius: BorderRadius.circular(16.0),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
           width: 1.0,
@@ -487,319 +453,379 @@ class _ModulesScreenState extends State<ModulesScreen> {
       ),
       child: InkWell(
         onTap: handleCardAction,
-        borderRadius: BorderRadius.circular(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // ── Card Header (Stack, Done Badge, Bookmark Button) ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 14.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(16.0),
+        child: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // ── Card Header (Stack, Done Badge, Bookmark Button) ──
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: <Widget>[
-                      LanguageAvatarStack(
-                        languages: module.stack.isNotEmpty
-                            ? module.stack
-                            : <String>[module.language],
-                        maxVisible: 3,
-                        size: 28.0,
-                      ),
-                      Row(
-                        children: <Widget>[
-                          // "Done" Badge if Completed
-                          if (isCompleted) ...<Widget>[
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 2.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6.0),
-                                border: Border.all(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                                  width: 0.8,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  const Icon(
-                                    Icons.check_circle_rounded,
-                                    size: 13.0,
-                                    color: Color(0xFF10B981),
-                                  ),
-                                  const SizedBox(width: 4.0),
-                                  Text(
-                                    'Done',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11.0,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF10B981),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8.0),
-                          ],
-
-                          // Bookmark Icon Button (Matching Web size-8 rounded-lg)
-                          GestureDetector(
-                            onTap: handleToggleBookmark,
-                            behavior: HitTestBehavior.opaque,
-                            child: Container(
-                              width: 32.0,
-                              height: 32.0,
-                              decoration: BoxDecoration(
-                                color: module.isBookmarked
-                                    ? AppColors.primary.withValues(alpha: 0.12)
-                                    : (isDark
-                                        ? AppColors.darkSurface
-                                        : AppColors.lightSurfaceCard),
-                                borderRadius: BorderRadius.circular(8.0),
-                                border: Border.all(
-                                  color: module.isBookmarked
-                                      ? AppColors.primary.withValues(alpha: 0.35)
-                                      : (isDark
-                                          ? AppColors.darkBorder
-                                          : AppColors.lightBorder),
-                                  width: 1.0,
-                                ),
-                              ),
-                              child: Icon(
-                                module.isBookmarked
-                                    ? Icons.bookmark_rounded
-                                    : Icons.bookmark_border_rounded,
-                                size: 17.0,
-                                color: module.isBookmarked
-                                    ? AppColors.primary
-                                    : textSecondary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  LanguageAvatarStack(
+                    languages: module.stack.isNotEmpty
+                        ? module.stack
+                        : <String>[module.language],
+                    maxVisible: 3,
+                    size: 26.0,
                   ),
-                  const SizedBox(height: 12.0),
-
-                  // Title & Description
-                  Text(
-                    module.title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: textPrimary,
-                      letterSpacing: -0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4.0),
-                  Text(
-                    module.description.isNotEmpty
-                        ? module.description
-                        : 'Master core programming concepts and hands-on challenges.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.0,
-                      color: textSecondary,
-                      height: 1.45,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12.0),
-
-                  // Mentor Info, Star Rating, & Topics count
                   Row(
                     children: <Widget>[
-                      if (module.coachAvatar != null && module.coachAvatar!.isNotEmpty)
-                        ClipOval(
-                          child: Image.network(
-                            module.coachAvatar!,
-                            width: 16.0,
-                            height: 16.0,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Icon(
-                              Icons.person_outline_rounded,
-                              size: 14.0,
-                              color: textSecondary,
+                      // "Done" Badge if Completed
+                      if (isCompleted) ...<Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7.0,
+                            vertical: 2.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6.0),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                              width: 0.8,
                             ),
                           ),
-                        )
-                      else
-                        Icon(
-                          Icons.person_outline_rounded,
-                          size: 14.0,
-                          color: textSecondary,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                size: 12.0,
+                                color: Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 3.5),
+                              Text(
+                                'Done',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF10B981),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      const SizedBox(width: 5.0),
-                      Text(
-                        module.coachName ?? 'AI Mentor',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: textPrimary.withValues(alpha: 0.8),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                        child: Text(
-                          '·',
-                          style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
-                        ),
-                      ),
-                      Icon(
-                        Icons.star_rounded,
-                        size: 14.0,
-                        color: const Color(0xFFF59E0B),
-                      ),
-                      const SizedBox(width: 2.0),
-                      Text(
-                        module.rating.toStringAsFixed(1),
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.0,
-                          fontWeight: FontWeight.w600,
-                          color: textSecondary,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                        child: Text(
-                          '·',
-                          style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
-                        ),
-                      ),
-                      Text(
-                        '${module.totalModules} Topics',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: textSecondary,
+                        const SizedBox(width: 6.0),
+                      ],
+
+                      // Bookmark Icon Button
+                      GestureDetector(
+                        onTap: handleToggleBookmark,
+                        behavior: HitTestBehavior.opaque,
+                        child: Container(
+                          width: 28.0,
+                          height: 28.0,
+                          decoration: BoxDecoration(
+                            color: module.isBookmarked
+                                ? AppColors.primary.withValues(alpha: 0.12)
+                                : (isDark
+                                    ? AppColors.darkSurface
+                                    : AppColors.lightSurfaceCard),
+                            borderRadius: BorderRadius.circular(7.0),
+                            border: Border.all(
+                              color: module.isBookmarked
+                                  ? AppColors.primary.withValues(alpha: 0.35)
+                                  : (isDark
+                                      ? AppColors.darkBorder
+                                      : AppColors.lightBorder),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Icon(
+                            module.isBookmarked
+                                ? Icons.bookmark_rounded
+                                : Icons.bookmark_border_rounded,
+                            size: 15.0,
+                            color: module.isBookmarked
+                                ? AppColors.primary
+                                : textSecondary,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 10.0),
 
-            // Hairline separator
-            Divider(
-              height: 1.0,
-              thickness: 1.0,
-              color: isDark
-                  ? AppColors.darkBorder.withValues(alpha: 0.5)
-                  : AppColors.lightBorder.withValues(alpha: 0.7),
-            ),
+              // Title & Description (Strict 2-line maximum)
+              Text(
+                module.title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15.0,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                  letterSpacing: -0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 3.0),
+              Text(
+                module.description.isNotEmpty
+                    ? module.description
+                    : 'Master core programming concepts and hands-on challenges.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  color: textSecondary,
+                  height: 1.4,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10.0),
 
-            // ── Card Footer (Progress & Full-width Action Button) ──
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Mentor Info, Star Rating, & Topics count (Unified baseline)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                  // Progress Track (Shown when enrolled)
-                  if (isEnrolled) ...<Widget>[
+                  if (module.coachAvatar != null && module.coachAvatar!.isNotEmpty)
+                    ClipOval(
+                      child: Image.network(
+                        module.coachAvatar!,
+                        width: 15.0,
+                        height: 15.0,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          Icons.person_outline_rounded,
+                          size: 13.5,
+                          color: textSecondary,
+                        ),
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.person_outline_rounded,
+                      size: 13.5,
+                      color: textSecondary,
+                    ),
+                  const SizedBox(width: 4.5),
+                  Flexible(
+                    child: Text(
+                      module.coachName ?? 'AI Mentor',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.0,
+                        fontWeight: FontWeight.w500,
+                        color: textPrimary.withValues(alpha: 0.8),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 5.0),
+                    child: Text(
+                      '·',
+                      style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.star_rounded,
+                    size: 13.5,
+                    color: Color(0xFFF59E0B),
+                  ),
+                  const SizedBox(width: 2.0),
+                  Text(
+                    module.rating.toStringAsFixed(1),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w600,
+                      color: textSecondary,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 5.0),
+                    child: Text(
+                      '·',
+                      style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
+                    ),
+                  ),
+                  Text(
+                    '${module.totalModules} Topics',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.0,
+                      fontWeight: FontWeight.w500,
+                      color: textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 11.0),
+
+              // Hairline separator
+              Divider(
+                height: 1.0,
+                thickness: 1.0,
+                color: isDark
+                    ? AppColors.darkBorder.withValues(alpha: 0.4)
+                    : AppColors.lightBorder.withValues(alpha: 0.6),
+              ),
+              const SizedBox(height: 11.0),
+
+              // ── Card Footer: Compact Horizontal Action (Matching Senior Dev Recommendations) ──
+              if (isEnrolled) ...<Widget>[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    // Progress Track
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: <Widget>[
+                              Text(
+                                'Progress',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: textSecondary,
+                                ),
+                              ),
+                              Text(
+                                '${module.completion}%',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 11.0,
+                                  fontWeight: FontWeight.w700,
+                                  color: isCompleted
+                                      ? const Color(0xFF10B981)
+                                      : textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4.0),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999.0),
+                            child: SizedBox(
+                              height: 4.0,
+                              child: LinearProgressIndicator(
+                                value: progressValue,
+                                backgroundColor: isDark
+                                    ? AppColors.darkSurface
+                                    : AppColors.lightBorder,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  isCompleted
+                                      ? const Color(0xFF10B981)
+                                      : AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 14.0),
+
+                    // Compact Action Button
+                    _buildCompactModuleActionButton(
+                      label: ctaLabel,
+                      isCompleted: isCompleted,
+                      isDark: isDark,
+                      textPrimary: textPrimary,
+                      onPressed: handleCardAction,
+                    ),
+                  ],
+                ),
+              ] else ...<Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
+                        Container(
+                          width: 5.0,
+                          height: 5.0,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.8),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5.0),
                         Text(
-                          'Progress',
+                          'Interactive Track',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11.0,
                             fontWeight: FontWeight.w600,
                             color: textSecondary,
                           ),
                         ),
-                        Text(
-                          '${module.completion}%',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: isCompleted
-                                ? AppColors.primary
-                                : textPrimary,
-                          ),
-                        ),
                       ],
                     ),
-                    const SizedBox(height: 6.0),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999.0),
-                      child: SizedBox(
-                        height: 5.0,
-                        child: LinearProgressIndicator(
-                          value: progressValue,
-                          backgroundColor: isDark
-                              ? AppColors.darkSurface
-                              : AppColors.lightBorder,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            isCompleted ? AppColors.primary : AppColors.primary.withValues(alpha: 0.9),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12.0),
-                  ],
 
-                  // Action Button (Full-width Shadcn Button)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 42.0,
-                    child: ElevatedButton(
+                    // Compact Action Button
+                    _buildCompactModuleActionButton(
+                      label: ctaLabel,
+                      isCompleted: isCompleted,
+                      isDark: isDark,
+                      textPrimary: textPrimary,
                       onPressed: handleCardAction,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isCompleted
-                            ? (isDark
-                                ? AppColors.darkSurface
-                                : AppColors.lightSurfaceCard)
-                            : AppColors.primary,
-                        foregroundColor: isCompleted
-                            ? textPrimary
-                            : (isDark ? AppColors.onPrimaryDark : Colors.white),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                          side: isCompleted
-                              ? BorderSide(
-                                  color: isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder,
-                                  width: 1.0,
-                                )
-                              : BorderSide.none,
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Text(
-                            ctaLabel,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 5.0),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 14.0,
-                          ),
-                        ],
-                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactModuleActionButton({
+    required String label,
+    required bool isCompleted,
+    required bool isDark,
+    required Color textPrimary,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      height: 32.0,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isCompleted
+              ? (isDark
+                  ? AppColors.darkSurface
+                  : AppColors.lightSurfaceCard)
+              : AppColors.primary,
+          foregroundColor: isCompleted
+              ? textPrimary
+              : (isDark ? AppColors.onPrimaryDark : Colors.white),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.0),
+            side: isCompleted
+                ? BorderSide(
+                    color: isDark
+                        ? AppColors.darkBorder
+                        : AppColors.lightBorder,
+                    width: 1.0,
+                  )
+                : BorderSide.none,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          visualDensity: VisualDensity.compact,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(width: 4.0),
+            const Icon(
+              Icons.arrow_forward_rounded,
+              size: 12.0,
             ),
           ],
         ),
@@ -829,93 +855,101 @@ class _ModulesScreenState extends State<ModulesScreen> {
         ? 'Try searching for a different language, keyword, or topic.'
         : _selectedCategory == 'bookmarked'
             ? 'Tap the bookmark icon on any module card to save it for quick access.'
-            : 'Modules published by mentors will appear here.';
+            : _selectedCategory == 'in-progress'
+                ? 'Start learning a module to track your progression here.'
+                : 'Modules published by mentors will appear here.';
 
     final bool hasFilterOrSearch =
         _selectedCategory != 'all' || _searchQuery.trim().isNotEmpty;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40.0, horizontal: 20.0),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1.0,
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 48.0,
-            height: 48.0,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurfaceCard,
-              borderRadius: BorderRadius.circular(14.0),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                width: 1.0,
+    final IconData emptyIcon = _selectedCategory == 'bookmarked'
+        ? Icons.bookmark_border_rounded
+        : _selectedCategory == 'completed'
+            ? Icons.check_circle_outline_rounded
+            : _selectedCategory == 'in-progress'
+                ? Icons.timelapse_rounded
+                : _searchQuery.trim().isNotEmpty
+                    ? Icons.filter_alt_off_rounded
+                    : Icons.layers_clear_outlined;
+
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 56.0,
+              height: 56.0,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.darkSurfaceCard
+                    : AppColors.lightSurfaceCard,
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor),
+              ),
+              child: Icon(
+                emptyIcon,
+                size: 26.0,
+                color: textSecondary,
               ),
             ),
-            child: Icon(
-              _selectedCategory == 'bookmarked'
-                  ? Icons.bookmark_border_rounded
-                  : Icons.layers_clear_outlined,
-              size: 22.0,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 14.0),
-          Text(
-            title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15.0,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4.0),
-          Text(
-            subtitle,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              color: textSecondary,
-              height: 1.45,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (hasFilterOrSearch) ...<Widget>[
             const SizedBox(height: 16.0),
-            ElevatedButton(
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                _searchController.clear();
-                setState(() {
-                  _searchQuery = '';
-                  _selectedCategory = 'all';
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            Text(
+              title,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16.0,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
               ),
-              child: Text(
-                'Clear Search & Filters',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 6.0),
+            Text(
+              subtitle,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: textSecondary,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (hasFilterOrSearch) ...<Widget>[
+              const SizedBox(height: 16.0),
+              OutlinedButton(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  _searchController.clear();
+                  setState(() {
+                    _searchQuery = '';
+                    _selectedCategory = 'all';
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: borderColor),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10.0,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+                child: Text(
+                  'Clear Filters',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
