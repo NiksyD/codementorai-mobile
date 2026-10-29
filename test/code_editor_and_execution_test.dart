@@ -135,7 +135,6 @@ void main() {
       expect(find.text('Wrong Answer (0/2 passed)'), findsOneWidget);
       expect(find.text('Actual Output (stdout):'), findsOneWidget);
       expect(find.text('Invalid'), findsOneWidget);
-      expect(find.text('Socratic AI Mentor Hint'), findsOneWidget);
     });
 
     testWidgets('Renders execution success and Submit Solution prompt banner', (

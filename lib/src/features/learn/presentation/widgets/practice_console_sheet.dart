@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../constants/app_colors.dart';
 import '../../domain/practice_exercise_model.dart';
@@ -63,10 +64,10 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color sheetBg = isDark ? AppColors.darkBackground : Colors.white;
-    final Color cardBg = isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9);
-    final Color borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
-    final Color textPrimary = isDark ? AppColors.darkTextPrimary : const Color(0xFF0F172A);
-    final Color textSecondary = isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B);
+    final Color cardBg = isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard;
+    final Color borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final Color textPrimary = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     final bool hasRun = widget.result != null;
     final bool isSuccess = widget.result?.isSuccess ?? false;
@@ -124,128 +125,56 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
             ),
           ),
 
-          // 3 sub-tabs matching Web BrowserIde: Testcase | Test Result | Console
+          // 3 sub-tabs matching My Activity Screen segment switcher: Testcase | Test Result | Console
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 18.0),
             padding: const EdgeInsets.all(3.0),
             decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(10.0),
+              color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+              borderRadius: BorderRadius.circular(12.0),
+              border: Border.all(color: borderColor),
             ),
             child: Row(
               children: <Widget>[
                 // Tab 1: Testcase
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _activeTab = 'testcases'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 7.0),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _activeTab == 'testcases'
-                            ? (isDark ? const Color(0xFF334155) : Colors.white)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(7.0),
-                        boxShadow: _activeTab == 'testcases'
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 4.0,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Text(
-                        'Testcase',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.0,
-                          fontWeight: _activeTab == 'testcases' ? FontWeight.w700 : FontWeight.w500,
-                          color: _activeTab == 'testcases' ? textPrimary : textSecondary,
-                        ),
-                      ),
-                    ),
+                  child: _buildConsoleTabButton(
+                    tabId: 'testcases',
+                    icon: Icons.checklist_rounded,
+                    label: 'Testcase',
+                    count: widget.testCases.isNotEmpty ? widget.testCases.length : null,
+                    isDark: isDark,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
                   ),
                 ),
+                const SizedBox(width: 3.0),
 
                 // Tab 2: Test Result
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _activeTab = 'results'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 7.0),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _activeTab == 'results'
-                            ? (isDark ? const Color(0xFF334155) : Colors.white)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(7.0),
-                        boxShadow: _activeTab == 'results'
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 4.0,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Text(
-                            'Test Result',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.0,
-                              fontWeight: _activeTab == 'results' ? FontWeight.w700 : FontWeight.w500,
-                              color: _activeTab == 'results' ? textPrimary : textSecondary,
-                            ),
-                          ),
-                          if (hasRun) ...<Widget>[
-                            const SizedBox(width: 5.0),
-                            Container(
-                              width: 6.0,
-                              height: 6.0,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSuccess ? const Color(0xFF10B981) : AppColors.error,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
+                  child: _buildConsoleTabButton(
+                    tabId: 'results',
+                    icon: Icons.fact_check_rounded,
+                    label: 'Test Result',
+                    statusDotColor: hasRun
+                        ? (isSuccess ? const Color(0xFF10B981) : AppColors.error)
+                        : null,
+                    isDark: isDark,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
                   ),
                 ),
+                const SizedBox(width: 3.0),
 
                 // Tab 3: Console
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _activeTab = 'log'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 7.0),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _activeTab == 'log'
-                            ? (isDark ? const Color(0xFF334155) : Colors.white)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(7.0),
-                        boxShadow: _activeTab == 'log'
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 4.0,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Text(
-                        'Console',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.0,
-                          fontWeight: _activeTab == 'log' ? FontWeight.w700 : FontWeight.w500,
-                          color: _activeTab == 'log' ? textPrimary : textSecondary,
-                        ),
-                      ),
-                    ),
+                  child: _buildConsoleTabButton(
+                    tabId: 'log',
+                    icon: Icons.terminal_rounded,
+                    label: 'Console',
+                    isDark: isDark,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
                   ),
                 ),
               ],
@@ -266,6 +195,98 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildConsoleTabButton({
+    required String tabId,
+    required IconData icon,
+    required String label,
+    int? count,
+    Color? statusDotColor,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final bool isSelected = _activeTab == tabId;
+    final Color selectedBg = isDark ? AppColors.darkSurface : Colors.white;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _activeTab = tabId);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+        decoration: BoxDecoration(
+          color: isSelected ? selectedBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(9.0),
+          boxShadow: isSelected
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                    blurRadius: 4.0,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(
+              icon,
+              size: 14.0,
+              color: isSelected ? AppColors.primary : textSecondary,
+            ),
+            const SizedBox(width: 4.5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? textPrimary : textSecondary,
+                ),
+              ),
+            ),
+            if (count != null) ...<Widget>[
+              const SizedBox(width: 4.0),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withValues(alpha: 0.12)
+                      : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
+                  borderRadius: BorderRadius.circular(999.0),
+                ),
+                child: Text(
+                  '$count',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? AppColors.primary : textSecondary,
+                  ),
+                ),
+              ),
+            ],
+            if (statusDotColor != null) ...<Widget>[
+              const SizedBox(width: 5.0),
+              Container(
+                width: 6.5,
+                height: 6.5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: statusDotColor,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -395,47 +416,64 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
         // Idle run prompt
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(10.0),
+            borderRadius: BorderRadius.circular(12.0),
             border: Border.all(color: borderColor),
           ),
           child: Row(
             children: <Widget>[
-              const Icon(
-                Icons.play_circle_outline_rounded,
-                size: 18.0,
-                color: AppColors.primary,
+              Container(
+                width: 32.0,
+                height: 32.0,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                child: const Icon(
+                  Icons.play_circle_outline_rounded,
+                  size: 18.0,
+                  color: AppColors.primary,
+                ),
               ),
-              const SizedBox(width: 10.0),
+              const SizedBox(width: 12.0),
               Expanded(
                 child: Text(
                   'Tap "Run Tests" to evaluate your code against all test cases.',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12.0,
+                    height: 1.35,
                     fontWeight: FontWeight.w500,
                     color: textSecondary,
                   ),
                 ),
               ),
-              if (widget.onRunCode != null)
-                ElevatedButton(
+              if (widget.onRunCode != null) ...<Widget>[
+                const SizedBox(width: 12.0),
+                ElevatedButton.icon(
                   onPressed: () {
                     Navigator.of(context).pop();
                     widget.onRunCode!();
                   },
+                  icon: const Icon(Icons.play_arrow_rounded, size: 15.0),
+                  label: const Text('Run Tests'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-                    visualDensity: VisualDensity.compact,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                    minimumSize: const Size(0, 36.0),
+                    textStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w700,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
                     ),
                   ),
-                  child: const Text('Run Tests', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
                 ),
+              ],
             ],
           ),
         ),
@@ -759,59 +797,6 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
             ),
           ),
         ),
-
-        // ── 7. Socratic AI Mentor Hint Banner if error occurred ───────────
-        if (!currentCasePassed) ...<Widget>[
-          const SizedBox(height: 16.0),
-          Container(
-            padding: const EdgeInsets.all(14.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12.0),
-              border: Border.all(
-                color: const Color(0xFF10B981).withValues(alpha: 0.25),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Icon(
-                  Icons.lightbulb_outline_rounded,
-                  color: Color(0xFF10B981),
-                  size: 18.0,
-                ),
-                const SizedBox(width: 10.0),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Socratic AI Mentor Hint',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF10B981),
-                        ),
-                      ),
-                      const SizedBox(height: 4.0),
-                      Text(
-                        activeCr?.error ??
-                            (widget.result!.socraticHint != null && widget.result!.socraticHint!.isNotEmpty
-                                ? widget.result!.socraticHint!
-                                : 'Your program did not produce the expected output. Compare expected and actual output to trace your logic.'),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.0,
-                          height: 1.45,
-                          color: textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }

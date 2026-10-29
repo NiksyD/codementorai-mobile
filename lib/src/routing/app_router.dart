@@ -175,7 +175,19 @@ final GoRouter appRouter = GoRouter(
           const AssessmentsScreen(),
     ),
     GoRoute(
+      path: '/learn/assessments',
+      builder: (BuildContext context, GoRouterState state) =>
+          const AssessmentsScreen(),
+    ),
+    GoRoute(
       path: '/assessments/:id/take',
+      builder: (BuildContext context, GoRouterState state) {
+        final String assessmentId = state.pathParameters['id'] ?? '';
+        return AssessmentAttemptScreen(assessmentId: assessmentId);
+      },
+    ),
+    GoRoute(
+      path: '/learn/assessments/:id/take',
       builder: (BuildContext context, GoRouterState state) {
         final String assessmentId = state.pathParameters['id'] ?? '';
         return AssessmentAttemptScreen(assessmentId: assessmentId);
@@ -199,6 +211,13 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     GoRoute(
+      path: '/learn/modules/:id',
+      builder: (BuildContext context, GoRouterState state) {
+        final String moduleId = state.pathParameters['id'] ?? '';
+        return ModuleDetailScreen(moduleId: moduleId);
+      },
+    ),
+    GoRoute(
       path: '/modules/:id/practice/:exerciseId',
       builder: (BuildContext context, GoRouterState state) {
         final String moduleId = state.pathParameters['id'] ?? '';
@@ -210,7 +229,29 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     GoRoute(
+      path: '/learn/modules/:id/practice/:exerciseId',
+      builder: (BuildContext context, GoRouterState state) {
+        final String moduleId = state.pathParameters['id'] ?? '';
+        final String exerciseId = state.pathParameters['exerciseId'] ?? '';
+        return PracticeScreen(
+          moduleId: moduleId,
+          exerciseId: exerciseId,
+        );
+      },
+    ),
+    GoRoute(
       path: '/modules/:id/challenges/:challengeId',
+      builder: (BuildContext context, GoRouterState state) {
+        final String moduleId = state.pathParameters['id'] ?? '';
+        final String challengeId = state.pathParameters['challengeId'] ?? '';
+        return ChallengeScreen(
+          moduleId: moduleId,
+          challengeId: challengeId,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/learn/modules/:id/challenges/:challengeId',
       builder: (BuildContext context, GoRouterState state) {
         final String moduleId = state.pathParameters['id'] ?? '';
         final String challengeId = state.pathParameters['challengeId'] ?? '';

@@ -17,6 +17,7 @@ import '../data/supabase_pathway_repository.dart';
 import '../domain/assessment_model.dart';
 import '../domain/learn_dashboard_data.dart';
 import '../domain/pathway_model.dart';
+import 'widgets/assessment_preview_sheet.dart';
 import 'widgets/competency_profile_view.dart';
 
 class ActivityScreen extends StatefulWidget {
@@ -917,92 +918,114 @@ class _ActivityScreenState extends State<ActivityScreen> {
           context.push('/learn/modules/${module.id}');
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+          padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 4.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // Row 1: LanguageAvatarStack + Title + Type badge + Mastered badge
+              // Row 1: LanguageAvatarStack + Title & Description + Badges
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  LanguageAvatarStack(
-                    languages: module.stack,
-                    size: 24.0,
-                    maxVisible: 2,
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2.0),
+                    child: LanguageAvatarStack(
+                      languages: module.stack,
+                      size: 26.0,
+                      maxVisible: 2,
+                    ),
                   ),
-                  const SizedBox(width: 10.0),
+                  const SizedBox(width: 12.0),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Flexible(
+                            Expanded(
                               child: Text(
                                 module.title,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14.0,
                                   fontWeight: FontWeight.w700,
                                   color: textPrimary,
-                                  height: 1.25,
+                                  height: 1.3,
                                 ),
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const SizedBox(width: 6.0),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-                                borderRadius: BorderRadius.circular(4.0),
-                                border: Border.all(color: borderColor.withValues(alpha: 0.5)),
-                              ),
-                              child: Text(
-                                'MODULE',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 9.0,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.6,
-                                  color: textSecondary,
-                                ),
-                              ),
-                            ),
-                            if (isMastered) ...<Widget>[
-                              const SizedBox(width: 5.0),
+                            const SizedBox(width: 8.0),
+                            if (isMastered)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7.0,
+                                  vertical: 2.5,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4.0),
-                                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                                  color: const Color(0xFF10B981)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6.0),
+                                  border: Border.all(
+                                    color: const Color(0xFF10B981)
+                                        .withValues(alpha: 0.3),
+                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: <Widget>[
-                                    const Icon(Icons.check_circle_rounded, size: 10.0, color: Color(0xFF10B981)),
-                                    const SizedBox(width: 3.0),
+                                    const Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 11.0,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                    const SizedBox(width: 3.5),
                                     Text(
                                       'Mastered',
                                       style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 9.0,
+                                        fontSize: 9.5,
                                         fontWeight: FontWeight.w700,
                                         color: const Color(0xFF10B981),
                                       ),
                                     ),
                                   ],
                                 ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7.0,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? AppColors.darkSurfaceCard
+                                      : AppColors.lightSurfaceCard,
+                                  borderRadius: BorderRadius.circular(6.0),
+                                  border: Border.all(
+                                    color: borderColor.withValues(alpha: 0.6),
+                                  ),
+                                ),
+                                child: Text(
+                                  'MODULE',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 9.0,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.6,
+                                    color: textSecondary,
+                                  ),
+                                ),
                               ),
-                            ],
                           ],
                         ),
                         if (module.description.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 3.0),
+                          const SizedBox(height: 4.0),
                           Text(
                             module.description,
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
+                              fontSize: 12.0,
                               color: textSecondary,
+                              height: 1.35,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1013,30 +1036,35 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8.0),
+              const SizedBox(height: 12.0),
 
               // Row 2: Strict Progress Bar (No clamping per AGENTS.md)
               ClipRRect(
                 borderRadius: BorderRadius.circular(999.0),
                 child: LinearProgressIndicator(
                   value: module.completion / 100.0,
-                  minHeight: 4.5,
-                  backgroundColor: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  minHeight: 4.0,
+                  backgroundColor: isDark
+                      ? AppColors.darkBorder.withValues(alpha: 0.6)
+                      : AppColors.lightBorder.withValues(alpha: 0.8),
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    isMastered ? const Color(0xFF10B981) : AppColors.primary,
+                    isMastered
+                        ? const Color(0xFF10B981)
+                        : AppColors.primary,
                   ),
                 ),
               ),
-              const SizedBox(height: 8.0),
+              const SizedBox(height: 10.0),
 
-              // Row 3: Meta & CTA Button
+              // Row 3: Progress Meta & Action
               Row(
                 children: <Widget>[
                   Text(
                     '${module.completion}% complete',
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      fontWeight: isStarted ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 11.5,
+                      fontWeight:
+                          isStarted ? FontWeight.w700 : FontWeight.w500,
                       color: isStarted ? AppColors.primary : textSecondary,
                     ),
                   ),
@@ -1049,9 +1077,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
                             ? Icons.check_circle_outline_rounded
                             : Icons.play_arrow_rounded,
                         size: 14.0,
-                        color: isMastered ? const Color(0xFF10B981) : AppColors.primary,
+                        color: isMastered
+                            ? const Color(0xFF10B981)
+                            : AppColors.primary,
                       ),
-                      const SizedBox(width: 3.0),
+                      const SizedBox(width: 4.0),
                       Text(
                         isMastered
                             ? 'Review'
@@ -1059,16 +1089,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
                                 ? 'Continue Learning'
                                 : 'Start Learning',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
+                          fontSize: 12.0,
                           fontWeight: FontWeight.w700,
-                          color: isMastered ? const Color(0xFF10B981) : AppColors.primary,
+                          color: isMastered
+                              ? const Color(0xFF10B981)
+                              : AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(width: 2.0),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 11.0,
-                        color: isMastered ? const Color(0xFF10B981) : AppColors.primary,
                       ),
                     ],
                   ),
@@ -1097,96 +1123,124 @@ class _ActivityScreenState extends State<ActivityScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          HapticFeedback.selectionClick();
-          context.push('/learn/assessments/${asst.id}');
+          HapticFeedback.lightImpact();
+          AssessmentPreviewSheet.show(
+            context,
+            assessment: asst,
+            onStart: () {
+              context.push('/learn/assessments/${asst.id}/take');
+            },
+          );
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+          padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 4.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // Row 1: LanguageAvatarStack + Title + Type badge + Passed badge
+              // Row 1: LanguageAvatarStack + Title & Description + Badges
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  LanguageAvatarStack(
-                    languages: asst.stack,
-                    size: 24.0,
-                    maxVisible: 2,
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2.0),
+                    child: LanguageAvatarStack(
+                      languages: asst.stack,
+                      size: 26.0,
+                      maxVisible: 2,
+                    ),
                   ),
-                  const SizedBox(width: 10.0),
+                  const SizedBox(width: 12.0),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Flexible(
+                            Expanded(
                               child: Text(
                                 asst.title,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14.0,
                                   fontWeight: FontWeight.w700,
                                   color: textPrimary,
-                                  height: 1.25,
+                                  height: 1.3,
                                 ),
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const SizedBox(width: 6.0),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4.0),
-                                border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.25)),
-                              ),
-                              child: Text(
-                                'ASSESSMENT',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 9.0,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.6,
-                                  color: const Color(0xFFF59E0B),
-                                ),
-                              ),
-                            ),
-                            if (isPassed) ...<Widget>[
-                              const SizedBox(width: 5.0),
+                            const SizedBox(width: 8.0),
+                            if (isPassed)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7.0,
+                                  vertical: 2.5,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4.0),
-                                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                                  color: const Color(0xFF10B981)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6.0),
+                                  border: Border.all(
+                                    color: const Color(0xFF10B981)
+                                        .withValues(alpha: 0.3),
+                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: <Widget>[
-                                    const Icon(Icons.check_circle_rounded, size: 10.0, color: Color(0xFF10B981)),
-                                    const SizedBox(width: 3.0),
+                                    const Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 11.0,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                    const SizedBox(width: 3.5),
                                     Text(
                                       'Passed',
                                       style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 9.0,
+                                        fontSize: 9.5,
                                         fontWeight: FontWeight.w700,
                                         color: const Color(0xFF10B981),
                                       ),
                                     ),
                                   ],
                                 ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7.0,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF59E0B)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6.0),
+                                  border: Border.all(
+                                    color: const Color(0xFFF59E0B)
+                                        .withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Text(
+                                  'ASSESSMENT',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 9.0,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.6,
+                                    color: const Color(0xFFF59E0B),
+                                  ),
+                                ),
                               ),
-                            ],
                           ],
                         ),
                         if (asst.description.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 3.0),
+                          const SizedBox(height: 4.0),
                           Text(
                             asst.description,
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
+                              fontSize: 12.0,
                               color: textSecondary,
+                              height: 1.35,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1197,28 +1251,35 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8.0),
+              const SizedBox(height: 12.0),
 
-              // Row 2: Duration, Passing Score & Attempt Score
+              // Row 2: Duration, Passing Score & Attempt Score + Action
               Row(
                 children: <Widget>[
                   Text(
                     '${asst.durationMins}m · Pass ${asst.passingScore}%',
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
+                      fontSize: 11.5,
                       color: textSecondary,
                     ),
                   ),
                   if (hasAttempt && attemptScore != null) ...<Widget>[
                     const SizedBox(width: 6.0),
-                    Text('·', style: GoogleFonts.jetBrainsMono(color: textSecondary.withValues(alpha: 0.4))),
+                    Text(
+                      '·',
+                      style: GoogleFonts.jetBrainsMono(
+                        color: textSecondary.withValues(alpha: 0.4),
+                      ),
+                    ),
                     const SizedBox(width: 6.0),
                     Text(
                       'Score: $attemptScore%',
                       style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11.0,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
-                        color: isPassed ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                        color: isPassed
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFF59E0B),
                       ),
                     ),
                   ],
@@ -1226,19 +1287,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
+                      Icon(
+                        hasAttempt
+                            ? Icons.assignment_turned_in_outlined
+                            : Icons.timer_outlined,
+                        size: 13.5,
+                        color: const Color(0xFFF59E0B),
+                      ),
+                      const SizedBox(width: 4.0),
                       Text(
                         hasAttempt ? 'Review Test' : 'Take Assessment',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
+                          fontSize: 12.0,
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFFF59E0B),
                         ),
-                      ),
-                      const SizedBox(width: 2.0),
-                      const Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 11.0,
-                        color: Color(0xFFF59E0B),
                       ),
                     ],
                   ),
@@ -1710,13 +1773,13 @@ class _ActivityScreenState extends State<ActivityScreen> {
               Row(
                 children: <Widget>[
                   LanguageIcon(language: sub.language, size: 15.0),
-                  const SizedBox(width: 5.0),
+                  const SizedBox(width: 6.0),
                   Text(
                     sub.language.isNotEmpty
                         ? '${sub.language[0].toUpperCase()}${sub.language.substring(1)}'
                         : sub.language,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
+                      fontSize: 12.0,
                       fontWeight: FontWeight.w600,
                       color: textPrimary,
                     ),
@@ -1725,6 +1788,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
+                      const Icon(
+                        Icons.rate_review_outlined,
+                        size: 13.5,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 4.0),
                       Text(
                         'Review',
                         style: GoogleFonts.plusJakartaSans(
@@ -1732,12 +1801,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           fontWeight: FontWeight.w700,
                           color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(width: 2.0),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 12.0,
-                        color: AppColors.primary,
                       ),
                     ],
                   ),
