@@ -13,7 +13,7 @@ class CodeExecutionService {
   // Language IDs for Judge0 CE v1.14.0 (1:1 with Web)
   static const Map<String, int> judge0LanguageIds = <String, int>{
     'javascript': 102, // Node.js 22.08.0
-    'typescript': 101, // TypeScript 5.6.2
+    'php': 98,         // PHP 8.3.11
     'python': 100,     // Python 3.12.5
     'java': 91,        // Java JDK 17.0.6
     'cpp': 105,        // C++ GCC 14.1.0
@@ -24,6 +24,12 @@ class CodeExecutionService {
   /// Prepares code for execution (e.g. adding Java harness or Main class if needed)
   static String prepareCode(String code, String language) {
     final String langKey = language.toLowerCase().trim();
+    if (langKey == 'php') {
+      if (!code.trimLeft().startsWith('<?')) {
+        return '<?php\n$code';
+      }
+      return code;
+    }
     if (langKey != 'java') return code;
 
     String prepared = code;
@@ -128,7 +134,7 @@ class CodeExecutionService {
         isSuccess: false,
         rawLog: 'Unsupported language for execution: $language',
         errorTitle: 'Unsupported Language',
-        socraticHint: 'Select a supported language: Java, Python, JavaScript, TypeScript, C++, C, or C#.',
+        socraticHint: 'Select a supported language: Java, Python, JavaScript, PHP, C++, C, or C#.',
         passedTestCases: 0,
         totalTestCases: totalCount,
       );
@@ -180,6 +186,9 @@ class CodeExecutionService {
       final String timeStamp =
           '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 
+      final String? compilerOptions =
+          (langKey == 'c' || langKey == 'cpp') ? '-lm' : null;
+
       // Execute primary case first to verify compilation cleanly
       final TestCaseModel primaryCase = effectiveCases.first;
       final Map<String, dynamic> firstCaseRaw = await _submitJudge0(
@@ -187,6 +196,7 @@ class CodeExecutionService {
         langId: langId,
         stdin: primaryCase.input,
         expectedOutput: primaryCase.expectedOutput,
+        compilerOptions: compilerOptions,
       );
 
       final Map<dynamic, dynamic>? statusMap =
@@ -251,6 +261,7 @@ class CodeExecutionService {
           langId: langId,
           stdin: tc.input,
           expectedOutput: tc.expectedOutput,
+          compilerOptions: compilerOptions,
         ));
       }
 
@@ -362,6 +373,7 @@ class CodeExecutionService {
     required int langId,
     required String stdin,
     required String expectedOutput,
+    String? compilerOptions,
   }) async {
     final http.Response res = await http.post(
       Uri.parse(_judge0PublicUrl),
@@ -371,6 +383,8 @@ class CodeExecutionService {
         'language_id': langId,
         'stdin': stdin.isNotEmpty ? stdin : null,
         'expected_output': expectedOutput.isNotEmpty ? expectedOutput : null,
+        if (compilerOptions != null && compilerOptions.isNotEmpty)
+          'compiler_options': compilerOptions,
       }),
     ).timeout(const Duration(seconds: 12));
 

@@ -563,8 +563,8 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
               itemBuilder: (BuildContext ctx) => ch.languages.map((String lang) {
                 final String display = lang == 'javascript'
                     ? 'JavaScript'
-                    : lang == 'typescript'
-                        ? 'TypeScript'
+                    : lang == 'php'
+                        ? 'PHP'
                         : lang == 'cpp'
                             ? 'C++'
                             : lang == 'csharp'

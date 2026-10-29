@@ -103,9 +103,8 @@ class _ActivitySubmissionReviewScreenState
       case 'javascript':
       case 'js':
         return '${prefix.toLowerCase()}.js';
-      case 'typescript':
-      case 'ts':
-        return '${prefix.toLowerCase()}.ts';
+      case 'php':
+        return '${prefix.toLowerCase()}.php';
       case 'cpp':
       case 'c++':
         return '${prefix.toLowerCase()}.cpp';

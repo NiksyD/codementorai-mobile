@@ -493,8 +493,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
               itemBuilder: (BuildContext ctx) => ex.languages.map((String lang) {
                 final String display = lang == 'javascript'
                     ? 'JavaScript'
-                    : lang == 'typescript'
-                        ? 'TypeScript'
+                    : lang == 'php'
+                        ? 'PHP'
                         : lang == 'cpp'
                             ? 'C++'
                             : lang == 'csharp'

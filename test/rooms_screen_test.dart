@@ -43,8 +43,8 @@ void main() {
       name: 'Web Dev Cohort 2026',
       section: 'CS-101',
       joinCode: 'WD2026',
-      targetLanguage: 'typescript',
-      description: 'Full-stack TypeScript and React collaborative cohort.',
+      targetLanguage: 'php',
+      description: 'Full-stack PHP and backend engineering collaborative cohort.',
       status: 'active',
       mentorName: 'Sarah Connor',
       curriculumModules: <RoomModuleSummary>[

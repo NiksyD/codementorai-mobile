@@ -211,7 +211,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                         title: 'Guided Practice',
                         price: 'Free',
                         description:
-                            'Core curriculum with structured guided exercises and daily AI hints.',
+                            'Core practice exercises with structured guided tasks and daily AI hints.',
                         perks: const <String>[
                           'Guided Lessons & Sandbox',
                           '5 Daily AI Mentor Hints',
@@ -227,8 +227,8 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
                       _buildPlanCard(
                         id: 'pro',
                         title: 'Complete Mastery',
-                        price: CurrencyFormatter.formatConvertedPhp(proPrice),
-                        subPrice: '${CurrencyFormatter.formatCodeCoins(proPrice)} (≈ \$${proPrice.toStringAsFixed(0)} USD)',
+                        price: CurrencyFormatter.formatCodeCoins(proPrice),
+                        subPrice: '≈ \$${proPrice.toStringAsFixed(0)} USD',
                         badge: 'RECOMMENDED',
                         description:
                             'Unlock algorithmic challenges, unlimited AI code reviews, and certification.',
@@ -378,63 +378,71 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 18.0,
-                      height: 18.0,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected ? AppColors.primary : Colors.transparent,
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.primary
-                              : textSecondary.withValues(alpha: 0.5),
-                          width: 1.5,
+                // Radio Indicator
+                Container(
+                  width: 18.0,
+                  height: 18.0,
+                  margin: const EdgeInsets.only(top: 2.0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? AppColors.primary : Colors.transparent,
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primary
+                          : textSecondary.withValues(alpha: 0.5),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(
+                          Icons.check,
+                          size: 12.0,
+                          color: Colors.white,
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 10.0),
+                // Title and Badge (Responsive Wrap inside Expanded)
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8.0,
+                    runSpacing: 4.0,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
                         ),
                       ),
-                      child: isSelected
-                          ? const Icon(
-                              Icons.check,
-                              size: 12.0,
-                              color: Colors.white,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 10.0),
-                    Text(
-                      title,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
-                    ),
-                    if (badge != null) ...<Widget>[
-                      const SizedBox(width: 8.0),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6.0,
-                          vertical: 2.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6.0),
-                        ),
-                        child: Text(
-                          badge,
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 9.0,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primary,
+                      if (badge != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6.0,
+                            vertical: 2.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6.0),
+                          ),
+                          child: Text(
+                            badge,
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 9.0,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                            ),
                           ),
                         ),
-                      ),
                     ],
-                  ],
+                  ),
                 ),
+                const SizedBox(width: 8.0),
+                // Price & USD equivalent column
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,

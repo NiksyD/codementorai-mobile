@@ -100,9 +100,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       desc: 'Web Development',
     ),
     TargetLanguageOption(
-      id: 'typescript',
-      label: 'TypeScript',
-      desc: 'Typed Web Apps',
+      id: 'php',
+      label: 'PHP',
+      desc: 'Modern Backend',
     ),
     TargetLanguageOption(id: 'java', label: 'Java', desc: 'Object-Oriented'),
     TargetLanguageOption(id: 'cpp', label: 'C++', desc: 'High Performance'),

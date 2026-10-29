@@ -43,13 +43,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   static const List<String> _languages = <String>[
     'Python',
     'JavaScript',
-    'TypeScript',
+    'PHP',
     'Dart / Flutter',
     'C++',
     'Java',
     'Go',
     'Rust',
-    'PHP',
     'C#',
   ];
 

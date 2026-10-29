@@ -1045,7 +1045,7 @@ class SupabasePathwayRepository implements PathwayRepository {
         'java',
         'python',
         'javascript',
-        'typescript',
+        'php',
         'cpp',
         'c',
         'csharp',
@@ -1090,7 +1090,7 @@ class SupabasePathwayRepository implements PathwayRepository {
         'java': 'public class Solution {\n    public static void main(String[] args) {\n        // TODO: Implement solution logic\n    }\n}',
         'python': 'def solve():\n    # TODO: Implement solution logic\n    pass\n\nif __name__ == "__main__":\n    solve()',
         'javascript': 'function solve() {\n  // TODO: Implement solution logic\n}\n\nsolve();',
-        'typescript': 'function solve(): void {\n  // TODO: Implement solution logic\n}\n\nsolve();',
+        'php': '<?php\n\nfunction solve() {\n  // TODO: Implement solution logic\n}\n\nsolve();',
         'cpp': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
         'c': '#include <stdio.h>\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
         'csharp': 'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // TODO: Implement solution logic\n    }\n}',
@@ -1110,8 +1110,8 @@ class SupabasePathwayRepository implements PathwayRepository {
             'def solve():\n    pass\n\nif __name__ == "__main__":\n    solve()',
         'javascript':
             'function solve() {\n}\n\nsolve();',
-        'typescript':
-            'function solve(): void {\n}\n\nsolve();',
+        'php':
+            '<?php\n\nfunction solve() {\n}\n\nsolve();',
       };
 
       // Mapped test cases
@@ -1461,7 +1461,7 @@ Your program must compile without syntax errors and pass the validation test cas
         'java',
         'python',
         'javascript',
-        'typescript',
+        'php',
         'cpp',
         'c',
         'csharp',
@@ -1506,7 +1506,7 @@ Your program must compile without syntax errors and pass the validation test cas
         'java': 'public class Solution {\n    public static void main(String[] args) {\n        // TODO: Implement solution logic\n    }\n}',
         'python': 'def solve():\n    # TODO: Implement solution logic\n    pass\n\nif __name__ == "__main__":\n    solve()',
         'javascript': 'function solve() {\n  // TODO: Implement solution logic\n}\n\nsolve();',
-        'typescript': 'function solve(): void {\n  // TODO: Implement solution logic\n}\n\nsolve();',
+        'php': '<?php\n\nfunction solve() {\n  // TODO: Implement solution logic\n}\n\nsolve();',
         'cpp': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
         'c': '#include <stdio.h>\n\nint main() {\n    // TODO: Implement solution logic\n    return 0;\n}',
         'csharp': 'using System;\n\npublic class Solution {\n    public static void Main(string[] args) {\n        // TODO: Implement solution logic\n    }\n}',
@@ -1526,8 +1526,8 @@ Your program must compile without syntax errors and pass the validation test cas
             'def solve():\n    pass\n\nif __name__ == "__main__":\n    solve()',
         'javascript':
             'function solve() {\n}\n\nsolve();',
-        'typescript':
-            'function solve(): void {\n}\n\nsolve();',
+        'php':
+            '<?php\n\nfunction solve() {\n}\n\nsolve();',
       };
 
       // Mapped test cases

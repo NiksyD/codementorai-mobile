@@ -96,19 +96,12 @@ class LanguageIcon extends StatelessWidget {
       backgroundColor: Color(0x1FF7DF1E),
       fallbackIcon: Icons.javascript_rounded,
     ),
-    'typescript': LanguageConfig(
-      name: 'TypeScript',
-      logoUrl: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg',
-      color: Color(0xFF3178C6),
-      backgroundColor: Color(0x1F3178C6),
-      fallbackIcon: Icons.data_object_rounded,
-    ),
-    'ts': LanguageConfig(
-      name: 'TypeScript',
-      logoUrl: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg',
-      color: Color(0xFF3178C6),
-      backgroundColor: Color(0x1F3178C6),
-      fallbackIcon: Icons.data_object_rounded,
+    'php': LanguageConfig(
+      name: 'PHP',
+      logoUrl: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg',
+      color: Color(0xFF777BB4),
+      backgroundColor: Color(0x1F777BB4),
+      fallbackIcon: Icons.code_rounded,
     ),
     'go': LanguageConfig(
       name: 'Go',
