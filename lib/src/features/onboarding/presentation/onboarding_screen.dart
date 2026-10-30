@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
 import '../../../constants/app_colors.dart';
+import '../../auth/data/auth_repository.dart';
+import '../../auth/data/supabase_auth_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/data/supabase_profile_repository.dart';
 import '../../profile/domain/profile_model.dart';
@@ -16,9 +18,11 @@ class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
     super.key,
     this.profileRepository = const SupabaseProfileRepository(),
+    this.authRepository = const SupabaseAuthRepository(),
   });
 
   final ProfileRepository profileRepository;
+  final AuthRepository authRepository;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -240,6 +244,74 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  Future<void> _handleSignOut() async {
+    HapticFeedback.mediumImpact();
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          title: Text(
+            'Sign Out',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 17.0,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to sign out and return to the login screen?',
+            style: GoogleFonts.plusJakartaSans(fontSize: 13.5),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+              ),
+              child: Text(
+                'Sign Out',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await widget.authRepository.signOut();
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      AppToast.showSuccess(context, 'Signed out successfully');
+      context.go('/login');
+    } catch (error) {
+      if (!mounted) return;
+      AppToast.showError(context, 'Failed to sign out: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -263,25 +335,63 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       child: Scaffold(
         backgroundColor: backgroundColor,
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 24.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Text(
-                    'Welcome to CodeMentorAI',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 24.0,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      color: textPrimary,
+          child: Column(
+            children: <Widget>[
+              // Top Action Bar with Sign Out
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    const SizedBox(width: 40.0),
+                    TextButton.icon(
+                      onPressed: _isLoading ? null : _handleSignOut,
+                      icon: Icon(
+                        Icons.logout_rounded,
+                        size: 15.0,
+                        color: textSecondary,
+                      ),
+                      label: Text(
+                        'Sign Out',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.0,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12.0,
+                          vertical: 6.0,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+                  ],
+                ),
+              ),
+
+              // Main Content
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Text(
+                          'Welcome to CodeMentorAI',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 24.0,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                            color: textPrimary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                   const SizedBox(height: 8.0),
                   Text(
                     'Personalize your developer identity to get started',
@@ -654,12 +764,36 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             ),
                     ),
                   ),
+                  const SizedBox(height: 12.0),
+
+                  // Secondary Sign Out / Exit button
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _isLoading ? null : _handleSignOut,
+                      icon: Icon(
+                        Icons.logout_rounded,
+                        size: 15.0,
+                        color: textSecondary,
+                      ),
+                      label: Text(
+                        'Sign in with a different account',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.0,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  ),
+),
+);
+}
 }
