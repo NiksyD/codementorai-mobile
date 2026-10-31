@@ -63,13 +63,32 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
+      const profileRepo = SupabaseProfileRepository();
+      final profile = await profileRepo.getProfile(user.id);
+
+      // Restrict access: mobile is strictly for learners. Mentors and Admins must use the web portal.
+      if (!SupabaseProfileRepository.isRoleAllowedOnMobile(profile?.role)) {
+        await widget.authRepository.signOut();
+        if (!mounted) return;
+        HapticFeedback.heavyImpact();
+        const String restrictedMsg =
+            'Access restricted. Mentor and Admin workspaces are available on the web portal only.';
+        setState(() {
+          _errorMessage = restrictedMsg;
+        });
+        AppToast.showError(context, restrictedMsg);
+        return;
+      }
+
       if (!mounted) return;
 
       HapticFeedback.mediumImpact();
       AppToast.showSuccess(context, 'Signed in successfully!');
 
-      const profileRepo = SupabaseProfileRepository();
-      final bool hasCompleted = await profileRepo.hasCompletedProfile(user.id);
+      final bool hasCompleted =
+          profile?.userOnboarded ??
+          ((profile?.firstName?.isNotEmpty ?? false) &&
+              (profile?.lastName?.isNotEmpty ?? false));
       if (!mounted) return;
 
       if (!hasCompleted) {

@@ -132,4 +132,13 @@ class SupabaseProfileRepository implements ProfileRepository {
     return (profile.firstName?.isNotEmpty ?? false) &&
         (profile.lastName?.isNotEmpty ?? false);
   }
+
+  /// Verifies if a user is authorized to access the mobile application.
+  /// Mobile is strictly scoped for learners (`learner` or legacy `student`).
+  /// Admins and mentors must access their workspaces via the web portal.
+  static bool isRoleAllowedOnMobile(String? role) {
+    if (role == null || role.trim().isEmpty) return true; // Default fallback to learner
+    final normalized = role.trim().toLowerCase();
+    return normalized != 'mentor' && normalized != 'admin';
+  }
 }

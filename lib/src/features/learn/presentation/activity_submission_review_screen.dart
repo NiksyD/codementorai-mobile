@@ -879,7 +879,7 @@ class _ActivitySubmissionReviewScreenState
 
         if (selectedCriterion.improvements.isNotEmpty) ...<Widget>[
           Text(
-            'OPPORTUNITIES',
+            'IMPROVEMENTS',
             style: GoogleFonts.jetBrainsMono(
               fontSize: 10.0,
               fontWeight: FontWeight.w800,

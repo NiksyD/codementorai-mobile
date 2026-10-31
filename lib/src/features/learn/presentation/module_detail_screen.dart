@@ -12,7 +12,6 @@ import '../data/supabase_pathway_repository.dart';
 import '../domain/module_detail_model.dart';
 import '../domain/module_review_model.dart';
 import '../domain/pathway_model.dart';
-import 'widgets/mentor_profile_sheet.dart';
 import 'widgets/module_detail_skeleton.dart';
 import 'widgets/module_preview_sheet.dart';
 import 'widgets/module_review_modal.dart';
@@ -205,16 +204,6 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
     }
   }
 
-  void _handleOpenMentorProfile() {
-    if (_module == null) return;
-    HapticFeedback.lightImpact();
-    MentorProfileSheet.show(
-      context,
-      coachName: _module!.coachName,
-      coachAvatar: _module!.coachAvatar,
-      rating: _effectiveRating,
-    );
-  }
 
   Future<void> _handleOpenReviewModal() async {
     HapticFeedback.lightImpact();
@@ -746,27 +735,23 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                     spacing: 8.0,
                     runSpacing: 6.0,
                     children: <Widget>[
-                      // Mentor Chip
-                      InkWell(
-                        onTap: _handleOpenMentorProfile,
-                        borderRadius: BorderRadius.circular(6.0),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2.0),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              _buildCoachAvatar(mod.coachName, mod.coachAvatar, 9.0),
-                              const SizedBox(width: 6.0),
-                              Text(
-                                'By ${mod.coachName}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: textPrimary,
-                                ),
+                      // Mentor Info (Static)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            _buildCoachAvatar(mod.coachName, mod.coachAvatar, 9.0),
+                            const SizedBox(width: 6.0),
+                            Text(
+                              'By ${mod.coachName}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: textPrimary,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
 

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../common_widgets/app_toast.dart';
 import '../../../constants/app_colors.dart';
 import '../data/auth_repository.dart';
 import '../data/password_reset_storage.dart';
@@ -145,6 +146,19 @@ class _SplashScreenState extends State<SplashScreen>
         if (!mounted) return;
 
         final ProfileModel? profile = results[0] as ProfileModel?;
+
+        // Restrict access: mobile is strictly for learners. Mentors and Admins must use the web portal.
+        if (!SupabaseProfileRepository.isRoleAllowedOnMobile(profile?.role)) {
+          await widget.authRepository.signOut();
+          if (!mounted) return;
+          AppToast.showError(
+            context,
+            'Access restricted. Mentor and Admin workspaces are available on the web portal only.',
+          );
+          context.go('/login');
+          return;
+        }
+
         final bool hasCompleted =
             profile?.userOnboarded ??
             ((profile?.firstName?.isNotEmpty ?? false) &&
