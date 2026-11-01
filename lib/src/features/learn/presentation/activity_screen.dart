@@ -40,7 +40,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
   int _activeSegment = 1; // 0 = Active Learning, 1 = Submissions Log, 2 = Competency Profile
   List<PathwayModel> _enrolledModules = <PathwayModel>[];
   List<AssessmentModel> _activeAssessments = <AssessmentModel>[];
-  String _activeLearningFilter = 'all'; // 'all', 'in-progress', 'completed', 'assessments'
+  String _activeLearningFilter = 'all'; // 'all', 'modules', 'assessments', 'in-progress', 'completed'
+  String _activeLearningType = 'all'; // 'all', 'modules', 'assessments'
   String _activeLearningSearch = '';
   final TextEditingController _activeLearningSearchController = TextEditingController();
 
@@ -166,6 +167,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
   int get _inProgressModulesCount =>
       _enrolledModules.where((PathwayModel p) => p.completion > 0 && p.completion < 100).length;
 
+  int get _inProgressAssessmentsCount => _activeAssessments.where((AssessmentModel a) {
+        final Map<String, dynamic>? att = _getAttemptForAssessment(a.id);
+        return att != null && att['status'] == 'in_progress';
+      }).length;
+
+  int get _completedAssessmentsCount => _activeAssessments.where((AssessmentModel a) {
+        final Map<String, dynamic>? att = _getAttemptForAssessment(a.id);
+        return att != null && att['score'] != null && (att['score'] as num) >= a.passingScore;
+      }).length;
+
   int get _avgCompletion {
     if (_enrolledModules.isEmpty) return 0;
     final int sum = _enrolledModules.fold<int>(0, (int acc, PathwayModel p) => acc + p.completion);
@@ -174,14 +185,25 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   List<FilterTabItem> get _activeLearningFilterTabs => <FilterTabItem>[
     FilterTabItem(id: 'all', label: 'All', count: _totalActiveCount),
-    FilterTabItem(id: 'in-progress', label: 'In Progress', count: _inProgressModulesCount),
-    FilterTabItem(id: 'completed', label: 'Mastered', count: _completedModulesCount),
+    FilterTabItem(id: 'modules', label: 'Modules', count: _enrolledModules.length),
     if (_activeAssessments.isNotEmpty)
       FilterTabItem(id: 'assessments', label: 'Assessments', count: _activeAssessments.length),
+    FilterTabItem(
+      id: 'in-progress',
+      label: 'In Progress',
+      count: _inProgressModulesCount + _inProgressAssessmentsCount,
+    ),
+    FilterTabItem(
+      id: 'completed',
+      label: 'Mastered',
+      count: _completedModulesCount + _completedAssessmentsCount,
+    ),
   ];
 
   List<PathwayModel> get _filteredEnrolledModules {
-    if (_activeLearningFilter == 'assessments') return const <PathwayModel>[];
+    if (_activeLearningType == 'assessments' || _activeLearningFilter == 'assessments') {
+      return const <PathwayModel>[];
+    }
     return _enrolledModules.where((PathwayModel p) {
       if (_activeLearningFilter == 'in-progress' && (p.completion <= 0 || p.completion >= 100)) return false;
       if (_activeLearningFilter == 'completed' && p.completion < 100) return false;
@@ -198,6 +220,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   List<AssessmentModel> get _filteredAssessments {
+    if (_activeLearningType == 'modules' || _activeLearningFilter == 'modules') {
+      return const <AssessmentModel>[];
+    }
     return _activeAssessments.where((AssessmentModel a) {
       final Map<String, dynamic>? att = _getAttemptForAssessment(a.id);
       final bool isPassed = att != null &&
@@ -660,8 +685,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 tabs: _activeLearningFilterTabs,
                 selectedId: _activeLearningFilter,
                 onTabSelected: (String tabId) {
+                  HapticFeedback.selectionClick();
                   setState(() {
                     _activeLearningFilter = tabId;
+                    if (tabId == 'modules') {
+                      _activeLearningType = 'modules';
+                    } else if (tabId == 'assessments') {
+                      _activeLearningType = 'assessments';
+                    } else if (tabId == 'all') {
+                      _activeLearningType = 'all';
+                    }
                   });
                 },
               ),
@@ -670,42 +703,54 @@ class _ActivityScreenState extends State<ActivityScreen> {
         ),
         const SizedBox(height: 12.0),
 
-        // Search Input
-        Container(
-          height: 38.0,
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-            borderRadius: BorderRadius.circular(10.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: TextField(
-            controller: _activeLearningSearchController,
-            onChanged: (String val) {
-              setState(() {
-                _activeLearningSearch = val;
-              });
-            },
-            style: GoogleFonts.plusJakartaSans(fontSize: 12.0, color: textPrimary),
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 9.0),
-              hintText: 'Search active modules & assessments...',
-              hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12.0, color: textSecondary),
-              prefixIcon: Icon(Icons.search_rounded, size: 17.0, color: textSecondary),
-              suffixIcon: _activeLearningSearch.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.close_rounded, size: 15.0, color: textSecondary),
-                      onPressed: () {
-                        _activeLearningSearchController.clear();
-                        setState(() {
-                          _activeLearningSearch = '';
-                        });
-                      },
-                    )
-                  : null,
-              border: InputBorder.none,
+        // Search Input & Type Filter Dropdown
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Container(
+                height: 38.0,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+                  borderRadius: BorderRadius.circular(10.0),
+                  border: Border.all(color: borderColor),
+                ),
+                child: TextField(
+                  controller: _activeLearningSearchController,
+                  onChanged: (String val) {
+                    setState(() {
+                      _activeLearningSearch = val;
+                    });
+                  },
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12.0, color: textPrimary),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 9.0),
+                    hintText: 'Search active modules & assessments...',
+                    hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12.0, color: textSecondary),
+                    prefixIcon: Icon(Icons.search_rounded, size: 17.0, color: textSecondary),
+                    suffixIcon: _activeLearningSearch.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.close_rounded, size: 15.0, color: textSecondary),
+                            onPressed: () {
+                              _activeLearningSearchController.clear();
+                              setState(() {
+                                _activeLearningSearch = '';
+                              });
+                            },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: 8.0),
+            _buildActiveLearningTypeDropdown(
+              isDark: isDark,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+            ),
+          ],
         ),
         const SizedBox(height: 16.0),
 
@@ -871,6 +916,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   HapticFeedback.selectionClick();
                   setState(() {
                     _activeLearningFilter = 'all';
+                    _activeLearningType = 'all';
                     _activeLearningSearch = '';
                     _activeLearningSearchController.clear();
                   });
@@ -894,6 +940,136 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveLearningTypeDropdown({
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final String currentLabel = _activeLearningType == 'modules'
+        ? 'Modules (${_enrolledModules.length})'
+        : _activeLearningType == 'assessments'
+            ? 'Assessments (${_activeAssessments.length})'
+            : 'All Types ($_totalActiveCount)';
+
+    return PopupMenuButton<String>(
+      onSelected: (String val) {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _activeLearningType = val;
+          if (val == 'modules' || val == 'assessments') {
+            _activeLearningFilter = val;
+          } else if (_activeLearningFilter == 'modules' || _activeLearningFilter == 'assessments') {
+            _activeLearningFilter = 'all';
+          }
+        });
+      },
+      color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        side: BorderSide(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'all',
+          child: Row(
+            children: <Widget>[
+              Icon(
+                Icons.grid_view_rounded,
+                size: 14.0,
+                color: _activeLearningType == 'all' ? AppColors.primary : textSecondary,
+              ),
+              const SizedBox(width: 8.0),
+              Text(
+                'All Types ($_totalActiveCount)',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  fontWeight: _activeLearningType == 'all' ? FontWeight.w700 : FontWeight.w500,
+                  color: _activeLearningType == 'all' ? AppColors.primary : textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'modules',
+          child: Row(
+            children: <Widget>[
+              Icon(
+                Icons.layers_rounded,
+                size: 14.0,
+                color: _activeLearningType == 'modules' ? AppColors.primary : textSecondary,
+              ),
+              const SizedBox(width: 8.0),
+              Text(
+                'Modules (${_enrolledModules.length})',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  fontWeight: _activeLearningType == 'modules' ? FontWeight.w700 : FontWeight.w500,
+                  color: _activeLearningType == 'modules' ? AppColors.primary : textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_activeAssessments.isNotEmpty)
+          PopupMenuItem<String>(
+            value: 'assessments',
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  Icons.emoji_events_rounded,
+                  size: 14.0,
+                  color: _activeLearningType == 'assessments' ? AppColors.primary : textSecondary,
+                ),
+                const SizedBox(width: 8.0),
+                Text(
+                  'Assessments (${_activeAssessments.length})',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.0,
+                    fontWeight:
+                        _activeLearningType == 'assessments' ? FontWeight.w700 : FontWeight.w500,
+                    color: _activeLearningType == 'assessments' ? AppColors.primary : textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        height: 38.0,
+        padding: const EdgeInsets.symmetric(horizontal: 10.0),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
+          borderRadius: BorderRadius.circular(10.0),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              currentLabel,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.0,
+                fontWeight: _activeLearningType != 'all' ? FontWeight.w700 : FontWeight.w500,
+                color: _activeLearningType != 'all' ? AppColors.primary : textSecondary,
+              ),
+            ),
+            const SizedBox(width: 4.0),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16.0,
+              color: textSecondary,
+            ),
           ],
         ),
       ),
