@@ -132,7 +132,7 @@ class _ModulePreviewSheetState extends State<ModulePreviewSheet> {
 
     final PathwayModel mod = widget.module;
     final double rawPrice = mod.price > 0 ? mod.price : 0.84;
-    final int priceCoins = (rawPrice * 100).round();
+    final int priceCoins = CurrencyFormatter.coinsFromUsd(rawPrice);
     final bool hasSufficientCoins = _walletBalance >= priceCoins;
     final int missingCoins = priceCoins - _walletBalance;
     final List<String> stack =

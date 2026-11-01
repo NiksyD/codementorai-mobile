@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/language_avatar_stack.dart';
 import '../../../constants/app_colors.dart';
+import '../../../utils/currency_formatter.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/module_detail_model.dart';
@@ -156,7 +157,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
       module: tempPathway,
       onEnroll: (String tier) async {
         final double effectivePrice = _module!.price > 0 ? _module!.price : 0.84;
-        final int priceCoins = (effectivePrice * 100).round();
+        final int priceCoins = CurrencyFormatter.coinsFromUsd(effectivePrice);
         final bool ok = await widget.pathwayRepository.unlockModuleWithCoins(
           userId,
           widget.moduleId,
@@ -837,7 +838,7 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
                                 ),
                                 const SizedBox(width: 3.5),
                                 Text(
-                                  '${((mod.price > 0 ? mod.price : 0.84) * 100).round()} Coins',
+                                  '${CurrencyFormatter.coinsFromUsd(mod.price > 0 ? mod.price : 0.84)} Coins',
                                   style: GoogleFonts.jetBrainsMono(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w700,

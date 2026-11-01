@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
+import '../../../utils/currency_formatter.dart';
 import '../data/code_execution_service.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
@@ -458,7 +459,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
 
     if (_isLocked && !_isLoading) {
       final double effectivePrice = _modulePrice > 0 ? _modulePrice : 0.84;
-      final int priceCoins = (effectivePrice * 100).round();
+      final int priceCoins = CurrencyFormatter.coinsFromUsd(effectivePrice);
       return PopScope(
         canPop: Navigator.of(context).canPop(),
         onPopInvokedWithResult: (bool didPop, dynamic result) {

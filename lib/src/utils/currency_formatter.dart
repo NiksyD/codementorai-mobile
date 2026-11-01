@@ -62,23 +62,31 @@ class CurrencyFormatter {
     return formatPHP(usdAmount * effectiveRate, showDecimals: showDecimals);
   }
 
-  /// Formats CodeCoins equivalent in PHP (100 coins = 1 USD -> converted to PHP).
-  /// Example: 1900 coins -> "₱1,102.00", 84 coins -> "₱49.00"
+  /// Formats CodeCoins equivalent in PHP (1 coin = 1 PHP baseline).
+  /// Example: 1900 coins -> "₱1,102.00", 49 coins -> "₱49.00"
   static String formatCoinsToPhp(int coins,
       {double? rate, bool showDecimals = true}) {
     if (coins <= 0) return 'Free';
-    if (coins == 84) {
+    if (coins == 49 || coins == 84) {
       return formatPHP(49.0, showDecimals: showDecimals);
     }
     return formatConvertedPhp(coins / 100.0,
         rate: rate, showDecimals: showDecimals);
   }
 
-  /// Formats amount in CodeCoins (1 USD = 100 CodeCoins)
+  /// Calculates CodeCoins for a given USD amount.
+  /// Baseline platform fee 0.84 USD (₱49.00 PHP) maps to 49 CodeCoins.
+  static int coinsFromUsd(double usdAmount) {
+    if (usdAmount <= 0) return 0;
+    if ((usdAmount - 0.84).abs() < 0.005) return 49;
+    return (usdAmount * 100).round();
+  }
+
+  /// Formats amount in CodeCoins (Platform fee baseline 0.84 USD = 49 CodeCoins)
   /// Example: 29.0 USD -> "2,900 CodeCoins"
   static String formatCodeCoins(double usdAmount) {
     if (usdAmount <= 0) return '0 Coins';
-    final int coins = (usdAmount * 100).round();
+    final int coins = coinsFromUsd(usdAmount);
     final String s = coins.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},',
