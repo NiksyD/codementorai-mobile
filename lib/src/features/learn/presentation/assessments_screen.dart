@@ -11,7 +11,6 @@ import '../data/assessment_repository.dart';
 import '../data/supabase_assessment_repository.dart';
 import '../domain/assessment_model.dart';
 import 'widgets/assessment_preview_sheet.dart';
-import 'widgets/report_assessment_sheet.dart';
 
 class AssessmentsScreen extends StatefulWidget {
   const AssessmentsScreen({
@@ -381,6 +380,16 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
       await AssessmentPreviewSheet.show(
         context,
         assessment: assessment,
+        assessmentRepository: widget.assessmentRepository,
+        onUnlocked: () {
+          if (!mounted) return;
+          setState(() {
+            _assessments = _assessments
+                .map((AssessmentModel a) =>
+                    a.id == assessment.id ? a.copyWith(isUnlocked: true) : a)
+                .toList();
+          });
+        },
         onStart: () {
           context.push('/assessments/${assessment.id}/take');
         },
@@ -422,24 +431,6 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
       }
     }
 
-    Future<void> handleReport() async {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) {
-        AppToast.showError(context, 'Please log in to submit a report');
-        return;
-      }
-      final bool? reported = await ReportAssessmentSheet.show(
-        context,
-        assessmentId: assessment.id,
-        assessmentTitle: assessment.title,
-        assessmentRepository: widget.assessmentRepository,
-        userId: user.id,
-      );
-      if (reported == true && context.mounted) {
-        AppToast.showSuccess(context, 'Report submitted for review');
-      }
-    }
-
     return Container(
       margin: const EdgeInsets.only(bottom: 14.0),
       decoration: BoxDecoration(
@@ -457,7 +448,7 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // Header: Stack + Difficulty Badge + Actions (Flag & Bookmark)
+              // Header: Stack + Difficulty Badge + Unlock status + Bookmark
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
@@ -490,17 +481,39 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
                         ),
                       ),
                       const SizedBox(width: 8.0),
-                      // Flag / Report
-                      GestureDetector(
-                        onTap: handleReport,
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.all(3.0),
-                          child: Icon(
-                            Icons.flag_outlined,
-                            size: 18.0,
-                            color: textSecondary.withValues(alpha: 0.5),
-                          ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: (assessment.isUnlocked
+                                  ? const Color(0xFF3ECF8E)
+                                  : const Color(0xFFF59E0B))
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6.0),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              assessment.isUnlocked
+                                  ? Icons.lock_open_rounded
+                                  : Icons.monetization_on_rounded,
+                              size: 11.0,
+                              color: assessment.isUnlocked
+                                  ? const Color(0xFF3ECF8E)
+                                  : const Color(0xFFF59E0B),
+                            ),
+                            const SizedBox(width: 3.0),
+                            Text(
+                              assessment.isUnlocked ? 'Unlocked' : '${assessment.costCoins}',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 10.0,
+                                fontWeight: FontWeight.w700,
+                                color: assessment.isUnlocked
+                                    ? const Color(0xFF3ECF8E)
+                                    : const Color(0xFFF59E0B),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 6.0),

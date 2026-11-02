@@ -23,4 +23,16 @@ abstract class AssessmentRepository {
     required List<Map<String, dynamic>> challengeSubmissions,
   });
   Future<List<Map<String, dynamic>>> getUserAssessmentAttempts(String userId);
+
+  /// Assessment ids the learner has unlocked (coin unlock, or already attempted).
+  Future<Set<String>> getUnlockedAssessmentIds(String userId);
+
+  /// Current CodeCoin wallet balance.
+  Future<int> getWalletBalance(String userId);
+
+  /// Unlocks [assessment] with CodeCoins. Returns an error message, or null on success.
+  Future<String?> unlockAssessment({
+    required String userId,
+    required AssessmentModel assessment,
+  });
 }

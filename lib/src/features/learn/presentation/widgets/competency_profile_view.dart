@@ -145,10 +145,10 @@ class AcfAnalysisResult {
   final int compositeScore;
 
   static AcfAnalysisResult fromSubmissions(List<DashboardSubmission> submissions) {
-    int corrSum = 0;
-    int readSum = 0;
-    int maintSum = 0;
-    int effSum = 0;
+    double corrSum = 0;
+    double readSum = 0;
+    double maintSum = 0;
+    double effSum = 0;
     int count = 0;
 
     for (final DashboardSubmission s in submissions) {
@@ -160,23 +160,12 @@ class AcfAnalysisResult {
         final dynamic e = f['efficiency'] is Map ? (f['efficiency'] as Map)['score'] : null;
 
         if (c is num && r is num && m is num && e is num) {
-          corrSum += c.toInt();
-          readSum += r.toInt();
-          maintSum += m.toInt();
-          effSum += e.toInt();
+          corrSum += c.toDouble();
+          readSum += r.toDouble();
+          maintSum += m.toDouble();
+          effSum += e.toDouble();
           count++;
-          continue;
         }
-      }
-
-      // If specific dimension findings not present, check if submission has an overall score
-      final int? sc = s.score;
-      if (sc != null && sc > 0) {
-        corrSum += sc;
-        readSum += sc;
-        maintSum += sc;
-        effSum += sc;
-        count++;
       }
     }
 
@@ -236,16 +225,21 @@ class CraAnalysisResult {
     required this.problemBreadth,
     required this.consistency,
     required this.readinessIndex,
+    this.attemptCount = 0,
   });
 
   final bool hasData;
+  final int attemptCount;
   final int accuracy;
   final int efficiency;
   final int problemBreadth;
   final int consistency;
   final int readinessIndex;
 
-  static CraAnalysisResult fromAttempts(List<Map<String, dynamic>> attempts) {
+  static CraAnalysisResult fromAttempts(
+    List<Map<String, dynamic>> attempts, {
+    List<DashboardSubmission> submissions = const <DashboardSubmission>[],
+  }) {
     final List<int> scores = <int>[];
     final Set<String> uniqueExams = <String>{};
 
@@ -258,6 +252,23 @@ class CraAnalysisResult {
         }
       }
     }
+
+    // Fallback (web parity): when an assessment has no scored attempt row, average the
+    // real numeric scores of its challenge submissions (best per challenge). Status
+    // labels are ignored because "Passed" can sit next to a 0/100 score.
+    final Map<String, Map<String, int>> bySubmission = <String, Map<String, int>>{};
+    for (final DashboardSubmission s in submissions) {
+      if (!s.isAssessment || s.moduleId.isEmpty || uniqueExams.contains(s.moduleId)) continue;
+      final int? sc = s.score;
+      if (sc == null) continue;
+      final Map<String, int> challenges = bySubmission.putIfAbsent(s.moduleId, () => <String, int>{});
+      challenges[s.itemId] = max(challenges[s.itemId] ?? 0, sc);
+    }
+    bySubmission.forEach((String assessmentId, Map<String, int> challenges) {
+      final List<int> vals = challenges.values.toList();
+      scores.add((vals.reduce((a, b) => a + b) / vals.length).round());
+      uniqueExams.add(assessmentId);
+    });
 
     if (scores.isEmpty) {
       return const CraAnalysisResult(
@@ -292,6 +303,7 @@ class CraAnalysisResult {
 
     return CraAnalysisResult(
       hasData: true,
+      attemptCount: scores.length,
       accuracy: accuracy,
       efficiency: efficiency,
       problemBreadth: problemBreadth,
@@ -331,10 +343,13 @@ class CompetencyProfileView extends StatelessWidget {
     }
 
     final AcfAnalysisResult acf = AcfAnalysisResult.fromSubmissions(submissions);
-    final CraAnalysisResult cra = CraAnalysisResult.fromAttempts(assessmentAttempts);
+    final CraAnalysisResult cra = CraAnalysisResult.fromAttempts(
+      assessmentAttempts,
+      submissions: submissions,
+    );
 
     final LearnerTierData practiceTier = LearnerTierData.forPracticeScore(
-      acf.hasData ? acf.compositeScore : null,
+      acf.compositeScore,
     );
     final LearnerTierData assessmentTier = LearnerTierData.forCompetitionScore(
       cra.hasData && cra.readinessIndex > 0 ? cra.readinessIndex : null,
@@ -684,7 +699,7 @@ class CompetencyProfileView extends StatelessWidget {
                     ),
                     Text(
                       hasExams
-                          ? '· Based on ${assessmentAttempts.length} ${assessmentAttempts.length == 1 ? "assessment" : "assessments"}'
+                          ? '· Based on ${cra.attemptCount} ${cra.attemptCount == 1 ? "assessment" : "assessments"}'
                           : 'Complete a timed challenge to calibrate',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11.0,

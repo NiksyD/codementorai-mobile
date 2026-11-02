@@ -37,11 +37,10 @@ class ActivityScreen extends StatefulWidget {
 }
 
 class _ActivityScreenState extends State<ActivityScreen> {
-  int _activeSegment = 1; // 0 = Active Learning, 1 = Submissions Log, 2 = Competency Profile
+  int _activeSegment = 1; // 0 = Active Learning, 1 = History, 2 = Competency Profile
   List<PathwayModel> _enrolledModules = <PathwayModel>[];
   List<AssessmentModel> _activeAssessments = <AssessmentModel>[];
-  String _activeLearningFilter = 'all'; // 'all', 'modules', 'assessments', 'in-progress', 'completed'
-  String _activeLearningType = 'all'; // 'all', 'modules', 'assessments'
+  String _activeLearningFilter = 'all'; // 'all', 'in-progress', 'completed'
   String _activeLearningSearch = '';
   final TextEditingController _activeLearningSearchController = TextEditingController();
 
@@ -184,10 +183,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   List<FilterTabItem> get _activeLearningFilterTabs => <FilterTabItem>[
-    FilterTabItem(id: 'all', label: 'All', count: _totalActiveCount),
-    FilterTabItem(id: 'modules', label: 'Modules', count: _enrolledModules.length),
-    if (_activeAssessments.isNotEmpty)
-      FilterTabItem(id: 'assessments', label: 'Assessments', count: _activeAssessments.length),
+    FilterTabItem(id: 'all', label: 'All Progress', count: _totalActiveCount),
     FilterTabItem(
       id: 'in-progress',
       label: 'In Progress',
@@ -201,9 +197,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
   ];
 
   List<PathwayModel> get _filteredEnrolledModules {
-    if (_activeLearningType == 'assessments' || _activeLearningFilter == 'assessments') {
-      return const <PathwayModel>[];
-    }
     return _enrolledModules.where((PathwayModel p) {
       if (_activeLearningFilter == 'in-progress' && (p.completion <= 0 || p.completion >= 100)) return false;
       if (_activeLearningFilter == 'completed' && p.completion < 100) return false;
@@ -220,9 +213,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   List<AssessmentModel> get _filteredAssessments {
-    if (_activeLearningType == 'modules' || _activeLearningFilter == 'modules') {
-      return const <AssessmentModel>[];
-    }
     return _activeAssessments.where((AssessmentModel a) {
       final Map<String, dynamic>? att = _getAttemptForAssessment(a.id);
       final bool isPassed = att != null &&
@@ -434,7 +424,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 ),
                 const SizedBox(height: 16.0),
 
-                // Segmented Switcher (Active Learning vs Submissions Log vs Competency Profile)
+                // Segmented Switcher (Active Learning vs History vs Competency Profile)
                 _buildSegmentSwitcher(
                   isDark: isDark,
                   borderColor: borderColor,
@@ -506,8 +496,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
           Expanded(
             child: _buildSegmentButton(
               index: 1,
-              icon: Icons.code_rounded,
-              label: 'Submissions',
+              icon: Icons.history_rounded,
+              label: 'History',
               count: _submissions.length,
               isDark: isDark,
               textPrimary: textPrimary,
@@ -667,43 +657,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
         ),
         const SizedBox(height: 18.0),
 
-        // Filter Tabs (Showing: All | In Progress | Mastered)
-        Row(
-          children: <Widget>[
-            Text(
-              'Showing:',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: textSecondary,
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: FilterTabBar(
-                height: 34.0,
-                tabs: _activeLearningFilterTabs,
-                selectedId: _activeLearningFilter,
-                onTabSelected: (String tabId) {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    _activeLearningFilter = tabId;
-                    if (tabId == 'modules') {
-                      _activeLearningType = 'modules';
-                    } else if (tabId == 'assessments') {
-                      _activeLearningType = 'assessments';
-                    } else if (tabId == 'all') {
-                      _activeLearningType = 'all';
-                    }
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12.0),
-
-        // Search Input & Type Filter Dropdown
+        // Search Input & Progress Filter Dropdown
         Row(
           children: <Widget>[
             Expanded(
@@ -745,7 +699,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
               ),
             ),
             const SizedBox(width: 8.0),
-            _buildActiveLearningTypeDropdown(
+            _buildActiveLearningProgressDropdown(
               isDark: isDark,
               textPrimary: textPrimary,
               textSecondary: textSecondary,
@@ -916,7 +870,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   HapticFeedback.selectionClick();
                   setState(() {
                     _activeLearningFilter = 'all';
-                    _activeLearningType = 'all';
                     _activeLearningSearch = '';
                     _activeLearningSearchController.clear();
                   });
@@ -946,27 +899,23 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  Widget _buildActiveLearningTypeDropdown({
+  Widget _buildActiveLearningProgressDropdown({
     required bool isDark,
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    final String currentLabel = _activeLearningType == 'modules'
-        ? 'Modules (${_enrolledModules.length})'
-        : _activeLearningType == 'assessments'
-            ? 'Assessments (${_activeAssessments.length})'
-            : 'All Types ($_totalActiveCount)';
+    final List<FilterTabItem> options = _activeLearningFilterTabs;
+    final FilterTabItem current = options.firstWhere(
+      (FilterTabItem t) => t.id == _activeLearningFilter,
+      orElse: () => options.first,
+    );
+    String labelOf(FilterTabItem t) => '${t.label} (${t.count ?? 0})';
 
     return PopupMenuButton<String>(
       onSelected: (String val) {
         HapticFeedback.selectionClick();
         setState(() {
-          _activeLearningType = val;
-          if (val == 'modules' || val == 'assessments') {
-            _activeLearningFilter = val;
-          } else if (_activeLearningFilter == 'modules' || _activeLearningFilter == 'assessments') {
-            _activeLearningFilter = 'all';
-          }
+          _activeLearningFilter = val;
         });
       },
       color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
@@ -977,69 +926,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
         ),
       ),
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        PopupMenuItem<String>(
-          value: 'all',
-          child: Row(
-            children: <Widget>[
-              Icon(
-                Icons.grid_view_rounded,
-                size: 14.0,
-                color: _activeLearningType == 'all' ? AppColors.primary : textSecondary,
-              ),
-              const SizedBox(width: 8.0),
-              Text(
-                'All Types ($_totalActiveCount)',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  fontWeight: _activeLearningType == 'all' ? FontWeight.w700 : FontWeight.w500,
-                  color: _activeLearningType == 'all' ? AppColors.primary : textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem<String>(
-          value: 'modules',
-          child: Row(
-            children: <Widget>[
-              Icon(
-                Icons.layers_rounded,
-                size: 14.0,
-                color: _activeLearningType == 'modules' ? AppColors.primary : textSecondary,
-              ),
-              const SizedBox(width: 8.0),
-              Text(
-                'Modules (${_enrolledModules.length})',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  fontWeight: _activeLearningType == 'modules' ? FontWeight.w700 : FontWeight.w500,
-                  color: _activeLearningType == 'modules' ? AppColors.primary : textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_activeAssessments.isNotEmpty)
+        for (final FilterTabItem t in options)
           PopupMenuItem<String>(
-            value: 'assessments',
-            child: Row(
-              children: <Widget>[
-                Icon(
-                  Icons.emoji_events_rounded,
-                  size: 14.0,
-                  color: _activeLearningType == 'assessments' ? AppColors.primary : textSecondary,
-                ),
-                const SizedBox(width: 8.0),
-                Text(
-                  'Assessments (${_activeAssessments.length})',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.0,
-                    fontWeight:
-                        _activeLearningType == 'assessments' ? FontWeight.w700 : FontWeight.w500,
-                    color: _activeLearningType == 'assessments' ? AppColors.primary : textPrimary,
-                  ),
-                ),
-              ],
+            value: t.id,
+            child: Text(
+              labelOf(t),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.0,
+                fontWeight: _activeLearningFilter == t.id ? FontWeight.w700 : FontWeight.w500,
+                color: _activeLearningFilter == t.id ? AppColors.primary : textPrimary,
+              ),
             ),
           ),
       ],
@@ -1057,11 +953,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Text(
-              currentLabel,
+              labelOf(current),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12.0,
-                fontWeight: _activeLearningType != 'all' ? FontWeight.w700 : FontWeight.w500,
-                color: _activeLearningType != 'all' ? AppColors.primary : textSecondary,
+                fontWeight: _activeLearningFilter != 'all' ? FontWeight.w700 : FontWeight.w500,
+                color: _activeLearningFilter != 'all' ? AppColors.primary : textSecondary,
               ),
             ),
             const SizedBox(width: 4.0),

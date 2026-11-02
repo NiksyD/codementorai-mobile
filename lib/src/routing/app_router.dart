@@ -198,13 +198,25 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/modules',
-      builder: (BuildContext context, GoRouterState state) =>
-          const ModulesScreen(),
+      builder: (BuildContext context, GoRouterState state) {
+        final String? tab = state.uri.queryParameters['tab'];
+        return ModulesScreen(
+          initialTab: tab == 'assessments'
+              ? ExploreTab.assessments
+              : ExploreTab.modules,
+        );
+      },
     ),
     GoRoute(
       path: '/learn/modules',
-      builder: (BuildContext context, GoRouterState state) =>
-          const ModulesScreen(),
+      builder: (BuildContext context, GoRouterState state) {
+        final String? tab = state.uri.queryParameters['tab'];
+        return ModulesScreen(
+          initialTab: tab == 'assessments'
+              ? ExploreTab.assessments
+              : ExploreTab.modules,
+        );
+      },
     ),
     GoRoute(
       path: '/modules/:id',

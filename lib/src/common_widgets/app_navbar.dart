@@ -33,7 +33,7 @@ class AppNavbar extends StatelessWidget {
       activeIcon: Icons.grid_view_rounded,
     ),
     NavItemData(
-      label: 'Modules',
+      label: 'Explore',
       icon: Icons.layers_outlined,
       activeIcon: Icons.layers_rounded,
     ),

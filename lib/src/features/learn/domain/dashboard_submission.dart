@@ -13,6 +13,7 @@ class DashboardSubmission {
     required this.submittedAt,
     required this.rawDate,
     this.moduleId = '',
+    this.type = 'module',
     this.code = '',
     this.verdict = '',
     this.feedbackTips = const <String>[],
@@ -24,6 +25,7 @@ class DashboardSubmission {
   final String moduleId;
   final String title;
   final String module;
+  final String type;       // 'module' | 'assessment'
   final String difficulty; // 'Easy' | 'Medium' | 'Hard'
   final String language;
   final String status;     // 'Passed' | 'Needs Review' | 'Pending'
@@ -38,6 +40,8 @@ class DashboardSubmission {
   bool get isPassed => status == 'Passed' || status == 'Accepted';
   bool get isPending => status == 'Pending';
   bool get isNeedsReview => !isPassed && !isPending;
+  bool get isAssessment => type == 'assessment';
+  bool get isModule => type != 'assessment';
 
   String get timeAgoFormatted {
     final Duration diff = DateTime.now().toUtc().difference(submittedAt.toUtc());
@@ -83,6 +87,7 @@ class DashboardSubmission {
     String? moduleId,
     String? title,
     String? module,
+    String? type,
     String? difficulty,
     String? language,
     String? status,
@@ -100,6 +105,7 @@ class DashboardSubmission {
       moduleId: moduleId ?? this.moduleId,
       title: title ?? this.title,
       module: module ?? this.module,
+      type: type ?? this.type,
       difficulty: difficulty ?? this.difficulty,
       language: language ?? this.language,
       status: status ?? this.status,
@@ -113,97 +119,38 @@ class DashboardSubmission {
     );
   }
 
-  static int? _letterGradeToScore(String grade) {
-    switch (grade.trim().toUpperCase()) {
-      case 'A+':
-        return 98;
-      case 'A':
-        return 95;
-      case 'A-':
-        return 91;
-      case 'B+':
-        return 88;
-      case 'B':
-        return 85;
-      case 'B-':
-        return 81;
-      case 'C+':
-        return 78;
-      case 'C':
-        return 75;
-      case 'D':
-        return 65;
-      case 'F':
-        return 50;
-      default:
-        return null;
-    }
-  }
-
+  /// Mirrors web `extractScore`: an explicit ACF score first, then a numeric
+  /// `acf_composite_score` / `score` / `composite_score` in the verdict. Letter
+  /// grades (e.g. "A+") are NOT scores, so they never produce a number.
   static int? extractScore(dynamic verdict, [dynamic acfScore]) {
-    if (acfScore != null && acfScore.toString().trim().isNotEmpty) {
-      if (acfScore is int) return acfScore;
-      if (acfScore is double) return acfScore.round();
-      if (acfScore is num) return acfScore.toInt();
-      if (acfScore is String) {
-        final double? parsed = double.tryParse(acfScore.trim());
+    int? asScore(dynamic v) {
+      if (v is num) return v.round();
+      if (v is String) {
+        final double? parsed = double.tryParse(v.trim());
         if (parsed != null) return parsed.round();
       }
+      return null;
+    }
+
+    if (acfScore != null && acfScore.toString().trim().isNotEmpty) {
+      final int? direct = asScore(acfScore);
+      if (direct != null) return direct;
     }
     if (verdict == null) return null;
-    if (verdict is int) return verdict;
-    if (verdict is double) return verdict.round();
-    if (verdict is num) return verdict.toInt();
-    if (verdict is Map) {
-      final dynamic acf = verdict['acf_composite_score'] ?? verdict['composite_score'];
-      if (acf is int) return acf;
-      if (acf is double) return acf.round();
-      if (acf is num) return acf.toInt();
-      if (acf is String) {
-        final double? parsed = double.tryParse(acf.trim());
-        if (parsed != null) return parsed.round();
-      }
-      final dynamic s = verdict['score'] ?? verdict['grade'];
-      if (s is int) return s;
-      if (s is double) return s.round();
-      if (s is num) return s.toInt();
-      if (s is String) {
-        final double? parsed = double.tryParse(s.trim());
-        if (parsed != null) return parsed.round();
-        final int? fromGrade = _letterGradeToScore(s);
-        if (fromGrade != null) return fromGrade;
-      }
-    } else if (verdict is String && verdict.trim().isNotEmpty) {
+
+    dynamic v = verdict;
+    if (v is String) {
       try {
-        final dynamic decoded = jsonDecode(verdict);
-        if (decoded is Map) {
-          final dynamic acf = decoded['acf_composite_score'] ?? decoded['composite_score'];
-          if (acf is int) return acf;
-          if (acf is double) return acf.round();
-          if (acf is num) return acf.toInt();
-          if (acf is String) {
-            final double? parsed = double.tryParse(acf.trim());
-            if (parsed != null) return parsed.round();
-          }
-          final dynamic s = decoded['score'] ?? decoded['grade'];
-          if (s is int) return s;
-          if (s is double) return s.round();
-          if (s is num) return s.toInt();
-          if (s is String) {
-            final double? parsed = double.tryParse(s.trim());
-            if (parsed != null) return parsed.round();
-            final int? fromGrade = _letterGradeToScore(s);
-            if (fromGrade != null) return fromGrade;
-          }
-        }
+        v = jsonDecode(v);
       } catch (_) {
-        final double? parsed = double.tryParse(verdict.trim());
-        if (parsed != null) return parsed.round();
-        final int? fromGrade = _letterGradeToScore(verdict);
-        if (fromGrade != null) return fromGrade;
+        return null;
       }
     }
-    return null;
+    if (v is! Map) return null;
+
+    return asScore(v['acf_composite_score']) ??
+        asScore(v['score']) ??
+        asScore(v['composite_score']);
   }
 
   static String normalizeStatus(String raw) {
@@ -278,12 +225,16 @@ class DashboardSubmission {
     return status == 'Pending' ? 'Awaiting judge evaluation...' : 'Evaluation complete.';
   }
 
+  static String _resolveType(dynamic raw) =>
+      raw?.toString().toLowerCase() == 'assessment' ? 'assessment' : 'module';
+
   factory DashboardSubmission.fromDatabase({
     required Map<String, dynamic> row,
     String? title,
     String? moduleId,
     String? moduleTitle,
     String? difficulty,
+    String? type,
     dynamic acfScore,
   }) {
     final String id = row['sub_id']?.toString() ?? '';
@@ -329,6 +280,7 @@ class DashboardSubmission {
       moduleId: moduleId ?? (row['module_id']?.toString() ?? ''),
       title: title ?? (row['challenge_title']?.toString() ?? 'Practice Challenge'),
       module: moduleTitle ?? (row['module_title']?.toString() ?? 'Active Module'),
+      type: _resolveType(type ?? row['type'] ?? row['item_type']),
       difficulty: normalizeDifficulty(difficulty ?? row['challenge_difficulty']?.toString() ?? ''),
       language: lang,
       status: status,

@@ -4,6 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../common_widgets/language_avatar_stack.dart';
 import '../../../../constants/app_colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../common_widgets/app_toast.dart';
+import '../../data/assessment_repository.dart';
+import '../../data/supabase_assessment_repository.dart';
 import '../../domain/assessment_model.dart';
 
 class AssessmentPreviewSheet extends StatefulWidget {
@@ -11,15 +15,21 @@ class AssessmentPreviewSheet extends StatefulWidget {
     super.key,
     required this.assessment,
     required this.onStart,
+    this.assessmentRepository = const SupabaseAssessmentRepository(),
+    this.onUnlocked,
   });
 
   final AssessmentModel assessment;
   final VoidCallback onStart;
+  final AssessmentRepository assessmentRepository;
+  final VoidCallback? onUnlocked;
 
   static Future<void> show(
     BuildContext context, {
     required AssessmentModel assessment,
     required VoidCallback onStart,
+    AssessmentRepository assessmentRepository = const SupabaseAssessmentRepository(),
+    VoidCallback? onUnlocked,
   }) {
     HapticFeedback.lightImpact();
     return showModalBottomSheet<void>(
@@ -30,6 +40,8 @@ class AssessmentPreviewSheet extends StatefulWidget {
       builder: (BuildContext ctx) => AssessmentPreviewSheet(
         assessment: assessment,
         onStart: onStart,
+        assessmentRepository: assessmentRepository,
+        onUnlocked: onUnlocked,
       ),
     );
   }
@@ -39,6 +51,45 @@ class AssessmentPreviewSheet extends StatefulWidget {
 }
 
 class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
+  late bool _isUnlocked = widget.assessment.isUnlocked;
+  bool _isUnlocking = false;
+  int _balance = 0;
+
+  String get _userId => Supabase.instance.client.auth.currentUser?.id ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_isUnlocked) _loadBalance();
+  }
+
+  Future<void> _loadBalance() async {
+    final int balance = await widget.assessmentRepository.getWalletBalance(_userId);
+    if (mounted) setState(() => _balance = balance);
+  }
+
+  Future<void> _handleUnlock() async {
+    if (_isUnlocking) return;
+    setState(() => _isUnlocking = true);
+    final String? error = await widget.assessmentRepository.unlockAssessment(
+      userId: _userId,
+      assessment: widget.assessment,
+    );
+    if (!mounted) return;
+    if (error != null) {
+      setState(() => _isUnlocking = false);
+      AppToast.showError(context, error);
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isUnlocking = false;
+      _isUnlocked = true;
+    });
+    widget.onUnlocked?.call();
+    AppToast.showSuccess(context, 'Assessment unlocked successfully!');
+  }
+
   Color _getDifficultyColor(String difficulty) {
     switch (difficulty.toLowerCase()) {
       case 'easy':
@@ -400,39 +451,90 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
                   color: bgColor,
                   border: Border(top: BorderSide(color: borderColor)),
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 48.0,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      widget.onStart();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: isDark
-                          ? AppColors.onPrimaryDark
-                          : Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (!_isUnlocked) ...<Widget>[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Text(
+                            'Your balance: $_balance coins',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: textSecondary,
+                            ),
+                          ),
+                          Text(
+                            _balance >= asm.costCoins
+                                ? 'After unlock: ${_balance - asm.costCoins}'
+                                : 'Need ${asm.costCoins - _balance} more',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w700,
+                              color: _balance >= asm.costCoins
+                                  ? textSecondary
+                                  : const Color(0xFFEF4444),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        const Icon(Icons.bolt_rounded, size: 18.0),
-                        const SizedBox(width: 6.0),
-                        Text(
-                          'Start Assessment',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
+                      const SizedBox(height: 10.0),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48.0,
+                      child: ElevatedButton(
+                        onPressed: _isUnlocking
+                            ? null
+                            : _isUnlocked
+                                ? () {
+                                    Navigator.of(context).pop();
+                                    widget.onStart();
+                                  }
+                                : (_balance >= asm.costCoins ? _handleUnlock : null),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor:
+                              isDark ? AppColors.onPrimaryDark : Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14.0),
                           ),
                         ),
-                      ],
+                        child: _isUnlocking
+                            ? const SizedBox(
+                                width: 18.0,
+                                height: 18.0,
+                                child: CircularProgressIndicator(strokeWidth: 2.0),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  Icon(
+                                    _isUnlocked
+                                        ? Icons.bolt_rounded
+                                        : Icons.lock_open_rounded,
+                                    size: 18.0,
+                                  ),
+                                  const SizedBox(width: 6.0),
+                                  Text(
+                                    _isUnlocked
+                                        ? 'Start Assessment'
+                                        : (_balance >= asm.costCoins
+                                            ? 'Unlock · ${asm.costCoins} Coins'
+                                            : 'Insufficient CodeCoins'),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],

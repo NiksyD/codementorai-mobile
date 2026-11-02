@@ -80,6 +80,20 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       return;
     }
 
+    // Gate: the assessment must be unlocked (or owned) before an attempt can start.
+    final String uid = Supabase.instance.client.auth.currentUser?.id ?? '';
+    final Set<String> unlockedIds =
+        await widget.assessmentRepository.getUnlockedAssessmentIds(uid);
+    if (!mounted) return;
+    final bool canAttempt =
+        unlockedIds.contains(asm.id) || (uid.isNotEmpty && asm.mentorId == uid);
+    if (!canAttempt) {
+      setState(() => _isLoading = false);
+      AppToast.showError(context, 'Unlock this assessment to start your attempt');
+      if (context.canPop()) context.pop();
+      return;
+    }
+
     final int duration = (asm.durationMins > 0 ? asm.durationMins : 60) * 60;
 
     // Seed code per challenge

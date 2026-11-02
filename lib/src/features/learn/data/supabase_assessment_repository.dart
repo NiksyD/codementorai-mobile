@@ -30,6 +30,7 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
             passing_score,
             max_attempts,
             status,
+            price_coins,
             mentor_id,
             profiles:mentor_id(user_first_name, user_last_name, user_avatar_url),
             challenges:assessment_challenges(id, title, problem_statement, starter_code, language, difficulty, test_cases)
@@ -60,10 +61,15 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
         } catch (_) {}
       }
 
+      final Set<String> unlocked =
+          userId.isNotEmpty ? await getUnlockedAssessmentIds(userId) : <String>{};
+
       return dbAssessments.map((Map<String, dynamic> a) {
         final String id = a['id']?.toString() ?? '';
         final bool isSaved = librarySet.contains(id);
-        return AssessmentModel.fromJson(a, isInLibrary: isSaved);
+        final bool isOwner = userId.isNotEmpty && a['mentor_id']?.toString() == userId;
+        return AssessmentModel.fromJson(a, isInLibrary: isSaved)
+            .copyWith(isUnlocked: isOwner || unlocked.contains(id));
       }).toList();
     } catch (e) {
       debugPrint('Error fetching published assessments from Supabase: $e');
@@ -354,31 +360,135 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
           .select('assessment_id, status, score')
           .eq('user_id', userId);
 
-      if (attemptsData is List && attemptsData.isNotEmpty) {
-        return attemptsData.cast<Map<String, dynamic>>();
-      }
+      final List<Map<String, dynamic>> attempts = attemptsData is List
+          ? attemptsData.cast<Map<String, dynamic>>().toList()
+          : <Map<String, dynamic>>[];
 
-      // Fallback: check user_assessment_library best_score
+      // Web parity: assessments with no scored attempt row fall back to their
+      // user_assessment_library best_score (merged per assessment).
+      final Set<String> scored = attempts
+          .where((Map<String, dynamic> a) => a['score'] is num)
+          .map((Map<String, dynamic> a) => a['assessment_id']?.toString() ?? '')
+          .toSet();
+
       final dynamic libData = await _supabase
           .from('user_assessment_library')
           .select('assessment_id, status, best_score')
           .eq('user_id', userId);
 
-      if (libData is List && libData.isNotEmpty) {
-        return libData.map<Map<String, dynamic>>((dynamic item) {
+      if (libData is List) {
+        for (final dynamic item in libData) {
           final Map<String, dynamic> m = item as Map<String, dynamic>;
-          return <String, dynamic>{
+          final String aId = m['assessment_id']?.toString() ?? '';
+          if (aId.isEmpty || scored.contains(aId) || m['best_score'] is! num) continue;
+          attempts.add(<String, dynamic>{
             'assessment_id': m['assessment_id'],
             'status': m['status'] ?? 'completed',
             'score': m['best_score'],
-          };
-        }).toList();
+          });
+        }
       }
 
-      return <Map<String, dynamic>>[];
+      return attempts;
     } catch (e) {
       debugPrint('Error fetching user assessment attempts: $e');
       return <Map<String, dynamic>>[];
+    }
+  }
+
+  @override
+  Future<Set<String>> getUnlockedAssessmentIds(String userId) async {
+    final Set<String> ids = <String>{};
+    if (userId.isEmpty) return ids;
+
+    // 1. Paid unlocks (coin transactions)
+    try {
+      final dynamic txs = await _supabase
+          .from('coin_transactions')
+          .select('reference_id')
+          .eq('user_id', userId)
+          .eq('tx_type', 'assessment_unlock');
+      if (txs is List) {
+        for (final dynamic t in txs) {
+          final String ref = (t as Map<String, dynamic>)['reference_id']?.toString() ?? '';
+          if (ref.isNotEmpty) ids.add(ref);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching assessment unlock transactions: $e');
+    }
+
+    // 2. Already attempted (grandfathered)
+    try {
+      final dynamic attempts = await _supabase
+          .from('user_assessment_attempts')
+          .select('assessment_id')
+          .eq('user_id', userId);
+      if (attempts is List) {
+        for (final dynamic a in attempts) {
+          final String id = (a as Map<String, dynamic>)['assessment_id']?.toString() ?? '';
+          if (id.isNotEmpty) ids.add(id);
+        }
+      }
+    } catch (_) {}
+
+    // 3. Library rows that progressed past a plain save (a bookmark alone does not unlock)
+    try {
+      final dynamic lib = await _supabase
+          .from('user_assessment_library')
+          .select('assessment_id, status')
+          .eq('user_id', userId)
+          .inFilter('status', <String>['in_progress', 'completed']);
+      if (lib is List) {
+        for (final dynamic l in lib) {
+          final String id = (l as Map<String, dynamic>)['assessment_id']?.toString() ?? '';
+          if (id.isNotEmpty) ids.add(id);
+        }
+      }
+    } catch (_) {}
+
+    return ids;
+  }
+
+  @override
+  Future<int> getWalletBalance(String userId) async {
+    if (userId.isEmpty) return 0;
+    try {
+      final Map<String, dynamic>? wallet = await _supabase
+          .from('user_wallets')
+          .select('balance_coins')
+          .eq('user_id', userId)
+          .maybeSingle();
+      final dynamic coins = wallet?['balance_coins'];
+      return coins is num ? coins.toInt() : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  @override
+  Future<String?> unlockAssessment({
+    required String userId,
+    required AssessmentModel assessment,
+  }) async {
+    if (userId.isEmpty) return 'Please log in to unlock assessments';
+
+    try {
+      // Single write path: the database function charges the learner (custom price,
+      // or the 49-coin platform fee), logs the transaction, pays the mentor and
+      // records the library row. Clients cannot write wallets directly (RLS).
+      await _supabase.rpc<dynamic>('process_assessment_purchase_coins', params: <String, dynamic>{
+        'p_learner_id': userId,
+        'p_assessment_id': assessment.id,
+      });
+      return null;
+    } catch (e) {
+      final String msg = e.toString();
+      if (msg.contains('INSUFFICIENT_COINS')) {
+        return 'Insufficient CodeCoins to unlock this assessment.';
+      }
+      debugPrint('Error unlocking assessment: $e');
+      return 'Could not unlock the assessment. Please try again.';
     }
   }
 }

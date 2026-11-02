@@ -48,6 +48,10 @@ class AssessmentChallengeModel {
   }
 }
 
+/// Standard platform fee (web parity: PLATFORM_FEE_COINS) charged when a mentor
+/// has not set a custom `price_coins`.
+const int kAssessmentPlatformFeeCoins = 49;
+
 @immutable
 class AssessmentModel {
   const AssessmentModel({
@@ -65,6 +69,8 @@ class AssessmentModel {
     this.mentorName = 'CodeMentor AI',
     this.mentorAvatar,
     this.isInLibrary = false,
+    this.priceCoins = 0,
+    this.isUnlocked = false,
     this.challenges = const <AssessmentChallengeModel>[],
   });
 
@@ -82,7 +88,12 @@ class AssessmentModel {
   final String mentorName;
   final String? mentorAvatar;
   final bool isInLibrary;
+  final int priceCoins;
+  final bool isUnlocked;
   final List<AssessmentChallengeModel> challenges;
+
+  /// Coins required to unlock (custom price, else the standard platform fee).
+  int get costCoins => priceCoins > 0 ? priceCoins : kAssessmentPlatformFeeCoins;
 
   AssessmentModel copyWith({
     String? id,
@@ -99,6 +110,8 @@ class AssessmentModel {
     String? mentorName,
     String? mentorAvatar,
     bool? isInLibrary,
+    int? priceCoins,
+    bool? isUnlocked,
     List<AssessmentChallengeModel>? challenges,
   }) {
     return AssessmentModel(
@@ -116,6 +129,8 @@ class AssessmentModel {
       mentorName: mentorName ?? this.mentorName,
       mentorAvatar: mentorAvatar ?? this.mentorAvatar,
       isInLibrary: isInLibrary ?? this.isInLibrary,
+      priceCoins: priceCoins ?? this.priceCoins,
+      isUnlocked: isUnlocked ?? this.isUnlocked,
       challenges: challenges ?? this.challenges,
     );
   }
@@ -211,6 +226,7 @@ class AssessmentModel {
       mentorName: mentorName,
       mentorAvatar: mentorAvatar,
       isInLibrary: isInLibrary,
+      priceCoins: (json['price_coins'] as num?)?.toInt() ?? 0,
       challenges: challenges,
     );
   }

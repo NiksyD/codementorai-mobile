@@ -573,6 +573,50 @@ class SupabasePathwayRepository implements PathwayRepository {
         }
       }
 
+      // Assessment challenges live in their own tables (assessment_challenges -> assessments),
+      // separate from module activities. Resolve any item_id that is not a module activity.
+      final Map<String, Map<String, String>> asstChalById = <String, Map<String, String>>{};
+      final List<String> notActivityIds = subRows
+          .map((Map<String, dynamic> s) => s['item_id']?.toString() ?? '')
+          .where((String id) => id.isNotEmpty && !actIdToTitle.containsKey(id))
+          .toSet()
+          .toList();
+      if (notActivityIds.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> chalRows = await _supabase
+              .from('assessment_challenges')
+              .select('id, title, difficulty, assessment_id')
+              .inFilter('id', notActivityIds);
+          final Set<String> asstIds = chalRows
+              .map((Map<String, dynamic> c) => c['assessment_id']?.toString() ?? '')
+              .where((String id) => id.isNotEmpty)
+              .toSet();
+          final Map<String, String> asstTitles = <String, String>{};
+          if (asstIds.isNotEmpty) {
+            final List<Map<String, dynamic>> asstRows = await _supabase
+                .from('assessments')
+                .select('id, title')
+                .inFilter('id', asstIds.toList());
+            for (final Map<String, dynamic> a in asstRows) {
+              asstTitles[a['id']?.toString() ?? ''] = a['title']?.toString() ?? 'Assessment';
+            }
+          }
+          for (final Map<String, dynamic> c in chalRows) {
+            final String cId = c['id']?.toString() ?? '';
+            final String aId = c['assessment_id']?.toString() ?? '';
+            if (cId.isEmpty) continue;
+            asstChalById[cId] = <String, String>{
+              'title': c['title']?.toString() ?? 'Challenge',
+              'difficulty': c['difficulty']?.toString() ?? 'Medium',
+              'assessmentId': aId,
+              'assessmentTitle': asstTitles[aId] ?? 'Assessment',
+            };
+          }
+        } catch (_) {
+          // Non-blocking
+        }
+      }
+
       for (final Map<String, dynamic> s in subRows) {
         final String sId = s['sub_id']?.toString() ?? '';
         final String status = s['sub_status'] as String? ?? '';
@@ -581,10 +625,18 @@ class SupabasePathwayRepository implements PathwayRepository {
           easySolved++;
         }
         final String itemId = s['item_id']?.toString() ?? '';
-        final String actTitle = actIdToTitle[itemId] ?? 'Practice Challenge';
-        final String trackId = actIdToTrackId[itemId] ?? '';
-        final String modTitle = trackIdToTitle[trackId] ?? 'Practice Module';
-        final String diff = actIdToDifficulty[itemId] ?? '';
+        final Map<String, String>? asstChal = asstChalById[itemId];
+        final bool isAssessment = asstChal != null;
+        final String actTitle = isAssessment
+            ? asstChal['title']!
+            : (actIdToTitle[itemId] ?? 'Practice Challenge');
+        final String trackId =
+            isAssessment ? asstChal['assessmentId']! : (actIdToTrackId[itemId] ?? '');
+        final String modTitle = isAssessment
+            ? asstChal['assessmentTitle']!
+            : (trackIdToTitle[trackId] ?? 'Practice Module');
+        final String diff =
+            isAssessment ? asstChal['difficulty']! : (actIdToDifficulty[itemId] ?? '');
         final Map<String, dynamic>? findings = auditFindingsBySubId[sId] ??
             (s['findings'] is Map ? Map<String, dynamic>.from(s['findings'] as Map) : null);
 
@@ -595,6 +647,7 @@ class SupabasePathwayRepository implements PathwayRepository {
             moduleId: trackId,
             moduleTitle: modTitle,
             difficulty: diff,
+            type: isAssessment ? 'assessment' : 'module',
             acfScore: auditScoresBySubId[sId],
           ).copyWith(findings: findings),
         );
