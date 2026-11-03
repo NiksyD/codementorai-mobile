@@ -90,19 +90,6 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
     AppToast.showSuccess(context, 'Assessment unlocked successfully!');
   }
 
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF3ECF8E);
-      case 'medium':
-        return const Color(0xFFF59E0B);
-      case 'hard':
-        return const Color(0xFFEF4444);
-      default:
-        return AppColors.primary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -116,7 +103,6 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final AssessmentModel asm = widget.assessment;
-    final Color diffColor = _getDifficultyColor(asm.difficulty);
 
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
@@ -158,7 +144,7 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      // Header Row: Avatar Stack + Difficulty Badge + Close
+                      // Header Row: Avatar Stack + Close
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: <Widget>[
@@ -168,29 +154,6 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
                           ),
                           Row(
                             children: <Widget>[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8.0,
-                                  vertical: 3.0,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: diffColor.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8.0),
-                                  border: Border.all(
-                                    color: diffColor.withValues(alpha: 0.3),
-                                    width: 1.0,
-                                  ),
-                                ),
-                                child: Text(
-                                  asm.difficulty.toUpperCase(),
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: diffColor,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8.0),
                               IconButton(
                                 onPressed: () => Navigator.of(context).pop(),
                                 icon: const Icon(Icons.close_rounded, size: 20.0),
@@ -233,7 +196,7 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
                       ),
                       const SizedBox(height: 16.0),
 
-                      // Parameter Card (Time, Challenges, Score, Attempts)
+                      // Parameter Card (Time, Challenges)
                       Container(
                         padding: const EdgeInsets.all(14.0),
                         decoration: BoxDecoration(
@@ -278,38 +241,6 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
                                     icon: Icons.code_rounded,
                                     label: 'Problems',
                                     value: '${asm.challengeCount} Tasks',
-                                    isDark: isDark,
-                                    textPrimary: textPrimary,
-                                    textSecondary: textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10.0),
-                            Divider(height: 1.0, color: borderColor),
-                            const SizedBox(height: 10.0),
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: _buildSpecTile(
-                                    icon: Icons.check_circle_outline_rounded,
-                                    label: 'Benchmark',
-                                    value: '${asm.passingScore}% to pass',
-                                    isDark: isDark,
-                                    textPrimary: textPrimary,
-                                    textSecondary: textSecondary,
-                                  ),
-                                ),
-                                Container(
-                                  width: 1.0,
-                                  height: 36.0,
-                                  color: borderColor,
-                                ),
-                                Expanded(
-                                  child: _buildSpecTile(
-                                    icon: Icons.refresh_rounded,
-                                    label: 'Attempts',
-                                    value: 'Max ${asm.maxAttempts}',
                                     isDark: isDark,
                                     textPrimary: textPrimary,
                                     textSecondary: textSecondary,

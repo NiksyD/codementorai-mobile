@@ -1065,24 +1065,6 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        const Icon(
-                          Icons.emoji_events_outlined,
-                          size: 13.0,
-                          color: Color(0xFFF59E0B),
-                        ),
-                        const SizedBox(width: 4.0),
-                        Text(
-                          'Pass: ${assessment.passingScore}%',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
                         Icon(
                           Icons.code_rounded,
                           size: 13.0,

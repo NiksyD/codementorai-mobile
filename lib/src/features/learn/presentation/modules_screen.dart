@@ -45,7 +45,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   // Assessments State
-  String _selectedDifficulty = 'all';
+  String _selectedFilter = 'all';
   String _assessmentSearchQuery = '';
   List<AssessmentModel> _assessments = <AssessmentModel>[];
   bool _isAssessmentsLoading = true;
@@ -59,12 +59,9 @@ class _ModulesScreenState extends State<ModulesScreen> {
     <String, String>{'id': 'completed', 'label': 'Completed'},
   ];
 
-  static const List<Map<String, String>> _difficultyFilters =
+  static const List<Map<String, String>> _assessmentFilters =
       <Map<String, String>>[
     <String, String>{'id': 'all', 'label': 'All'},
-    <String, String>{'id': 'easy', 'label': 'Easy'},
-    <String, String>{'id': 'medium', 'label': 'Medium'},
-    <String, String>{'id': 'hard', 'label': 'Hard'},
     <String, String>{'id': 'saved', 'label': 'Saved'},
   ];
 
@@ -155,9 +152,8 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
   List<AssessmentModel> get _filteredAssessments {
     return _assessments.where((AssessmentModel a) {
-      final bool matchesDifficulty = _selectedDifficulty == 'all' ||
-          (_selectedDifficulty == 'saved' && a.isInLibrary) ||
-          (_selectedDifficulty == a.difficulty.toLowerCase());
+      final bool matchesFilter = _selectedFilter == 'all' ||
+          (_selectedFilter == 'saved' && a.isInLibrary);
 
       final bool matchesSearch = _assessmentSearchQuery.isEmpty ||
           a.title.toLowerCase().contains(_assessmentSearchQuery.toLowerCase()) ||
@@ -168,32 +164,16 @@ class _ModulesScreenState extends State<ModulesScreen> {
           ) ||
           a.mentorName.toLowerCase().contains(_assessmentSearchQuery.toLowerCase());
 
-      return matchesDifficulty && matchesSearch;
+      return matchesFilter && matchesSearch;
     }).toList();
   }
 
-  int _getAssessmentCount(String difficultyId) {
-    if (difficultyId == 'all') return _assessments.length;
-    if (difficultyId == 'saved') {
+  int _getAssessmentCount(String filterId) {
+    if (filterId == 'all') return _assessments.length;
+    if (filterId == 'saved') {
       return _assessments.where((AssessmentModel a) => a.isInLibrary).length;
     }
-    return _assessments
-        .where((AssessmentModel a) =>
-            a.difficulty.toLowerCase() == difficultyId.toLowerCase())
-        .length;
-  }
-
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF3ECF8E);
-      case 'medium':
-        return const Color(0xFFF59E0B);
-      case 'hard':
-        return const Color(0xFFEF4444);
-      default:
-        return AppColors.primary;
-    }
+    return 0;
   }
 
   Future<void> _loadModules() async {
@@ -458,7 +438,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                       else
                         FilterTabBar(
                           height: 36.0,
-                          tabs: _difficultyFilters.map((Map<String, String> cat) {
+                          tabs: _assessmentFilters.map((Map<String, String> cat) {
                             final String catId = cat['id']!;
                             return FilterTabItem(
                               id: catId,
@@ -466,10 +446,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
                               count: _getAssessmentCount(catId),
                             );
                           }).toList(),
-                          selectedId: _selectedDifficulty,
+                          selectedId: _selectedFilter,
                           onTabSelected: (String catId) {
                             setState(() {
-                              _selectedDifficulty = catId;
+                              _selectedFilter = catId;
                             });
                           },
                         ),
@@ -1393,18 +1373,18 @@ class _ModulesScreenState extends State<ModulesScreen> {
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    final String title = _selectedDifficulty == 'saved'
+    final String title = _selectedFilter == 'saved'
         ? 'No saved assessments yet'
         : 'No assessments found';
 
     final String subtitle = _assessmentSearchQuery.trim().isNotEmpty
         ? 'Try refining your search keyword or filters.'
-        : _selectedDifficulty == 'saved'
+        : _selectedFilter == 'saved'
             ? 'Tap the bookmark icon on any assessment card to save it for quick access.'
             : 'Check back soon for new competition benchmarks.';
 
     final bool hasFilterOrSearch =
-        _selectedDifficulty != 'all' || _assessmentSearchQuery.trim().isNotEmpty;
+        _selectedFilter != 'all' || _assessmentSearchQuery.trim().isNotEmpty;
 
     final Color borderColor =
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
@@ -1459,7 +1439,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                   _assessmentSearchController.clear();
                   setState(() {
                     _assessmentSearchQuery = '';
-                    _selectedDifficulty = 'all';
+                    _selectedFilter = 'all';
                   });
                 },
                 style: OutlinedButton.styleFrom(
@@ -1498,7 +1478,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    final Color diffColor = _getDifficultyColor(assessment.difficulty);
 
     Future<void> handleCardTap() async {
       HapticFeedback.lightImpact();
@@ -1576,7 +1555,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Header: Stack + Difficulty Badge + Unlock status + Bookmark
+                // Header: Stack + Unlock status + Bookmark
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
@@ -1586,29 +1565,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
                     ),
                     Row(
                       children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8.0,
-                            vertical: 2.5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: diffColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6.0),
-                            border: Border.all(
-                              color: diffColor.withValues(alpha: 0.3),
-                              width: 0.8,
-                            ),
-                          ),
-                          child: Text(
-                            assessment.difficulty.toUpperCase(),
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 10.0,
-                              fontWeight: FontWeight.w700,
-                              color: diffColor,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
                         Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
                         decoration: BoxDecoration(
@@ -1703,12 +1659,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
                     _buildMicroSpec(
                       icon: Icons.code_rounded,
                       label: '${assessment.challengeCount} Tasks',
-                      textSecondary: textSecondary,
-                    ),
-                    const SizedBox(width: 12.0),
-                    _buildMicroSpec(
-                      icon: Icons.check_circle_outline_rounded,
-                      label: '${assessment.passingScore}% Benchmark',
                       textSecondary: textSecondary,
                     ),
                   ],

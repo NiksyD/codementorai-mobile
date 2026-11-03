@@ -1,4 +1,5 @@
 import '../domain/assessment_model.dart';
+import '../domain/submission_history_model.dart';
 
 abstract class AssessmentRepository {
   Future<List<AssessmentModel>> getPublishedAssessments(String userId);
@@ -15,7 +16,9 @@ abstract class AssessmentRepository {
     required String reason,
     required String details,
   });
-  Future<bool> submitAssessmentAttempt({
+  /// Records the attempt and one submission per challenge. Returns challengeId -> submission id
+  /// for the submissions that were saved, or null if the attempt could not be recorded.
+  Future<Map<String, String>?> submitAssessmentAttempt({
     required String assessmentId,
     required String userId,
     required int score,
@@ -26,6 +29,12 @@ abstract class AssessmentRepository {
 
   /// Assessment ids the learner has unlocked (coin unlock, or already attempted).
   Future<Set<String>> getUnlockedAssessmentIds(String userId);
+
+  /// Past submissions the learner made for one assessment challenge (newest first).
+  Future<List<SubmissionHistoryModel>> getChallengeSubmissions({
+    required String userId,
+    required String challengeId,
+  });
 
   /// Current CodeCoin wallet balance.
   Future<int> getWalletBalance(String userId);

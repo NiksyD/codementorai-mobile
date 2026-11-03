@@ -25,19 +25,16 @@ class AssessmentsScreen extends StatefulWidget {
 }
 
 class _AssessmentsScreenState extends State<AssessmentsScreen> {
-  String _selectedDifficulty = 'all';
+  String _selectedFilter = 'all';
   String _searchQuery = '';
   List<AssessmentModel> _assessments = <AssessmentModel>[];
   bool _isLoading = true;
 
   final TextEditingController _searchController = TextEditingController();
 
-  static const List<Map<String, String>> _difficultyFilters =
+  static const List<Map<String, String>> _assessmentFilters =
       <Map<String, String>>[
     <String, String>{'id': 'all', 'label': 'All'},
-    <String, String>{'id': 'easy', 'label': 'Easy'},
-    <String, String>{'id': 'medium', 'label': 'Medium'},
-    <String, String>{'id': 'hard', 'label': 'Hard'},
     <String, String>{'id': 'saved', 'label': 'Saved'},
   ];
 
@@ -85,9 +82,8 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
 
   List<AssessmentModel> get _filteredAssessments {
     return _assessments.where((AssessmentModel a) {
-      final bool matchesDifficulty = _selectedDifficulty == 'all' ||
-          (_selectedDifficulty == 'saved' && a.isInLibrary) ||
-          (_selectedDifficulty == a.difficulty.toLowerCase());
+      final bool matchesFilter = _selectedFilter == 'all' ||
+          (_selectedFilter == 'saved' && a.isInLibrary);
 
       final bool matchesSearch = _searchQuery.isEmpty ||
           a.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -97,21 +93,8 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
           ) ||
           a.mentorName.toLowerCase().contains(_searchQuery.toLowerCase());
 
-      return matchesDifficulty && matchesSearch;
+      return matchesFilter && matchesSearch;
     }).toList();
-  }
-
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty.toLowerCase()) {
-      case 'easy':
-        return const Color(0xFF3ECF8E);
-      case 'medium':
-        return const Color(0xFFF59E0B);
-      case 'hard':
-        return const Color(0xFFEF4444);
-      default:
-        return AppColors.primary;
-    }
   }
 
   @override
@@ -254,19 +237,19 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
                       ),
                       const SizedBox(height: 14.0),
 
-                      // Category / Difficulty Pills
+                      // Filter Pills
                       FilterTabBar(
                         height: 36.0,
-                        tabs: _difficultyFilters.map((Map<String, String> cat) {
+                        tabs: _assessmentFilters.map((Map<String, String> cat) {
                           return FilterTabItem(
                             id: cat['id']!,
                             label: cat['label']!,
                           );
                         }).toList(),
-                        selectedId: _selectedDifficulty,
+                        selectedId: _selectedFilter,
                         onTabSelected: (String id) {
                           setState(() {
-                            _selectedDifficulty = id;
+                            _selectedFilter = id;
                           });
                         },
                       ),
@@ -373,7 +356,6 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    final Color diffColor = _getDifficultyColor(assessment.difficulty);
 
     Future<void> handleCardTap() async {
       HapticFeedback.lightImpact();
@@ -448,7 +430,7 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // Header: Stack + Difficulty Badge + Unlock status + Bookmark
+              // Header: Stack + Unlock status + Bookmark
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
@@ -458,29 +440,6 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
                   ),
                   Row(
                     children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8.0,
-                          vertical: 2.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: diffColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6.0),
-                          border: Border.all(
-                            color: diffColor.withValues(alpha: 0.3),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Text(
-                          assessment.difficulty.toUpperCase(),
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 10.0,
-                            fontWeight: FontWeight.w700,
-                            color: diffColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8.0),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
                         decoration: BoxDecoration(
@@ -575,12 +534,6 @@ class _AssessmentsScreenState extends State<AssessmentsScreen> {
                   _buildMicroSpec(
                     icon: Icons.code_rounded,
                     label: '${assessment.challengeCount} Tasks',
-                    textSecondary: textSecondary,
-                  ),
-                  const SizedBox(width: 12.0),
-                  _buildMicroSpec(
-                    icon: Icons.check_circle_outline_rounded,
-                    label: '${assessment.passingScore}% Benchmark',
                     textSecondary: textSecondary,
                   ),
                 ],

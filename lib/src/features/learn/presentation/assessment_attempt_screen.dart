@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -9,12 +10,16 @@ import '../../../common_widgets/app_toast.dart';
 import '../../../common_widgets/language_icon.dart';
 import '../../../constants/app_colors.dart';
 import '../data/assessment_repository.dart';
+import '../data/code_execution_service.dart';
+import '../domain/assessment_report_args.dart';
+import '../domain/practice_exercise_model.dart';
 import '../data/supabase_assessment_repository.dart';
 import '../domain/assessment_model.dart';
-import 'widgets/assessment_result_modal.dart';
 import 'widgets/markdown_content_view.dart';
 import 'widgets/practice_code_editor.dart';
 import 'widgets/report_assessment_sheet.dart';
+import 'widgets/submissions_history_view.dart';
+import '../domain/submission_history_model.dart';
 
 class AssessmentAttemptScreen extends StatefulWidget {
   const AssessmentAttemptScreen({
@@ -39,8 +44,13 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
   final Map<String, String> _userCodes = <String, String>{};
   final TextEditingController _codeController = TextEditingController();
 
-  // Active view: 'problem', 'editor', 'console'
+  // Active view: 'problem', 'editor', 'console', 'history'
   String _activeTab = 'problem';
+
+  // Past submissions per challenge (History tab)
+  final Map<String, List<SubmissionHistoryModel>> _historyByChallenge =
+      <String, List<SubmissionHistoryModel>>{};
+  bool _isLoadingHistory = false;
 
   // Timer state
   Timer? _countdownTimer;
@@ -54,6 +64,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
   final Map<String, bool> _challengePassedMap = <String, bool>{};
 
   bool _isSubmitting = false;
+  String _submitStage = '';
 
   @override
   void initState() {
@@ -154,6 +165,37 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     return _assessment!.challenges[_activeChallengeIdx];
   }
 
+  Future<void> _loadHistory({bool force = false}) async {
+    final AssessmentChallengeModel? ch = _currentChallenge;
+    final String userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+    if (ch == null || userId.isEmpty) return;
+    if (!force && _historyByChallenge.containsKey(ch.id)) return;
+
+    setState(() => _isLoadingHistory = true);
+    final List<SubmissionHistoryModel> list =
+        await widget.assessmentRepository.getChallengeSubmissions(
+      userId: userId,
+      challengeId: ch.id,
+    );
+    if (!mounted) return;
+    setState(() {
+      _historyByChallenge[ch.id] = list;
+      _isLoadingHistory = false;
+    });
+  }
+
+  void _restoreHistoricalCode(String code, String language) {
+    final AssessmentChallengeModel? ch = _currentChallenge;
+    if (ch == null) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _codeController.text = code;
+      _userCodes[ch.id] = code;
+      _activeTab = 'editor';
+    });
+    AppToast.showSuccess(context, 'Code restored to editor');
+  }
+
   void _selectChallenge(int idx) {
     if (_assessment == null || idx >= _assessment!.challenges.length) return;
     HapticFeedback.selectionClick();
@@ -169,6 +211,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       _activeChallengeIdx = idx;
       _codeController.text = _userCodes[next.id] ?? next.starterCode;
     });
+    if (_activeTab == 'history') _loadHistory();
   }
 
   void _handleCodeChanged(String newCode) {
@@ -176,6 +219,40 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     if (curr != null) {
       _userCodes[curr.id] = newCode;
     }
+  }
+
+  /// Runs a challenge's test cases in the real sandbox (same service the module
+  /// challenge screen uses).
+  Future<ExecutionResultModel> _executeChallenge(
+    AssessmentChallengeModel ch,
+    String code,
+  ) {
+    final List<TestCaseModel> cases = ch.testCases.asMap().entries.map(
+      (MapEntry<int, Map<String, dynamic>> e) {
+        final Map<String, dynamic> tc = e.value;
+        return TestCaseModel(
+          input: (tc['input'] ?? tc['test_input'] ?? '').toString(),
+          expectedOutput:
+              (tc['output'] ?? tc['expected'] ?? tc['test_expected_output'] ?? '')
+                  .toString(),
+          orderIndex: e.key + 1,
+        );
+      },
+    ).toList();
+
+    return CodeExecutionService.execute(
+      code: code,
+      language: ch.language,
+      testCases: cases,
+      apiBaseUrl: dotenv.env['WEB_API_URL'] ?? dotenv.env['API_BASE_URL'],
+    );
+  }
+
+  String _verdictFor(ExecutionResultModel r) {
+    if (r.isSuccess) return 'Accepted';
+    if (r.isCompileError) return 'Compilation Error';
+    if (r.isRuntimeError) return 'Runtime Error';
+    return 'Wrong Answer';
   }
 
   Future<void> _handleRunSampleTests() async {
@@ -188,46 +265,28 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       _activeTab = 'console';
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    final ExecutionResultModel result =
+        await _executeChallenge(ch, _codeController.text);
 
-    final String code = _codeController.text;
-    final List<Map<String, dynamic>> testCases = ch.testCases;
-
-    final List<Map<String, dynamic>> results = <Map<String, dynamic>>[];
-    bool allPassed = true;
-
-    if (testCases.isEmpty) {
+    final List<Map<String, dynamic>> results = result.caseResults
+        .map((TestCaseResultModel c) => <String, dynamic>{
+              'input': c.input,
+              'expected': c.expected,
+              'actual': c.error ?? c.actual,
+              'passed': c.passed,
+              'timeMs': int.tryParse(
+                      (c.runtime ?? '').replaceAll(RegExp(r'[^0-9]'), '')) ??
+                  0,
+            })
+        .toList();
+    if (results.isEmpty) {
       results.add(<String, dynamic>{
-        'input': 'default()',
-        'expected': 'true',
-        'actual': 'true',
-        'passed': true,
-        'timeMs': 14,
+        'input': '-',
+        'expected': '-',
+        'actual': result.errorTitle ?? result.rawLog,
+        'passed': result.isSuccess,
+        'timeMs': 0,
       });
-    } else {
-      for (int i = 0; i < testCases.length; i++) {
-        final Map<String, dynamic> tc = testCases[i];
-        final String input =
-            tc['input']?.toString() ?? tc['test_input']?.toString() ?? 'case($i)';
-        final String expected = tc['output']?.toString() ??
-            tc['expected']?.toString() ??
-            tc['test_expected_output']?.toString() ??
-            'true';
-
-        // Check if code has meaningful content
-        final bool isNonEmpty =
-            code.trim().isNotEmpty && !code.contains('TODO');
-        final bool passed = isNonEmpty;
-        if (!passed) allPassed = false;
-
-        results.add(<String, dynamic>{
-          'input': input,
-          'expected': expected,
-          'actual': passed ? expected : 'Unimplemented / Compilation error',
-          'passed': passed,
-          'timeMs': 12 + (i * 4),
-        });
-      }
     }
 
     if (!mounted) return;
@@ -235,14 +294,14 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     setState(() {
       _isRunningTests = false;
       _testResultsByChallenge[ch.id] = results;
-      _challengePassedMap[ch.id] = allPassed;
+      _challengePassedMap[ch.id] = result.isSuccess;
     });
 
-    if (allPassed) {
+    if (result.isSuccess) {
       HapticFeedback.mediumImpact();
       AppToast.showSuccess(context, 'All sample tests passed!');
     } else {
-      AppToast.showInfo(context, 'Some sample tests failed. Check console.');
+      AppToast.showInfo(context, 'Some tests failed. Check console.');
     }
   }
 
@@ -549,14 +608,33 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       _userCodes[curr.id] = _codeController.text;
     }
 
-    // Compute challenge results
+    // Evaluate every challenge for real, one by one (web parity: /api/execute per challenge)
     final List<Map<String, dynamic>> submissions = <Map<String, dynamic>>[];
+    final List<AssessmentChallengeResult> results = <AssessmentChallengeResult>[];
     int totalPassed = 0;
 
-    for (final AssessmentChallengeModel ch in asm.challenges) {
+    for (int i = 0; i < asm.challenges.length; i++) {
+      final AssessmentChallengeModel ch = asm.challenges[i];
       final String code = _userCodes[ch.id] ?? ch.starterCode;
-      final bool passed = _challengePassedMap[ch.id] == true ||
-          (code.trim().isNotEmpty && !code.contains('TODO'));
+      if (mounted) {
+        setState(() => _submitStage = 'Evaluating ${i + 1} of ${asm.challenges.length}…');
+      }
+
+      bool passed = false;
+      String verdict = 'Wrong Answer';
+      int passedCases = 0;
+      int totalCases = 0;
+
+      final bool untouched = code.trim().isEmpty || code.trim() == ch.starterCode.trim();
+      if (untouched) {
+        verdict = code.trim().isEmpty ? 'No Submission' : 'Unchanged Starter Code';
+      } else {
+        final ExecutionResultModel r = await _executeChallenge(ch, code);
+        passed = r.isSuccess;
+        verdict = _verdictFor(r);
+        passedCases = r.passedTestCases;
+        totalCases = r.totalTestCases;
+      }
 
       if (passed) totalPassed++;
 
@@ -565,37 +643,63 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
         'code': code,
         'language': ch.language,
         'passed': passed,
+        'verdict': verdict,
       });
+      results.add(AssessmentChallengeResult(
+        challenge: ch,
+        code: code,
+        language: ch.language,
+        passed: passed,
+        verdict: verdict,
+        passedCases: passedCases,
+        totalCases: totalCases,
+      ));
     }
 
     final int total = asm.challenges.isNotEmpty ? asm.challenges.length : 1;
     final int finalScore = ((totalPassed / total) * 100).round();
     final int timeSpentSecs = _totalDurationSecs - _secsLeft;
 
+    if (mounted) setState(() => _submitStage = 'Saving your submission…');
+
+    Map<String, String> submissionIds = <String, String>{};
     if (userId.isNotEmpty) {
-      await widget.assessmentRepository.submitAssessmentAttempt(
-        assessmentId: asm.id,
-        userId: userId,
-        score: finalScore,
-        timeSpentSecs: timeSpentSecs > 0 ? timeSpentSecs : 1,
-        challengeSubmissions: submissions,
-      );
+      submissionIds = await widget.assessmentRepository.submitAssessmentAttempt(
+            assessmentId: asm.id,
+            userId: userId,
+            score: finalScore,
+            timeSpentSecs: timeSpentSecs > 0 ? timeSpentSecs : 1,
+            challengeSubmissions: submissions,
+          ) ??
+          <String, String>{};
     }
 
     if (!mounted) return;
 
-    setState(() => _isSubmitting = false);
+    setState(() {
+      _isSubmitting = false;
+      _submitStage = '';
+    });
 
-    await AssessmentResultModal.show(
-      context,
+    final AssessmentReportArgs args = AssessmentReportArgs(
       assessment: asm,
       score: finalScore,
       timeSpentSecs: timeSpentSecs,
-      challengeResults: submissions,
-      onDone: () {
-        context.pop(); // Returns to /assessments
-      },
+      results: results
+          .map((AssessmentChallengeResult r) => AssessmentChallengeResult(
+                challenge: r.challenge,
+                code: r.code,
+                language: r.language,
+                passed: r.passed,
+                verdict: r.verdict,
+                passedCases: r.passedCases,
+                totalCases: r.totalCases,
+                submissionId: submissionIds[r.challenge.id],
+              ))
+          .toList(),
     );
+
+    context.pushReplacement('/assessments/${asm.id}/report', extra: args);
   }
 
   Future<void> _handleReport() async {
@@ -895,6 +999,15 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                     icon: Icons.terminal_rounded,
                     isDark: isDark,
                   ),
+                  const SizedBox(width: 8.0),
+                  _buildSegmentButton(
+                    id: 'history',
+                    label: (_historyByChallenge[ch.id]?.isNotEmpty ?? false)
+                        ? 'History (${_historyByChallenge[ch.id]!.length})'
+                        : 'History',
+                    icon: Icons.history_rounded,
+                    isDark: isDark,
+                  ),
                 ],
               ),
             ),
@@ -904,7 +1017,9 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
               child: IndexedStack(
                 index: _activeTab == 'problem'
                     ? 0
-                    : (_activeTab == 'editor' ? 1 : 2),
+                    : (_activeTab == 'editor'
+                        ? 1
+                        : (_activeTab == 'console' ? 2 : 3)),
                 children: <Widget>[
                   // Tab 0: Problem View
                   _buildProblemView(ch, isDark, textPrimary, textSecondary),
@@ -914,6 +1029,15 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
 
                   // Tab 2: Console / Test Cases View
                   _buildConsoleView(ch, isDark, textPrimary, textSecondary),
+
+                  // Tab 3: Past submissions for this challenge
+                  SubmissionsHistoryView(
+                    submissions:
+                        _historyByChallenge[ch.id] ?? const <SubmissionHistoryModel>[],
+                    isLoading: _isLoadingHistory,
+                    onRefresh: () => _loadHistory(force: true),
+                    onRestoreCode: _restoreHistoricalCode,
+                  ),
                 ],
               ),
             ),
@@ -994,14 +1118,32 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                           ),
                         ),
                         child: _isSubmitting
-                            ? const SizedBox(
-                                width: 16.0,
-                                height: 16.0,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.0,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  const SizedBox(
+                                    width: 16.0,
+                                    height: 16.0,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.0,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  ),
+                                  if (_submitStage.isNotEmpty) ...<Widget>[
+                                    const SizedBox(width: 8.0),
+                                    Flexible(
+                                      child: Text(
+                                        _submitStage,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               )
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1043,6 +1185,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
         onTap: () {
           HapticFeedback.selectionClick();
           setState(() => _activeTab = id);
+          if (id == 'history') _loadHistory();
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
@@ -1108,9 +1251,9 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Header: Difficulty Tag
+          // Header: Task Tag
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -1128,18 +1271,6 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                     fontWeight: FontWeight.w800,
                     color: AppColors.primary,
                   ),
-                ),
-              ),
-              Text(
-                ch.difficulty.toUpperCase(),
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: ch.difficulty.toLowerCase() == 'easy'
-                      ? const Color(0xFF3ECF8E)
-                      : (ch.difficulty.toLowerCase() == 'hard'
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFFF59E0B)),
                 ),
               ),
             ],

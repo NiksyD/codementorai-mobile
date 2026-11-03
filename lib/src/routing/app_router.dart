@@ -10,7 +10,9 @@ import '../features/dashboard/presentation/main_shell_screen.dart';
 import '../features/learn/domain/dashboard_submission.dart';
 import '../features/learn/presentation/activity_screen.dart';
 import '../features/learn/presentation/activity_submission_review_screen.dart';
+import '../features/learn/domain/assessment_report_args.dart';
 import '../features/learn/presentation/assessment_attempt_screen.dart';
+import '../features/learn/presentation/assessment_report_screen.dart';
 import '../features/learn/presentation/assessments_screen.dart';
 import '../features/learn/presentation/challenge_screen.dart';
 import '../features/learn/presentation/module_detail_screen.dart';
@@ -187,6 +189,14 @@ final GoRouter appRouter = GoRouter(
       builder: (BuildContext context, GoRouterState state) {
         final String assessmentId = state.pathParameters['id'] ?? '';
         return AssessmentAttemptScreen(assessmentId: assessmentId);
+      },
+    ),
+    GoRoute(
+      path: '/assessments/:id/report',
+      builder: (BuildContext context, GoRouterState state) {
+        final AssessmentReportArgs? args = state.extra as AssessmentReportArgs?;
+        if (args == null) return const AssessmentsScreen();
+        return AssessmentReportScreen(args: args);
       },
     ),
     GoRoute(

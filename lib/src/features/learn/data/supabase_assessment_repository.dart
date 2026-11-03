@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import '../../../core/network/api_client.dart';
 import '../domain/assessment_model.dart';
+import '../domain/submission_history_model.dart';
 import 'assessment_repository.dart';
 
 class SupabaseAssessmentRepository implements AssessmentRepository {
@@ -267,14 +270,16 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
   }
 
   @override
-  Future<bool> submitAssessmentAttempt({
+  Future<Map<String, String>?> submitAssessmentAttempt({
     required String assessmentId,
     required String userId,
     required int score,
     required int timeSpentSecs,
     required List<Map<String, dynamic>> challengeSubmissions,
   }) async {
-    if (assessmentId.isEmpty || userId.isEmpty) return false;
+    if (assessmentId.isEmpty || userId.isEmpty) return null;
+
+    final Map<String, String> submissionIds = <String, String>{};
 
     try {
       // 1. Fetch current best score from library if exists
@@ -308,13 +313,16 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
 
       // 2.5 Record in user_assessment_attempts for CRA Competency scoring
       try {
+        final int passingScore = await _getPassingScore(assessmentId);
         await _supabase.from('user_assessment_attempts').insert(<String, dynamic>{
           'user_id': userId,
           'assessment_id': assessmentId,
-          'status': 'graded',
+          'status': 'completed',
           'score': score,
-          'submitted_at': DateTime.now().toIso8601String(),
-          'graded_at': DateTime.now().toIso8601String(),
+          'passing_score': passingScore,
+          'is_passed': score >= passingScore,
+          'duration_seconds': timeSpentSecs,
+          'submitted_at': DateTime.now().toUtc().toIso8601String(),
         });
       } catch (attErr) {
         debugPrint('Non-critical attempt insert error: $attErr');
@@ -328,25 +336,37 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
           final String lang = item['language']?.toString() ?? 'javascript';
           final bool passed = item['passed'] == true;
 
-          await _supabase.from('submissions').insert(<String, dynamic>{
-            'learner_id': userId,
-            'assessment_id': assessmentId,
-            if (challengeId != null && challengeId.isNotEmpty)
-              'challenge_id': challengeId,
-            'code': code,
-            'language': lang,
-            'verdict': passed ? 'accepted' : 'wrong_answer',
-            'submitted_at': DateTime.now().toIso8601String(),
-          });
+          if (challengeId == null || challengeId.isEmpty) continue;
+
+          final String verdictText = item['verdict']?.toString() ??
+              (passed ? 'Accepted' : 'Wrong Answer');
+
+          // Live schema columns (same as the module submit flow and web /api/submit)
+          final dynamic inserted = await _supabase.from('submissions').insert(<String, dynamic>{
+            'user_id': userId,
+            'item_id': challengeId,
+            'sub_code': code,
+            'sub_language': lang.toLowerCase(),
+            'sub_status': passed ? 'accepted' : 'wrong_answer',
+            'sub_verdict': <String, dynamic>{'verdict': verdictText},
+            'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
+          }).select('sub_id').maybeSingle();
+
+          final String subId =
+              inserted is Map ? (inserted['sub_id']?.toString() ?? '') : '';
+          if (subId.isNotEmpty) {
+            submissionIds[challengeId] = subId;
+            _triggerAcfEvaluation(subId);
+          }
         } catch (subErr) {
           debugPrint('Error inserting challenge submission log: $subErr');
         }
       }
 
-      return true;
+      return submissionIds;
     } catch (e) {
       debugPrint('Error submitting assessment attempt: $e');
-      return false;
+      return null;
     }
   }
 
@@ -490,5 +510,76 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
       debugPrint('Error unlocking assessment: $e');
       return 'Could not unlock the assessment. Please try again.';
     }
+  }
+
+  @override
+  Future<List<SubmissionHistoryModel>> getChallengeSubmissions({
+    required String userId,
+    required String challengeId,
+  }) async {
+    if (userId.isEmpty || challengeId.isEmpty) return <SubmissionHistoryModel>[];
+    try {
+      List<Map<String, dynamic>> rows;
+      try {
+        rows = await _supabase
+            .from('submissions')
+            .select('*, ai_audits(audit_findings)')
+            .eq('user_id', userId)
+            .eq('item_id', challengeId)
+            .order('sub_submitted_at', ascending: false);
+      } catch (_) {
+        rows = await _supabase
+            .from('submissions')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('item_id', challengeId)
+            .order('sub_submitted_at', ascending: false);
+      }
+      return rows
+          .map((Map<String, dynamic> r) => SubmissionHistoryModel.fromJson(r))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching challenge submissions: $e');
+      return <SubmissionHistoryModel>[];
+    }
+  }
+
+  Future<int> _getPassingScore(String assessmentId) async {
+    try {
+      final Map<String, dynamic>? row = await _supabase
+          .from('assessments')
+          .select('passing_score')
+          .eq('id', assessmentId)
+          .maybeSingle();
+      final dynamic v = row?['passing_score'];
+      return v is num ? v.toInt() : 70;
+    } catch (_) {
+      return 70;
+    }
+  }
+
+  /// Fire-and-forget AI (ACF) review generation for a saved submission, same
+  /// endpoint chain the module challenge flow uses (Go backend, then web fallback).
+  void _triggerAcfEvaluation(String subId) {
+    const ApiClient apiClient = ApiClient();
+    unawaited(() async {
+      try {
+        final dynamic res = await apiClient.get(
+          '/api/submissions/$subId/feedback',
+          timeout: const Duration(seconds: 10),
+        );
+        if (res is Map &&
+            (res.containsKey('acf_composite_score') ||
+                res.containsKey('correctness'))) {
+          return;
+        }
+      } catch (_) {}
+      try {
+        await apiClient.getWeb(
+          '/api/submissions/$subId/feedback',
+          timeout: const Duration(seconds: 30),
+        );
+      } catch (_) {}
+    }());
   }
 }

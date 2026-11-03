@@ -1325,11 +1325,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
               ),
               const SizedBox(height: 12.0),
 
-              // Row 2: Duration, Passing Score & Attempt Score + Action
+              // Row 2: Duration & Attempt Score + Action
               Row(
                 children: <Widget>[
                   Text(
-                    '${asst.durationMins}m · Pass ${asst.passingScore}%',
+                    '${asst.durationMins}m',
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 11.5,
                       color: textSecondary,
@@ -1420,18 +1420,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 accentColor: _passRate >= 70
                     ? const Color(0xFF10B981)
                     : const Color(0xFFF59E0B),
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: _buildMetricBox(
-                label: 'Streak',
-                value: '${_streak}d',
-                icon: Icons.local_fire_department_rounded,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                accentColor: const Color(0xFFF59E0B),
               ),
             ),
             const SizedBox(width: 8.0),
