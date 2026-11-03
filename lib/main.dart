@@ -95,7 +95,7 @@ class _CodeMentorAppState extends State<CodeMentorApp> {
       valueListenable: themeModeController,
       builder: (BuildContext context, ThemeMode mode, Widget? child) {
         return MaterialApp.router(
-          title: 'CodeMentor AI',
+          title: 'CodeMentorAI',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
