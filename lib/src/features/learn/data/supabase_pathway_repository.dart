@@ -33,124 +33,102 @@ class SupabasePathwayRepository implements PathwayRepository {
 
   @override
   Future<bool> isModulePurchased(String userId, String moduleId) async {
+    if (userId.isEmpty) return false;
+    await _purgeLegacyLocalUnlocks();
     try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final List<String> localPurchased =
-          prefs.getStringList('codementor_enrolled_modules_$userId') ??
-              prefs.getStringList('cma_user_enrolled_modules') ??
-              <String>[];
-      if (localPurchased.contains(moduleId)) return true;
-
-      if (userId.isNotEmpty) {
-        final List<Map<String, dynamic>> rows = await _supabase
-            .from('coin_transactions')
-            .select('reference_id')
-            .eq('user_id', userId)
-            .eq('tx_type', 'module_purchase')
-            .eq('reference_id', moduleId)
-            .limit(1);
-        if (rows.isNotEmpty) {
-          // Cache locally
-          if (!localPurchased.contains(moduleId)) {
-            localPurchased.add(moduleId);
-            await prefs.setStringList('codementor_enrolled_modules_$userId', localPurchased);
-            await prefs.setStringList('cma_user_enrolled_modules', localPurchased);
-          }
-          return true;
-        }
-      }
-    } catch (_) {}
-    return false;
-  }
-
-  @override
-  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins) async {
-    try {
-      // 1. Deduct coins and log transaction
-      if (userId.isNotEmpty) {
-        final Map<String, dynamic>? wallet = await _supabase
-            .from('user_wallets')
-            .select('balance_coins')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        final int currentBalance = wallet != null && wallet['balance_coins'] != null
-            ? (wallet['balance_coins'] as num).toInt()
-            : 0;
-
-        if (currentBalance >= coins && coins > 0) {
-          final int newBalance = currentBalance - coins;
-          await _supabase
-              .from('user_wallets')
-              .update(<String, dynamic>{
-                'balance_coins': newBalance,
-                'updated_at': DateTime.now().toUtc().toIso8601String(),
-              })
-              .eq('user_id', userId);
-
-          await _supabase
-              .from('coin_transactions')
-              .insert(<String, dynamic>{
-                'user_id': userId,
-                'amount_coins': -coins,
-                'balance_after': newBalance,
-                'tx_type': 'module_purchase',
-                'reference_id': moduleId,
-                'description': 'Unlocked Coding Challenges for module',
-              });
-
-          try {
-            await _supabase.rpc<dynamic>('process_module_purchase_coins', params: <String, dynamic>{
-              'p_learner_id': userId,
-              'p_module_id': moduleId,
-            });
-          } catch (_) {}
-        }
-      }
-
-      // 2. Persist locally to match Web localStorage parity
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final List<String> list1 =
-          prefs.getStringList('codementor_enrolled_modules_$userId') ?? <String>[];
-      if (!list1.contains(moduleId)) {
-        list1.add(moduleId);
-        await prefs.setStringList('codementor_enrolled_modules_$userId', list1);
-      }
-      final List<String> list2 =
-          prefs.getStringList('cma_user_enrolled_modules') ?? <String>[];
-      if (!list2.contains(moduleId)) {
-        list2.add(moduleId);
-        await prefs.setStringList('cma_user_enrolled_modules', list2);
-      }
-
-      // 3. Update memory caches
-      if (_moduleDetailsCache.containsKey(moduleId)) {
-        _moduleDetailsCache[moduleId] =
-            _moduleDetailsCache[moduleId]!.copyWith(isPurchased: true);
-      }
-      if (cachedData != null) {
-        PathwayModel markPurchased(PathwayModel p) =>
-            p.id == moduleId ? p.copyWith(isPurchased: true) : p;
-
-        cachedData = LearnDashboardData(
-          activePathway: cachedData!.activePathway,
-          enrolledPathways: cachedData!.enrolledPathways.map(markPurchased).toList(),
-          allPathways: cachedData!.allPathways.map(markPurchased).toList(),
-          currentStreak: cachedData!.currentStreak,
-          totalActiveDays: cachedData!.totalActiveDays,
-          easySolved: cachedData!.easySolved,
-          mediumSolved: cachedData!.mediumSolved,
-          hardSolved: cachedData!.hardSolved,
-          recommendedChallenges: cachedData!.recommendedChallenges,
-          submissions: cachedData!.submissions,
-        );
-      }
-
-      catalogRefreshNotifier.value++;
-      return true;
+      // The database is the only source of truth: a paid module_purchase debit.
+      final List<Map<String, dynamic>> rows = await _supabase
+          .from('coin_transactions')
+          .select('reference_id')
+          .eq('user_id', userId)
+          .eq('tx_type', 'module_purchase')
+          .eq('reference_id', moduleId)
+          .lt('amount_coins', 0)
+          .limit(1);
+      return rows.isNotEmpty;
     } catch (_) {
       return false;
     }
+  }
+
+  String _shortError(Object e) {
+    final String raw = e
+        .toString()
+        .replaceAll('PostgrestException', '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return raw.length > 220 ? '${raw.substring(0, 220)}...' : raw;
+  }
+
+  static bool _legacyUnlocksPurged = false;
+
+  /// Earlier builds "unlocked" modules by writing ids to local storage. Those
+  /// entries could mark a module unlocked without any payment, so drop them.
+  Future<void> _purgeLegacyLocalUnlocks() async {
+    if (_legacyUnlocksPurged) return;
+    _legacyUnlocksPurged = true;
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> stale = prefs
+          .getKeys()
+          .where((String k) =>
+              k == 'cma_user_enrolled_modules' ||
+              k.startsWith('codementor_enrolled_modules_'))
+          .toList();
+      for (final String k in stale) {
+        await prefs.remove(k);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Future<String?> unlockModuleWithCoins(String userId, String moduleId) async {
+    if (userId.isEmpty) return 'Please log in to unlock challenges';
+
+    try {
+      // Single write path: the database function charges the learner (module
+      // price, or the 49-coin platform fee), logs the transaction and pays the
+      // creator. Clients cannot write wallets directly (RLS).
+      await _supabase.rpc<dynamic>('process_module_purchase_coins', params: <String, dynamic>{
+        'p_learner_id': userId,
+        'p_module_id': moduleId,
+      });
+    } catch (e) {
+      final String msg = e.toString();
+      if (msg.contains('INSUFFICIENT_COINS')) {
+        return 'Insufficient CodeCoins to unlock these challenges.';
+      }
+      debugPrint('Error unlocking module: $e');
+      // Debug builds show the real database error so setup problems are obvious.
+      if (kDebugMode) return 'Unlock failed: ${_shortError(e)}';
+      return 'Could not unlock the challenges. Please try again.';
+    }
+
+    // Update memory caches so the UI unlocks immediately
+    if (_moduleDetailsCache.containsKey(moduleId)) {
+      _moduleDetailsCache[moduleId] =
+          _moduleDetailsCache[moduleId]!.copyWith(isPurchased: true);
+    }
+    if (cachedData != null) {
+      PathwayModel markPurchased(PathwayModel p) =>
+          p.id == moduleId ? p.copyWith(isPurchased: true) : p;
+
+      cachedData = LearnDashboardData(
+        activePathway: cachedData!.activePathway,
+        enrolledPathways: cachedData!.enrolledPathways.map(markPurchased).toList(),
+        allPathways: cachedData!.allPathways.map(markPurchased).toList(),
+        currentStreak: cachedData!.currentStreak,
+        totalActiveDays: cachedData!.totalActiveDays,
+        easySolved: cachedData!.easySolved,
+        mediumSolved: cachedData!.mediumSolved,
+        hardSolved: cachedData!.hardSolved,
+        recommendedChallenges: cachedData!.recommendedChallenges,
+        submissions: cachedData!.submissions,
+      );
+    }
+
+    catalogRefreshNotifier.value++;
+    return null;
   }
 
   @override
@@ -339,22 +317,17 @@ class SupabasePathwayRepository implements PathwayRepository {
       // Non-blocking
     }
 
-    // 4a. Fetch User Purchased Modules (coin_transactions & local cache)
+    // 4a. Fetch User Purchased Modules (paid module_purchase debits only)
     final Set<String> purchasedModIds = <String>{};
     try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final List<String> localPurchased =
-          prefs.getStringList('codementor_enrolled_modules_$userId') ??
-              prefs.getStringList('cma_user_enrolled_modules') ??
-              <String>[];
-      purchasedModIds.addAll(localPurchased);
-
+      await _purgeLegacyLocalUnlocks();
       if (userId.isNotEmpty) {
         final List<Map<String, dynamic>> txRows = await _supabase
             .from('coin_transactions')
             .select('reference_id')
             .eq('user_id', userId)
-            .eq('tx_type', 'module_purchase');
+            .eq('tx_type', 'module_purchase')
+            .lt('amount_coins', 0);
 
         for (final Map<String, dynamic> r in txRows) {
           final String? ref = r['reference_id'] as String?;

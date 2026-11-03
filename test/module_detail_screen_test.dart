@@ -42,7 +42,7 @@ class FakeDetailPathwayRepository implements PathwayRepository {
   Future<bool> enrollModule(String userId, String moduleId) async => true;
 
   @override
-  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins) async => true;
+  Future<String?> unlockModuleWithCoins(String userId, String moduleId) async => null;
 
   @override
   Future<bool> isModulePurchased(String userId, String moduleId) async =>

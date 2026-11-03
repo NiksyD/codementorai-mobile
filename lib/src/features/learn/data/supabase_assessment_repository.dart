@@ -508,6 +508,11 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
         return 'Insufficient CodeCoins to unlock this assessment.';
       }
       debugPrint('Error unlocking assessment: $e');
+      // Debug builds show the real database error so setup problems are obvious.
+      if (kDebugMode) {
+        final String raw = e.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+        return 'Unlock failed: ${raw.length > 220 ? '${raw.substring(0, 220)}...' : raw}';
+      }
       return 'Could not unlock the assessment. Please try again.';
     }
   }

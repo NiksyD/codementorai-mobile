@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../common_widgets/app_toast.dart';
+import '../../../common_widgets/password_strength_meter.dart';
 import '../../../common_widgets/social_auth_buttons.dart';
 import '../../../constants/app_colors.dart';
 import '../data/auth_repository.dart';
@@ -52,44 +53,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Password Criteria (100% Web Parity)
-  bool get _hasMinLength => _password.length >= 8;
-  bool get _hasUpperAndLower =>
-      RegExp(r'[A-Z]').hasMatch(_password) && RegExp(r'[a-z]').hasMatch(_password);
-  bool get _hasNumberOrSymbol =>
-      RegExp(r'[0-9]|[^A-Za-z0-9]').hasMatch(_password);
-
-  // Password Strength Score (0 to 4)
-  int get _strengthScore {
-    if (_password.isEmpty) return 0;
-    int score = 0;
-    if (_password.length >= 8) score += 1;
-    if (RegExp(r'[A-Z]').hasMatch(_password) && RegExp(r'[a-z]').hasMatch(_password)) {
-      score += 1;
-    }
-    if (RegExp(r'[0-9]').hasMatch(_password)) score += 1;
-    if (RegExp(r'[^A-Za-z0-9]').hasMatch(_password) || _password.length >= 12) {
-      score += 1;
-    }
-    return score;
-  }
-
-  static const List<Color> _strengthColors = <Color>[
-    Color(0x332E333F),
-    Color(0xFFEF4444), // Weak (Red)
-    Color(0xFFF59E0B), // Fair (Amber)
-    Color(0xFF38BDF8), // Good (Sky)
-    Color(0xFF3ECF8E), // Strong (Mint / Emerald)
-  ];
-
-  static const List<String> _strengthLabels = <String>[
-    'Empty',
-    'Weak',
-    'Fair',
-    'Good',
-    'Strong',
-  ];
-
   Future<void> _handleRegister() async {
     FocusScope.of(context).unfocus();
 
@@ -102,7 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    if (!_hasMinLength || !_hasUpperAndLower || !_hasNumberOrSymbol) {
+    if (!PasswordStrengthMeter.meetsRequirements(_password)) {
       HapticFeedback.vibrate();
       setState(() {
         _errorMessage = 'Please meet all password security requirements.';
@@ -435,79 +398,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    // Real-Time Password Strength Meter (100% Web Parity)
+                    // Real-Time Password Strength Meter (shared with Reset Password)
                     if (_password.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 10.0),
-                      // 4-Bar Strength Progress Indicator
-                      Row(
-                        children: List<Widget>.generate(4, (int index) {
-                          final bool isFilled = index < _strengthScore;
-                          final Color barColor = isFilled
-                              ? _strengthColors[_strengthScore]
-                              : (isDark
-                                  ? const Color(0x332E333F)
-                                  : const Color(0x33C4C6CF));
-
-                          return Expanded(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 250),
-                              height: 5.0,
-                              margin: EdgeInsets.only(
-                                right: index < 3 ? 5.0 : 0.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: barColor,
-                                borderRadius: BorderRadius.circular(3.0),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                      const SizedBox(height: 6.0),
-
-                      // Strength Text Label
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Text(
-                            'PASSWORD STRENGTH',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 10.0,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                              color: textSecondary.withValues(alpha: 0.6),
-                            ),
-                          ),
-                          Text(
-                            _strengthLabels[_strengthScore],
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: _strengthColors[_strengthScore],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10.0),
-
-                      // Real-Time Validation Checklist
-                      _buildCriteriaItem(
-                        isValid: _hasMinLength,
-                        label: 'At least 8 characters',
-                        textSecondary: textSecondary,
-                      ),
-                      const SizedBox(height: 4.0),
-                      _buildCriteriaItem(
-                        isValid: _hasUpperAndLower,
-                        label: 'Uppercase and lowercase letters',
-                        textSecondary: textSecondary,
-                      ),
-                      const SizedBox(height: 4.0),
-                      _buildCriteriaItem(
-                        isValid: _hasNumberOrSymbol,
-                        label: 'At least one number or symbol',
-                        textSecondary: textSecondary,
-                      ),
+                      const SizedBox(height: 12.0),
+                      PasswordStrengthMeter(password: _password),
                     ],
                     const SizedBox(height: 24.0),
 
@@ -598,49 +492,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildCriteriaItem({
-    required bool isValid,
-    required String label,
-    required Color textSecondary,
-  }) {
-    final Color activeColor = AppColors.primary;
-    final Color inactiveColor = textSecondary.withValues(alpha: 0.5);
-
-    return Row(
-      children: <Widget>[
-        Container(
-          width: 14.0,
-          height: 14.0,
-          decoration: BoxDecoration(
-            color: isValid
-                ? activeColor.withValues(alpha: 0.2)
-                : inactiveColor.withValues(alpha: 0.15),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              '✓',
-              style: TextStyle(
-                fontSize: 9.0,
-                fontWeight: FontWeight.bold,
-                color: isValid ? activeColor : inactiveColor,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8.0),
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: isValid ? FontWeight.w600 : FontWeight.w400,
-            color: isValid ? activeColor : inactiveColor,
-          ),
-        ),
-      ],
     );
   }
 }

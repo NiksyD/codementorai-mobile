@@ -5,7 +5,6 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
-import '../features/auth/presentation/verify_otp_screen.dart';
 import '../features/dashboard/presentation/main_shell_screen.dart';
 import '../features/learn/domain/dashboard_submission.dart';
 import '../features/learn/presentation/activity_screen.dart';
@@ -22,7 +21,6 @@ import '../features/learn/presentation/practice_screen.dart';
 import '../features/learn/presentation/room_detail_screen.dart';
 import '../features/learn/presentation/rooms_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
-import '../features/profile/presentation/profile_setup_screen.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -148,21 +146,9 @@ final GoRouter appRouter = GoRouter(
           const ForgotPasswordScreen(),
     ),
     GoRoute(
-      path: '/verify-otp',
-      builder: (BuildContext context, GoRouterState state) {
-        final String email = state.uri.queryParameters['email'] ?? '';
-        return VerifyOtpScreen(email: email);
-      },
-    ),
-    GoRoute(
       path: '/reset-password',
       builder: (BuildContext context, GoRouterState state) =>
           const ResetPasswordScreen(),
-    ),
-    GoRoute(
-      path: '/profile-setup',
-      builder: (BuildContext context, GoRouterState state) =>
-          const ProfileSetupScreen(),
     ),
     GoRoute(
       path: '/dashboard',

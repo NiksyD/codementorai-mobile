@@ -10,7 +10,9 @@ abstract class PathwayRepository {
   Future<LearnDashboardData> getLearnDashboardData(String userId);
   Future<List<PathwayModel>> getAllModules(String userId);
   Future<bool> enrollModule(String userId, String moduleId);
-  Future<bool> unlockModuleWithCoins(String userId, String moduleId, int coins);
+  /// Unlocks a module's coding challenges with CodeCoins. The price is set by
+  /// the database. Returns an error message, or null on success.
+  Future<String?> unlockModuleWithCoins(String userId, String moduleId);
   Future<bool> isModulePurchased(String userId, String moduleId);
   Future<bool> toggleBookmark(String userId, String moduleId, bool isBookmarked);
   ModuleDetailModel? getCachedModuleDetails(String moduleId);

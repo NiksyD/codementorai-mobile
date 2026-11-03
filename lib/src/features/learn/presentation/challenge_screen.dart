@@ -607,19 +607,21 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                               context,
                               module: tempPathway,
                               onEnroll: (String tier) async {
-                                final bool ok = await widget.pathwayRepository.unlockModuleWithCoins(
+                                final String? error = await widget.pathwayRepository.unlockModuleWithCoins(
                                   userId,
                                   widget.moduleId,
-                                  priceCoins,
                                 );
-                                if (ok && mounted) {
+                                if (!mounted) return;
+                                final BuildContext currentCtx = this.context;
+                                if (error == null) {
                                   setState(() {
                                     _isLocked = false;
                                   });
-                                  final BuildContext currentCtx = this.context;
                                   if (currentCtx.mounted) {
                                     AppToast.showSuccess(currentCtx, 'Coding challenges unlocked successfully!');
                                   }
+                                } else if (currentCtx.mounted) {
+                                  AppToast.showError(currentCtx, error);
                                 }
                               },
                             );

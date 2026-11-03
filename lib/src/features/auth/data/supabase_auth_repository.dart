@@ -86,33 +86,10 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> resetPasswordForEmail({required String email}) async {
-    await _supabase.auth.resetPasswordForEmail(email);
-  }
-
-  @override
-  Future<void> sendPasswordResetOtp({required String email}) async {
-    await _supabase.auth.resetPasswordForEmail(email);
-  }
-
-  @override
-  Future<void> verifyPasswordResetOtp({
-    required String email,
-    required String token,
-  }) async {
-    final supabase.AuthResponse response = await _supabase.auth.verifyOTP(
-      email: email,
-      token: token,
-      type: supabase.OtpType.recovery,
+    await _supabase.auth.resetPasswordForEmail(
+      email,
+      redirectTo: kIsWeb ? null : 'codementorai://login-callback',
     );
-
-    if (response.session == null) {
-      // Fallback for general OTP verification
-      await _supabase.auth.verifyOTP(
-        email: email,
-        token: token,
-        type: supabase.OtpType.email,
-      );
-    }
   }
 
   @override

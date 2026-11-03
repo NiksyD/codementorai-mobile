@@ -156,22 +156,17 @@ class _ModuleDetailScreenState extends State<ModuleDetailScreen> {
       context,
       module: tempPathway,
       onEnroll: (String tier) async {
-        final double effectivePrice = _module!.price > 0 ? _module!.price : 0.84;
-        final int priceCoins = CurrencyFormatter.coinsFromUsd(effectivePrice);
-        final bool ok = await widget.pathwayRepository.unlockModuleWithCoins(
+        final String? error = await widget.pathwayRepository.unlockModuleWithCoins(
           userId,
           widget.moduleId,
-          priceCoins,
         );
-        if (ok) {
+        if (error == null) {
           await _loadModuleData();
           if (mounted) {
             AppToast.showSuccess(context, 'Coding challenges unlocked successfully!');
           }
-        } else {
-          if (mounted) {
-            AppToast.showError(context, 'Unlock failed. Please try again.');
-          }
+        } else if (mounted) {
+          AppToast.showError(context, error);
         }
       },
     );

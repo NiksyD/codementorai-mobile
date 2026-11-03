@@ -40,6 +40,12 @@ class _CodeMentorAppState extends State<CodeMentorApp> {
     try {
       Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
         final AuthChangeEvent event = data.event;
+
+        // The reset email link opened the app: keep the user in the reset flow
+        // until they save a new password or cancel.
+        if (event == AuthChangeEvent.passwordRecovery) {
+          await PasswordResetStorage.setResetPending(true);
+        }
         final bool isResetPending = await PasswordResetStorage.isResetPending();
 
         if (isResetPending || event == AuthChangeEvent.passwordRecovery) {

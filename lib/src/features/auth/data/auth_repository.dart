@@ -13,12 +13,10 @@ abstract class AuthRepository {
   });
   Future<void> signInWithGoogle();
   Future<void> signInWithGithub();
+
+  /// Emails a password reset link. On mobile the link opens the app
+  /// (codementorai://login-callback); on web it opens the web reset page.
   Future<void> resetPasswordForEmail({required String email});
-  Future<void> sendPasswordResetOtp({required String email});
-  Future<void> verifyPasswordResetOtp({
-    required String email,
-    required String token,
-  });
   Future<void> updatePassword({required String newPassword});
   Future<void> signOut();
 }
