@@ -144,6 +144,37 @@ class ApiClient {
     }
   }
 
+  /// Performs a POST request to the web API (e.g. Next.js on Vercel). Use it for
+  /// actions whose server-side side effects live in the web app, such as
+  /// notifying a mentor.
+  Future<dynamic> postWeb(
+    String endpoint, {
+    dynamic body,
+    Map<String, String>? headers,
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final String cleanBase = webBaseUrl.endsWith('/')
+        ? webBaseUrl.substring(0, webBaseUrl.length - 1)
+        : webBaseUrl;
+    final String cleanEndpoint =
+        endpoint.startsWith('/') ? endpoint : '/$endpoint';
+    final Uri uri = Uri.parse('$cleanBase$cleanEndpoint');
+
+    try {
+      final http.Response response = await client
+          .post(
+            uri,
+            headers: _buildHeaders(customHeaders: headers),
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(timeout);
+
+      return _handleResponse(response);
+    } catch (e) {
+      _handleError(e);
+    }
+  }
+
   Future<dynamic> post(
     String endpoint, {
     dynamic body,

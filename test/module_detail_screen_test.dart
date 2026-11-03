@@ -104,6 +104,7 @@ class FakeDetailPathwayRepository implements PathwayRepository {
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,
+    bool triggerGeneration = true,
   }) async =>
       cachedSubmission != null
           ? ActivitySubmissionReviewModel.fromCachedSubmission(cachedSubmission)

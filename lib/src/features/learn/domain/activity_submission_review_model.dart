@@ -574,7 +574,7 @@ class ActivitySubmissionReviewModel {
     if (acfEvaluation != null) {
       return acfEvaluation!.compositeScore.round();
     }
-    return 95;
+    return 0;
   }
 
   String get timeAgoFormatted {
@@ -609,11 +609,9 @@ class ActivitySubmissionReviewModel {
       verdict: sub.verdict.isNotEmpty ? sub.verdict : 'Accepted',
       submittedAt: sub.submittedAt,
       grade: sub.score != null ? '${sub.score}%' : null,
-      acfEvaluation: AcfEvaluationModel.fallback(
-        score: sub.score?.toDouble() ?? 95.0,
-        verdict: sub.verdict,
-        language: sub.language,
-      ),
+      // The AI review is unknown here. Leave it null so the screen shows the
+      // "generating" state instead of a made-up scorecard.
+      acfEvaluation: null,
     );
   }
 

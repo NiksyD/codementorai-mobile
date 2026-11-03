@@ -19,6 +19,7 @@ class MockReviewPathwayRepository implements PathwayRepository {
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,
+    bool triggerGeneration = true,
   }) async =>
       review;
 
@@ -380,5 +381,49 @@ public class RefactoredSolution {
         expect(find.text('Copy Code'), findsOneWidget);
       },
     );
+  });
+
+  group('AI review pending state', () {
+    // Same submission, but no AI review has been saved yet.
+    final ActivitySubmissionReviewModel pendingReview =
+        ActivitySubmissionReviewModel(
+      submissionId: sampleReview.submissionId,
+      itemId: sampleReview.itemId,
+      title: sampleReview.title,
+      moduleTitle: sampleReview.moduleTitle,
+      moduleId: sampleReview.moduleId,
+      difficulty: sampleReview.difficulty,
+      language: sampleReview.language,
+      submittedCode: sampleReview.submittedCode,
+      status: sampleReview.status,
+      verdict: sampleReview.verdict,
+      submittedAt: sampleReview.submittedAt,
+    );
+
+    testWidgets('shows the generating state instead of a made-up scorecard', (
+      WidgetTester tester,
+    ) async {
+      final MockReviewPathwayRepository repo =
+          MockReviewPathwayRepository(review: pendingReview);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivitySubmissionReviewScreen(
+            submissionId: pendingReview.submissionId,
+            pathwayRepository: repo,
+          ),
+        ),
+      );
+      // Do not settle: the progress indicators animate until the review exists.
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Generating your AI code review'), findsOneWidget);
+      // None of the real scorecard sections or the old fake 95 should appear.
+      expect(find.text('Correctness'), findsNothing);
+      expect(find.text('95'), findsNothing);
+
+      // Leave no pending timer behind.
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   });
 }

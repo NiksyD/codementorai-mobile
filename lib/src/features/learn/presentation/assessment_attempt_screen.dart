@@ -120,7 +120,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       _secsLeft = duration;
       _totalDurationSecs = duration;
       if (asm.challenges.isNotEmpty) {
-        _codeController.text = _userCodes[asm.challenges.first.id] ?? '';
+        _setEditorText(_userCodes[asm.challenges.first.id] ?? '');
       }
     });
 
@@ -189,16 +189,35 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     if (ch == null) return;
     HapticFeedback.mediumImpact();
     setState(() {
-      _codeController.text = code;
+      _setEditorText(code);
       _userCodes[ch.id] = code;
       _activeTab = 'editor';
     });
     AppToast.showSuccess(context, 'Code restored to editor');
   }
 
+  /// Replaces the editor content with a valid cursor position. Assigning
+  /// `controller.text` leaves the selection at -1, which later breaks the
+  /// editor's auto-indent logic.
+  void _setEditorText(String text) {
+    _codeController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
   void _selectChallenge(int idx) {
-    if (_assessment == null || idx >= _assessment!.challenges.length) return;
+    if (_assessment == null ||
+        idx < 0 ||
+        idx >= _assessment!.challenges.length ||
+        idx == _activeChallengeIdx) {
+      return;
+    }
     HapticFeedback.selectionClick();
+
+    // Close the keyboard so the text input connection is not mid-edit while the
+    // editor content is swapped for the next problem.
+    FocusManager.instance.primaryFocus?.unfocus();
 
     // Save current code
     final AssessmentChallengeModel? curr = _currentChallenge;
@@ -209,7 +228,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     final AssessmentChallengeModel next = _assessment!.challenges[idx];
     setState(() {
       _activeChallengeIdx = idx;
-      _codeController.text = _userCodes[next.id] ?? next.starterCode;
+      _setEditorText(_userCodes[next.id] ?? next.starterCode);
     });
     if (_activeTab == 'history') _loadHistory();
   }
@@ -248,8 +267,40 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     );
   }
 
+  /// One short line explaining why a run failed (the first error message),
+  /// so a failing score can be checked against the real compiler output.
+  String? _errorSummary(ExecutionResultModel r) {
+    if (r.isSuccess) return null;
+    final List<String> sources = <String>[
+      if (r.caseResults.isNotEmpty) r.caseResults.first.error ?? '',
+      if (r.caseResults.isNotEmpty) r.caseResults.first.actual,
+      r.rawLog,
+    ];
+    for (final String source in sources) {
+      final List<String> lines = source
+          .split('\n')
+          .map((String l) => l.trim())
+          .where((String l) =>
+              l.isNotEmpty && !l.startsWith('>') && !l.startsWith('Status:'))
+          .toList();
+      if (lines.isEmpty) continue;
+      final String line = lines.firstWhere(
+        (String l) => l.toLowerCase().contains('error'),
+        orElse: () => lines.first,
+      );
+      return line.length > 180 ? '${line.substring(0, 180)}...' : line;
+    }
+    return null;
+  }
+
   String _verdictFor(ExecutionResultModel r) {
     if (r.isSuccess) return 'Accepted';
+    // The runner itself failed (network, unsupported language): that is not a
+    // verdict on the learner's code.
+    if (r.errorTitle == 'Execution Error' ||
+        r.errorTitle == 'Unsupported Language') {
+      return 'Could Not Run';
+    }
     if (r.isCompileError) return 'Compilation Error';
     if (r.isRuntimeError) return 'Runtime Error';
     return 'Wrong Answer';
@@ -624,6 +675,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       String verdict = 'Wrong Answer';
       int passedCases = 0;
       int totalCases = 0;
+      String? detail;
 
       final bool untouched = code.trim().isEmpty || code.trim() == ch.starterCode.trim();
       if (untouched) {
@@ -634,6 +686,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
         verdict = _verdictFor(r);
         passedCases = r.passedTestCases;
         totalCases = r.totalTestCases;
+        detail = _errorSummary(r);
       }
 
       if (passed) totalPassed++;
@@ -653,6 +706,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
         verdict: verdict,
         passedCases: passedCases,
         totalCases: totalCases,
+        detail: detail,
       ));
     }
 
@@ -695,6 +749,7 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                 passedCases: r.passedCases,
                 totalCases: r.totalCases,
                 submissionId: submissionIds[r.challenge.id],
+                detail: r.detail,
               ))
           .toList(),
     );
@@ -1410,6 +1465,9 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       children: <Widget>[
         Expanded(
           child: PracticeCodeEditor(
+            // A fresh editor state per problem avoids carrying over stale
+            // focus / scroll / selection from the previous one.
+            key: ValueKey<String>(ch.id),
             controller: _codeController,
             language: ch.language,
             onChanged: _handleCodeChanged,

@@ -473,6 +473,16 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
+    // A programmatic text swap (for example switching problems) can leave the
+    // previous value with an invalid selection. Never index with it.
+    final bool oldSelectionValid = oldValue.selection.isValid &&
+        oldValue.selection.baseOffset >= 0 &&
+        oldValue.selection.baseOffset <= oldValue.text.length;
+    final bool newSelectionValid = newValue.selection.isValid &&
+        newValue.selection.baseOffset >= 0 &&
+        newValue.selection.baseOffset <= newValue.text.length;
+    if (!newSelectionValid) return newValue;
+
     // 1. Single character insertion checks
     if (newValue.text.length == oldValue.text.length + 1 &&
         newValue.selection.isCollapsed &&
@@ -534,6 +544,7 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
 
       // B. Skip-over existing closing character on typing
       if (_pairMap.containsValue(insertedChar) &&
+          oldSelectionValid &&
           oldValue.selection.isCollapsed &&
           oldValue.selection.baseOffset < oldValue.text.length &&
           oldValue.text[oldValue.selection.baseOffset] == insertedChar) {
@@ -559,6 +570,7 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
 
     // 2. Backspace: delete closing pair if backspacing opening character of pair
     if (newValue.text.length == oldValue.text.length - 1 &&
+        oldSelectionValid &&
         oldValue.selection.isCollapsed &&
         oldValue.selection.baseOffset > 0) {
       final int deletedCharPos = oldValue.selection.baseOffset - 1;
@@ -569,6 +581,7 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
         final String expectedClosing = _pairMap[deletedChar]!;
         if (oldValue.text[deletedCharPos + 1] == expectedClosing) {
           final int newPos = newValue.selection.baseOffset;
+          if (newPos < 0 || newPos >= newValue.text.length) return newValue;
           final String updatedText =
               newValue.text.replaceRange(newPos, newPos + 1, '');
           return TextEditingValue(

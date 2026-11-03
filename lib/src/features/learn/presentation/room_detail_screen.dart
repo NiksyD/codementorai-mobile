@@ -275,7 +275,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Section & Language Badges Row
+          // Section Badge Row
           Row(
             children: <Widget>[
               Container(
@@ -295,26 +295,6 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     fontSize: 11.0,
                     fontWeight: FontWeight.w700,
                     color: textPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8.0),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.5),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08),
-                  borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: Text(
-                  room.targetLanguage.toUpperCase(),
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
                   ),
                 ),
               ),

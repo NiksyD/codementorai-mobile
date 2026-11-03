@@ -332,6 +332,26 @@ class MarkdownContentView extends StatelessWidget {
 
       // 4. Plain Text chunk
       final int nextSpecial = _findNextSpecial(text, cursor);
+
+      // An opening marker with no closing partner ("n * m", a lone backtick,
+      // a trailing "*") is plain text. Consume it, otherwise this loop never
+      // advances and the app freezes.
+      if (nextSpecial == cursor) {
+        final int markerLength = text.startsWith('**', cursor) ? 2 : 1;
+        spans.add(
+          TextSpan(
+            text: text.substring(cursor, cursor + markerLength),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.0,
+              height: 1.45,
+              color: textSecondary,
+            ),
+          ),
+        );
+        cursor += markerLength;
+        continue;
+      }
+
       if (nextSpecial == -1) {
         spans.add(
           TextSpan(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -33,10 +35,22 @@ class _ActivitySubmissionReviewScreenState
   String _selectedCriterionId = 'correctness';
   bool _codeCopied = false;
 
+  // AI review generation: re-check the saved review a limited number of times.
+  static const int _maxAiPolls = 10;
+  static const Duration _aiPollInterval = Duration(seconds: 6);
+  Timer? _aiPollTimer;
+  int _aiPolls = 0;
+  bool _aiGaveUp = false;
+
   @override
   void initState() {
     super.initState();
-    if (widget.initialSubmission != null) {
+    final ActivitySubmissionReviewModel? cached =
+        SupabasePathwayRepository.cachedReview(widget.submissionId);
+    if (cached != null) {
+      _review = cached;
+      _isLoading = false;
+    } else if (widget.initialSubmission != null) {
       _review = ActivitySubmissionReviewModel.fromCachedSubmission(
         widget.initialSubmission!,
       );
@@ -45,17 +59,28 @@ class _ActivitySubmissionReviewScreenState
     _loadReview();
   }
 
-  Future<void> _loadReview() async {
+  @override
+  void dispose() {
+    _aiPollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadReview({bool triggerGeneration = true}) async {
     try {
       final ActivitySubmissionReviewModel? data =
           await widget.pathwayRepository.getSubmissionReview(
         widget.submissionId,
         cachedSubmission: widget.initialSubmission,
+        triggerGeneration: triggerGeneration,
       );
 
       if (mounted && data != null) {
         setState(() {
           _review = data;
+          _isLoading = false;
+        });
+      } else if (mounted) {
+        setState(() {
           _isLoading = false;
         });
       }
@@ -66,6 +91,35 @@ class _ActivitySubmissionReviewScreenState
         });
       }
     }
+    _scheduleAiRecheck();
+  }
+
+  /// While the AI review has not been saved yet, look again every few seconds
+  /// (reading only, without asking the server to generate it again).
+  void _scheduleAiRecheck() {
+    _aiPollTimer?.cancel();
+    if (!mounted) return;
+    final bool pending = _review != null && _review!.acfEvaluation == null;
+    if (!pending) return;
+
+    if (_aiPolls >= _maxAiPolls) {
+      if (!_aiGaveUp) setState(() => _aiGaveUp = true);
+      return;
+    }
+    _aiPollTimer = Timer(_aiPollInterval, () {
+      _aiPolls++;
+      _loadReview(triggerGeneration: false);
+    });
+  }
+
+  void _retryAiReview() {
+    HapticFeedback.lightImpact();
+    SupabasePathwayRepository.resetGenerationCooldown(widget.submissionId);
+    setState(() {
+      _aiPolls = 0;
+      _aiGaveUp = false;
+    });
+    _loadReview();
   }
 
   void _handleBack() {
@@ -321,6 +375,14 @@ class _ActivitySubmissionReviewScreenState
                     textSecondary: textSecondary,
                   ),
                   const SizedBox(height: 24.0),
+                ] else ...<Widget>[
+                  _buildAiPendingSection(
+                    surface: surface,
+                    borderColor: borderColor,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                  ),
+                  const SizedBox(height: 24.0),
                 ],
 
                 // ── 4. VERIFIED MENTOR FEEDBACK (HOLLOW ROW) ────────────────
@@ -364,6 +426,102 @@ class _ActivitySubmissionReviewScreenState
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // ── AI review pending ──────────────────────────────────────────────────────
+  Widget _buildAiPendingSection({
+    required Color surface,
+    required Color borderColor,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final bool gaveUp = _aiGaveUp;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(14.0),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                if (gaveUp)
+                  Icon(
+                    Icons.hourglass_empty_rounded,
+                    size: 20.0,
+                    color: textSecondary,
+                  )
+                else
+                  const SizedBox(
+                    width: 18.0,
+                    height: 18.0,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                const SizedBox(width: 12.0),
+                Expanded(
+                  child: Text(
+                    gaveUp
+                        ? "The AI review isn't ready yet"
+                        : 'Generating your AI code review',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w800,
+                      color: textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8.0),
+            Text(
+              gaveUp
+                  ? 'It is taking longer than usual. Your submission is saved. Check again in a moment.'
+                  : 'This usually takes under a minute. Your submission is saved, and the review will appear here when it is ready.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                height: 1.5,
+                color: textSecondary,
+              ),
+            ),
+            if (!gaveUp) ...<Widget>[
+              const SizedBox(height: 14.0),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4.0),
+                child: LinearProgressIndicator(
+                  minHeight: 4.0,
+                  color: AppColors.primary,
+                  backgroundColor: borderColor,
+                ),
+              ),
+            ] else ...<Widget>[
+              const SizedBox(height: 14.0),
+              OutlinedButton.icon(
+                onPressed: _retryAiReview,
+                icon: const Icon(Icons.refresh_rounded, size: 18.0),
+                label: const Text('Check again'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: textPrimary,
+                  minimumSize: const Size(48.0, 48.0),
+                  side: BorderSide(color: borderColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

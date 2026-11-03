@@ -74,9 +74,12 @@ abstract class PathwayRepository {
   });
   Future<bool> acceptRoomInvitation(String roomId) async => false;
   Future<bool> declineRoomInvitation(String roomId) async => false;
+  /// [triggerGeneration] asks the web API to generate the AI review when none
+  /// exists yet. Polling passes false so it only reads what is already saved.
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,
+    bool triggerGeneration = true,
   }) async =>
       cachedSubmission != null
           ? ActivitySubmissionReviewModel.fromCachedSubmission(cachedSubmission)

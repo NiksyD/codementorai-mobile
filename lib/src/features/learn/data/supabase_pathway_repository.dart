@@ -31,6 +31,54 @@ class SupabasePathwayRepository implements PathwayRepository {
   static final ValueNotifier<int> catalogRefreshNotifier =
       ValueNotifier<int>(0);
 
+  /// Finished AI reviews are immutable, so keep them for the session and open
+  /// them instantly instead of asking the server again.
+  static final Map<String, _CachedReview> _reviewCache =
+      <String, _CachedReview>{};
+  static const Duration _reviewCacheTtl = Duration(minutes: 10);
+
+  /// When an AI review was last requested per submission. Prevents every open
+  /// of an unfinished review from starting another generation.
+  static final Map<String, DateTime> _generationRequestedAt =
+      <String, DateTime>{};
+  static const Duration _generationCooldown = Duration(minutes: 3);
+
+  /// A finished review from this session, or null.
+  static ActivitySubmissionReviewModel? cachedReview(String submissionId) {
+    final _CachedReview? hit = _reviewCache[submissionId];
+    if (hit == null) return null;
+    if (DateTime.now().difference(hit.at) > _reviewCacheTtl) {
+      _reviewCache.remove(submissionId);
+      return null;
+    }
+    return hit.review;
+  }
+
+  /// Lightweight check used by the assessment report: the saved AI composite
+  /// score (0-100) for a submission, or null while the review is not saved.
+  Future<double?> getAiCompositeScore(String submissionId) async {
+    try {
+      final dynamic row = await _supabase
+          .from('ai_audits')
+          .select('audit_findings')
+          .eq('sub_id', submissionId)
+          .order('audit_audited_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (row is Map && row['audit_findings'] is Map) {
+        return AcfEvaluationModel.fromJson(
+          Map<String, dynamic>.from(row['audit_findings'] as Map<dynamic, dynamic>),
+        ).compositeScore;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Lets the "Check again" button ask for a fresh generation right away.
+  static void resetGenerationCooldown(String submissionId) {
+    _generationRequestedAt.remove(submissionId);
+  }
+
   @override
   Future<bool> isModulePurchased(String userId, String moduleId) async {
     if (userId.isEmpty) return false;
@@ -2379,17 +2427,27 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
   }) async {
     final String cleanCode = code.trim().toUpperCase();
 
-    // 1. Attempt API Gateway POST
+    // 1. The web app's join route is the source of truth: it validates the
+    // code, records the pending request AND notifies the mentor. The Go
+    // gateway has no join endpoint, so it is not used here.
     try {
-      final dynamic apiResult = await apiClient.post(
+      final dynamic apiResult = await apiClient.postWeb(
         '/api/classrooms/join',
         body: <String, dynamic>{'code': cleanCode},
       );
       if (apiResult is Map) {
         return Map<String, dynamic>.from(apiResult);
       }
+    } on ApiException catch (e) {
+      final int? status = e.statusCode;
+      // A real answer from the server (bad code, archived hub, own hub...):
+      // show it instead of bypassing the checks with a direct insert.
+      if (status != null && status >= 400 && status < 500) {
+        return <String, dynamic>{'success': false, 'error': e.message};
+      }
+      debugPrint('Web join route unavailable ($e), using direct fallback.');
     } catch (e) {
-      debugPrint('apiClient.post /api/classrooms/join failed, using direct fallback: $e');
+      debugPrint('Web join route failed ($e), using direct fallback.');
     }
 
     // 2. Direct Supabase Fallback
@@ -2452,7 +2510,10 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         }
       }
 
-      // Insert pending membership request
+      // Insert pending membership request. This direct path cannot notify the
+      // mentor (learners may not write other users' notifications), so it is
+      // only a last resort when the web app is unreachable.
+      debugPrint('Direct join fallback: the mentor will NOT receive a notification.');
       await _supabase.from('hub_members').insert(<String, dynamic>{
         'hub_id': room['id'],
         'learner_id': userId,
@@ -2557,25 +2618,53 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,
+    bool triggerGeneration = true,
   }) async {
     Map<String, dynamic>? subRow;
     AcfEvaluationModel? acfEvaluation;
     MentorFeedbackModel? mentorFeedback;
 
-    // 1. Fetch feedback via Go Backend API
+    // 0. A finished review from this session: no network at all.
+    final ActivitySubmissionReviewModel? cached = cachedReview(submissionId);
+    if (cached != null) return cached;
+
+    // 0b. Fast path: the saved AI audit, straight from the database.
     try {
-      final dynamic apiFeedback =
-          await apiClient.get('/api/submissions/$submissionId/feedback');
-      if (apiFeedback is Map) {
-        final Map<String, dynamic> fbMap =
-            Map<String, dynamic>.from(apiFeedback);
-        if (fbMap.containsKey('acf_composite_score') ||
-            fbMap.containsKey('correctness')) {
-          acfEvaluation = AcfEvaluationModel.fromJson(fbMap);
-        }
+      final dynamic quickAudit = await _supabase
+          .from('ai_audits')
+          .select('audit_findings')
+          .eq('sub_id', submissionId)
+          .order('audit_audited_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (quickAudit is Map && quickAudit['audit_findings'] is Map) {
+        acfEvaluation = AcfEvaluationModel.fromJson(
+          Map<String, dynamic>.from(
+            quickAudit['audit_findings'] as Map<dynamic, dynamic>,
+          ),
+        );
       }
     } catch (_) {
-      // Non-blocking fallback to Supabase
+      // Non-blocking
+    }
+
+    // 1. Fetch feedback via Go Backend API (only when generating; skipped when
+    // polling so a cold-starting gateway cannot stall the re-checks)
+    if (acfEvaluation == null && triggerGeneration) {
+      try {
+        final dynamic apiFeedback =
+            await apiClient.get('/api/submissions/$submissionId/feedback');
+        if (apiFeedback is Map) {
+          final Map<String, dynamic> fbMap =
+              Map<String, dynamic>.from(apiFeedback);
+          if (fbMap.containsKey('acf_composite_score') ||
+              fbMap.containsKey('correctness')) {
+            acfEvaluation = AcfEvaluationModel.fromJson(fbMap);
+          }
+        }
+      } catch (_) {
+        // Non-blocking fallback to Supabase
+      }
     }
 
     // 2. Fetch submission record if not already available or to enrich code/verdict
@@ -2730,7 +2819,11 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
     }
 
     // 5.5. On-Demand Fallback: Request feedback from Web API (evaluates via Gemini and persists to ai_audits)
-    if (acfEvaluation == null) {
+    final DateTime? lastRequested = _generationRequestedAt[submissionId];
+    final bool cooledDown = lastRequested == null ||
+        DateTime.now().difference(lastRequested) > _generationCooldown;
+    if (acfEvaluation == null && triggerGeneration && cooledDown) {
+      _generationRequestedAt[submissionId] = DateTime.now();
       try {
         final dynamic webFeedback =
             await apiClient.getWeb('/api/submissions/$submissionId/feedback');
@@ -2769,19 +2862,10 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       // Non-blocking
     }
 
-    // 7. Graceful fallback if ACF evaluation still null
-    if (acfEvaluation == null) {
-      final double score = cachedSubmission?.score?.toDouble() ?? 95.0;
-      acfEvaluation = AcfEvaluationModel.fallback(
-        score: score,
-        verdict: verdict,
-        language: language,
-        defaultTime: targetTime,
-        defaultSpace: targetSpace,
-      );
-    }
+    // 7. No AI review saved yet: return null so the screen shows its
+    // "generating" state. Never invent a scorecard.
 
-    return ActivitySubmissionReviewModel(
+    final ActivitySubmissionReviewModel result = ActivitySubmissionReviewModel(
       submissionId: submissionId,
       itemId: itemId,
       title: title,
@@ -2800,6 +2884,12 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       acfEvaluation: acfEvaluation,
       mentorFeedback: mentorFeedback,
     );
+
+    // Only a finished review is worth keeping.
+    if (acfEvaluation != null) {
+      _reviewCache[submissionId] = _CachedReview(result, DateTime.now());
+    }
+    return result;
   }
 
   /// Triggers asynchronous ACF evaluation: first trying Go gateway, then falling back to Web API
@@ -2826,4 +2916,11 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
       } catch (_) {}
     }());
   }
+}
+
+class _CachedReview {
+  const _CachedReview(this.review, this.at);
+
+  final ActivitySubmissionReviewModel review;
+  final DateTime at;
 }
