@@ -56,11 +56,17 @@ void main() {
 
       // Verify header and title
       expect(find.text('Unlock Coding Challenges'), findsOneWidget);
-      expect(find.text('Full access to all algorithmic benchmarks'), findsOneWidget);
+      expect(
+        find.text('Full access to all algorithmic benchmarks in this module'),
+        findsOneWidget,
+      );
       expect(find.text('Java OOP: Encapsulation'), findsOneWidget);
 
       // Verify coach name is sanitized (HeathTEST PonoTEST2 -> by Heath Pono)
-      expect(find.text('by Heath Pono'), findsOneWidget);
+      expect(
+        find.textContaining('by Heath Pono', findRichText: true),
+        findsOneWidget,
+      );
 
       // Verify Good to know banner is removed per design specifications
       expect(
@@ -73,19 +79,24 @@ void main() {
       );
 
       // Verify What's Included section
-      expect(find.text("WHAT'S INCLUDED"), findsOneWidget);
+      expect(find.text("What's included"), findsOneWidget);
       expect(find.text('Full access to all coding challenges in this module'), findsOneWidget);
-      expect(find.text('Automated test suite execution & instant feedback'), findsOneWidget);
+      expect(find.text('Automated test runs with instant feedback'), findsOneWidget);
 
       // Verify CodeCoins pricing & wallet section
-      expect(find.text('Unlock Price'), findsOneWidget);
-      expect(find.text('1900 CodeCoins'), findsOneWidget);
-      expect(find.text('(₱1,102.00)'), findsOneWidget);
-      expect(find.text('Your Balance'), findsOneWidget);
+      expect(find.text('Unlock price'), findsOneWidget);
+      expect(find.textContaining('1900 coins', findRichText: true), findsOneWidget);
+      expect(find.textContaining('₱1,102.00', findRichText: true), findsOneWidget);
+      expect(find.text('Your balance'), findsOneWidget);
 
-      // Verify Cancel and Unlock buttons exist
+      // Cancel is a text action. With the default 250-coin wallet the single
+      // button says how many coins are missing (and is off).
       expect(find.text('Cancel'), findsOneWidget);
-      expect(find.byType(ElevatedButton), findsNWidgets(2));
+      expect(find.text('Need 1650 more coins'), findsOneWidget);
+      expect(
+        find.widgetWithText(ElevatedButton, 'Need 1650 more coins'),
+        findsOneWidget,
+      );
     });
   });
 }

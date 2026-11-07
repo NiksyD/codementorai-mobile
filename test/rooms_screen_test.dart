@@ -117,7 +117,7 @@ void main() {
     });
   }
 
-  group('RoomsScreen Widget Tests (Web /learn/hubs 1:1 Redesign Parity)', () {
+  group('RoomsScreen Widget Tests', () {
     testWidgets('Renders header with My Hubs, caption, and Join Hub button',
         (WidgetTester tester) async {
       setMobileViewport(tester);
@@ -172,11 +172,12 @@ void main() {
       expect(find.text('You have a pending hub invitation'), findsOneWidget);
       expect(
         find.text(
-            'Accept your invitation below to join the cohort and access learning modules.'),
+            'Accept it below to join the cohort and see its modules.'),
         findsOneWidget,
       );
-      expect(find.text('Action Needed'), findsOneWidget);
-      expect(find.byIcon(Icons.mark_email_unread_rounded), findsOneWidget);
+      // The banner is plain text now: no "Action Needed" chip or envelope icon.
+      expect(find.text('Action Needed'), findsNothing);
+      expect(find.byIcon(Icons.mark_email_unread_rounded), findsNothing);
     });
 
     testWidgets('Filters hubs when tapping Active and Pending tabs',
@@ -255,7 +256,7 @@ void main() {
       expect(find.text('Review Hub'), findsOneWidget);
 
       // Code pending: View Status
-      expect(find.text('View Status'), findsOneWidget);
+      expect(find.text('View status'), findsOneWidget);
 
       // Email invite: Accept & Decline buttons
       expect(find.text('Accept'), findsOneWidget);

@@ -82,8 +82,7 @@ class MockReviewPathwayRepository implements PathwayRepository {
     String moduleId,
     String exerciseId,
     String code,
-    String language,
-  ) async =>
+    String language, {bool passed = true}) async =>
       'test-submission-id';
 
   @override
@@ -100,8 +99,7 @@ class MockReviewPathwayRepository implements PathwayRepository {
     String moduleId,
     String challengeId,
     String code,
-    String language,
-  ) async =>
+    String language, {bool passed = true}) async =>
       'test-submission-id';
 
   @override
@@ -268,20 +266,20 @@ public class RefactoredSolution {
       await tester.pumpAndSettle();
 
       // App Bar Title
-      expect(find.text('Submission Review'), findsOneWidget);
+      expect(find.text('Submission review'), findsOneWidget);
 
-      // Quiet Editorial Header & Inline Metadata
-      expect(find.text('Verified Passed'), findsOneWidget);
-      expect(find.text('All Tests Passed'), findsOneWidget);
+      // Header: one status line (status, language, tests, time)
+      expect(find.textContaining('Passed ·'), findsOneWidget);
+      expect(find.textContaining('All tests passed'), findsOneWidget);
       expect(
         find.text('Modern Switch Expressions and Short-Circuit Evaluation'),
         findsWidgets,
       );
-      expect(find.text('SCORE'), findsOneWidget);
-      expect(find.text('96'), findsOneWidget);
-      expect(find.text('STATUS'), findsOneWidget);
-      expect(find.text('RUNTIME'), findsOneWidget);
-      expect(find.text('MEMORY'), findsOneWidget);
+      expect(find.text('Score'), findsOneWidget);
+      expect(find.textContaining('/ 100', findRichText: true), findsOneWidget);
+      expect(find.text('Result'), findsOneWidget);
+      expect(find.text('Target time'), findsOneWidget);
+      expect(find.text('Target space'), findsOneWidget);
 
       // 4 ACF Tabs
       expect(find.text('Correctness'), findsOneWidget);
@@ -297,12 +295,12 @@ public class RefactoredSolution {
       expect(find.text('100'), findsOneWidget);
 
       // Mentor Feedback Row
-      expect(find.text('Sarah Connor'), findsOneWidget);
+      expect(find.textContaining('Sarah Connor'), findsOneWidget);
       expect(find.text('Superb switch syntax usage!'), findsOneWidget);
 
       // Code Review Section
-      expect(find.text('(solution.java)'), findsOneWidget);
-      expect(find.text('Copy Code'), findsOneWidget);
+      expect(find.text('solution.java'), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
 
       // Bottom action dock is removed (matching web)
       expect(find.text('Open Module'), findsNothing);
@@ -377,8 +375,8 @@ public class RefactoredSolution {
         expect(find.text('Refactored.java'), findsNothing);
 
         // Submitted code solution header is displayed
-        expect(find.text('(solution.java)'), findsOneWidget);
-        expect(find.text('Copy Code'), findsOneWidget);
+        expect(find.text('solution.java'), findsOneWidget);
+        expect(find.text('Copy'), findsOneWidget);
       },
     );
   });

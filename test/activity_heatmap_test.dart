@@ -24,7 +24,7 @@ void main() {
       ),
     ];
 
-    testWidgets('Renders Practice Activity header and streak badge', (
+    testWidgets('Renders Practice Activity header and active-day count', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -41,7 +41,8 @@ void main() {
       await tester.pump();
 
       expect(find.text('Practice Activity'), findsOneWidget);
-      expect(find.text('5 Day Streak'), findsOneWidget);
+      // The streak lives in the dashboard header now, not on the heatmap.
+      expect(find.text('5 Day Streak'), findsNothing);
       expect(find.textContaining('14 active day'), findsAtLeastNWidgets(1));
       expect(find.text('Full Activity History'), findsOneWidget);
     });

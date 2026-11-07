@@ -12,7 +12,6 @@ import '../features/learn/presentation/activity_submission_review_screen.dart';
 import '../features/learn/domain/assessment_report_args.dart';
 import '../features/learn/presentation/assessment_attempt_screen.dart';
 import '../features/learn/presentation/assessment_report_screen.dart';
-import '../features/learn/presentation/assessments_screen.dart';
 import '../features/learn/presentation/challenge_screen.dart';
 import '../features/learn/presentation/module_detail_screen.dart';
 import '../features/learn/presentation/modules_screen.dart';
@@ -163,12 +162,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/assessments',
       builder: (BuildContext context, GoRouterState state) =>
-          const AssessmentsScreen(),
+          const ModulesScreen(initialTab: ExploreTab.assessments),
     ),
     GoRoute(
       path: '/learn/assessments',
       builder: (BuildContext context, GoRouterState state) =>
-          const AssessmentsScreen(),
+          const ModulesScreen(initialTab: ExploreTab.assessments),
     ),
     GoRoute(
       path: '/assessments/:id/take',
@@ -181,7 +180,7 @@ final GoRouter appRouter = GoRouter(
       path: '/assessments/:id/report',
       builder: (BuildContext context, GoRouterState state) {
         final AssessmentReportArgs? args = state.extra as AssessmentReportArgs?;
-        if (args == null) return const AssessmentsScreen();
+        if (args == null) return const ModulesScreen(initialTab: ExploreTab.assessments);
         return AssessmentReportScreen(args: args);
       },
     ),

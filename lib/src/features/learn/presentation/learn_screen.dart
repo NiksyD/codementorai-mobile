@@ -49,24 +49,29 @@ class _LearnScreenState extends State<LearnScreen> {
     _profile = SupabaseProfileRepository.cachedProfile;
     _dashboardData = SupabasePathwayRepository.cachedData;
     _isLoading = _dashboardData == null;
-    SupabasePathwayRepository.catalogRefreshNotifier
-        .addListener(_onCatalogRefresh);
-    SupabaseProfileRepository.profileChangeNotifier
-        .addListener(_onProfileChange);
+    SupabasePathwayRepository.catalogRefreshNotifier.addListener(
+      _onCatalogRefresh,
+    );
+    SupabaseProfileRepository.profileChangeNotifier.addListener(
+      _onProfileChange,
+    );
     _loadData();
   }
 
   @override
   void dispose() {
-    SupabasePathwayRepository.catalogRefreshNotifier
-        .removeListener(_onCatalogRefresh);
-    SupabaseProfileRepository.profileChangeNotifier
-        .removeListener(_onProfileChange);
+    SupabasePathwayRepository.catalogRefreshNotifier.removeListener(
+      _onCatalogRefresh,
+    );
+    SupabaseProfileRepository.profileChangeNotifier.removeListener(
+      _onProfileChange,
+    );
     super.dispose();
   }
 
   void _onProfileChange() {
-    final ProfileModel? updated = SupabaseProfileRepository.profileChangeNotifier.value;
+    final ProfileModel? updated =
+        SupabaseProfileRepository.profileChangeNotifier.value;
     if (updated != null && mounted) {
       setState(() {
         _profile = updated;
@@ -118,15 +123,19 @@ class _LearnScreenState extends State<LearnScreen> {
               .select('balance_coins')
               .maybeSingle();
 
-          if (inserted is Map<String, dynamic> && inserted['balance_coins'] is num) {
-            await Supabase.instance.client.from('coin_transactions').insert(<String, dynamic>{
-              'user_id': resolvedId,
-              'amount_coins': 250,
-              'balance_after': 250,
-              'tx_type': 'welcome_bonus',
-              'reference_id': 'onboarding_gift',
-              'description': 'Welcome to CodeMentorAI! 250 CodeCoins starter bonus',
-            });
+          if (inserted is Map<String, dynamic> &&
+              inserted['balance_coins'] is num) {
+            await Supabase.instance.client
+                .from('coin_transactions')
+                .insert(<String, dynamic>{
+                  'user_id': resolvedId,
+                  'amount_coins': 250,
+                  'balance_after': 250,
+                  'tx_type': 'welcome_bonus',
+                  'reference_id': 'onboarding_gift',
+                  'description':
+                      'Welcome to CodeMentorAI! 250 CodeCoins starter bonus',
+                });
             return (inserted['balance_coins'] as num).toInt();
           }
         } catch (_) {}
@@ -167,28 +176,34 @@ class _LearnScreenState extends State<LearnScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color backgroundColor =
-        isDark ? AppColors.darkBackground : AppColors.lightBackground;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color backgroundColor = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final User? authUser = _getAuthUser();
-    final Map<String, dynamic> authMeta = authUser?.userMetadata ?? <String, dynamic>{};
+    final Map<String, dynamic> authMeta =
+        authUser?.userMetadata ?? <String, dynamic>{};
 
     final String firstName = _profile?.firstName?.isNotEmpty == true
         ? _profile!.firstName!
         : ((authMeta['first_name'] as String?) ??
-            (authMeta['full_name'] as String?)?.split(' ').first ??
-            authUser?.email?.split('@').first ??
-            'Developer');
+              (authMeta['full_name'] as String?)?.split(' ').first ??
+              authUser?.email?.split('@').first ??
+              'Developer');
 
     final String? resolvedAvatar = (_profile?.avatarUrl?.isNotEmpty == true)
         ? _profile!.avatarUrl
-        : ((authMeta['avatar_url'] as String?) ?? (authMeta['picture'] as String?));
+        : ((authMeta['avatar_url'] as String?) ??
+              (authMeta['picture'] as String?));
 
-    final String avatarUrl = (resolvedAvatar != null && resolvedAvatar.trim().isNotEmpty)
+    final String avatarUrl =
+        (resolvedAvatar != null && resolvedAvatar.trim().isNotEmpty)
         ? resolvedAvatar.trim()
         : '';
 
@@ -208,7 +223,10 @@ class _LearnScreenState extends State<LearnScreen> {
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics(),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20.0,
+                    vertical: 12.0,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -220,7 +238,7 @@ class _LearnScreenState extends State<LearnScreen> {
                         firstName: firstName,
                         avatarUrl: avatarUrl,
                       ),
-                      const SizedBox(height: 20.0),
+                      const SizedBox(height: 28.0),
 
                       // ── 2. HERO: RESUME ACTIVE LEARNING (Matching Web shadcn Card) ──
                       if (activePathway != null) ...<Widget>[
@@ -230,12 +248,22 @@ class _LearnScreenState extends State<LearnScreen> {
                           textSecondary: textSecondary,
                           pathway: activePathway,
                         ),
+                        const SizedBox(height: 24.0),
+                        Divider(
+                          height: 1.0,
+                          thickness: 1.0,
+                          color: isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder,
+                        ),
                         const SizedBox(height: 20.0),
                       ],
 
                       // ── 3. FULL-WIDTH PRACTICE ACTIVITY & ANNUAL HEATMAP (Matching Web shadcn Heatmap) ──
                       ActivityHeatmap(
-                        submissions: _dashboardData?.submissions ?? const <DashboardSubmission>[],
+                        submissions:
+                            _dashboardData?.submissions ??
+                            const <DashboardSubmission>[],
                         totalActiveDays: _dashboardData?.totalActiveDays ?? 0,
                         currentStreak: _dashboardData?.currentStreak ?? 0,
                       ),
@@ -249,7 +277,7 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 
   // ===========================================================================
-  // 1. TOP GREETING & NOTIFICATION HEADER (Matching Web shadcn Header 1:1)
+  // 1. GREETING ROW: avatar, name, and three quiet status items
   // ===========================================================================
   Widget _buildTopGreeting({
     required bool isDark,
@@ -258,283 +286,209 @@ class _LearnScreenState extends State<LearnScreen> {
     required String firstName,
     required String avatarUrl,
   }) {
+    final String initial = firstName.isNotEmpty
+        ? firstName[0].toUpperCase()
+        : 'D';
+    final Widget initialMark = Center(
+      child: Text(
+        initial,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 16.0,
+          fontWeight: FontWeight.w700,
+          color: textPrimary,
+        ),
+      ),
+    );
+
     return Container(
-      padding: const EdgeInsets.only(bottom: 16.0),
+      padding: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: isDark
-                ? AppColors.darkBorder.withValues(alpha: 0.6)
-                : AppColors.lightBorder.withValues(alpha: 0.8),
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
             width: 1.0,
           ),
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          // Squircle Avatar + Greeting Copy
+          Container(
+            width: 40.0,
+            height: 40.0,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppColors.darkSurfaceCard
+                  : AppColors.lightSurfaceCard,
+              shape: BoxShape.circle,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: avatarUrl.isNotEmpty
+                ? Image.network(
+                    avatarUrl,
+                    key: ValueKey<String>(avatarUrl),
+                    fit: BoxFit.cover,
+                    loadingBuilder:
+                        (
+                          BuildContext context,
+                          Widget child,
+                          ImageChunkEvent? progress,
+                        ) => progress == null ? child : initialMark,
+                    errorBuilder:
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
+                        ) => initialMark,
+                  )
+                : initialMark,
+          ),
+          const SizedBox(width: 12.0),
           Expanded(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Container(
-                  width: 44.0,
-                  height: 44.0,
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-                    borderRadius: BorderRadius.circular(14.0),
-                    border: Border.all(
-                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                      width: 1.0,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14.0),
-                    child: avatarUrl.isNotEmpty
-                        ? Image.network(
-                            avatarUrl,
-                            key: ValueKey<String>(avatarUrl),
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: Text(
-                                  firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) => Center(
-                              child: Text(
-                                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 16.0,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Center(
-                            child: Text(
-                              firstName.isNotEmpty ? firstName[0].toUpperCase() : 'D',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 16.0,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
+                Text(
+                  'Welcome back,',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.0,
+                    fontWeight: FontWeight.w500,
+                    color: textSecondary,
+                    height: 1.2,
                   ),
                 ),
-                const SizedBox(width: 12.0),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Welcome back,',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.0,
-                          fontWeight: FontWeight.w500,
-                          color: textSecondary,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 2.0),
-                      Text(
-                        firstName,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 17.5,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                          letterSpacing: -0.3,
-                          height: 1.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                const SizedBox(height: 2.0),
+                Text(
+                  firstName,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 17.0,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                    letterSpacing: -0.2,
+                    height: 1.2,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10.0),
-
-          // Action Cluster: CodeCoins + Streak Badge + Notification Bell (1:1 Web Header Parity)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _buildCoinBadge(isDark, textPrimary),
-              const SizedBox(width: 8.0),
-              _buildStreakBadge(isDark, textPrimary),
-              const SizedBox(width: 8.0),
-              _buildNotificationBell(isDark, textPrimary, textSecondary),
-            ],
+          _buildStatItem(
+            icon: Icons.monetization_on_outlined,
+            value: _walletBalance > 9999
+                ? '${(_walletBalance / 1000).toStringAsFixed(1)}k'
+                : '$_walletBalance',
+            semanticLabel: 'CodeCoins',
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            message:
+                'CodeCoins: $_walletBalance. Complete practice and challenges to earn more.',
           ),
+          _buildStatItem(
+            icon: Icons.local_fire_department_outlined,
+            value: '${_dashboardData?.currentStreak ?? 0}d',
+            semanticLabel: 'Day streak',
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            message: (_dashboardData?.currentStreak ?? 0) > 0
+                ? '${_dashboardData?.currentStreak}-day streak. Keep it going.'
+                : 'Complete a practice or challenge today to start a streak.',
+          ),
+          _buildNotificationBell(textPrimary, textSecondary),
         ],
       ),
     );
   }
 
-  Widget _buildCoinBadge(bool isDark, Color textPrimary) {
-    return InkWell(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        AppToast.showInfo(
-          context,
-          'CodeCoins: $_walletBalance coins. Complete daily challenges and practice to earn more!',
-        );
-      },
-      borderRadius: BorderRadius.circular(12.0),
-      child: Container(
-        height: 38.0,
-        padding: const EdgeInsets.symmetric(horizontal: 9.0),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-          borderRadius: BorderRadius.circular(12.0),
-          border: Border.all(
-            color: _walletBalance > 0
-                ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
-                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-            width: 1.0,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Icon(
-              Icons.monetization_on_rounded,
-              size: 16.0,
-              color: Color(0xFFF59E0B),
-            ),
-            const SizedBox(width: 4.0),
-            Text(
-              _walletBalance > 9999
-                  ? '${(_walletBalance / 1000).toStringAsFixed(1)}k'
-                  : '$_walletBalance',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStreakBadge(bool isDark, Color textPrimary) {
-    final int streak = _dashboardData?.currentStreak ?? 0;
-    return InkWell(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        AppToast.showInfo(
-          context,
-          streak > 0
-              ? '$streak-day streak! Keep up the momentum.'
-              : 'Complete a practice exercise or challenge today to start your streak!',
-        );
-      },
-      borderRadius: BorderRadius.circular(12.0),
-      child: Container(
-        height: 38.0,
-        padding: const EdgeInsets.symmetric(horizontal: 9.0),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-          borderRadius: BorderRadius.circular(12.0),
-          border: Border.all(
-            color: streak > 0
-                ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
-                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-            width: 1.0,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              Icons.local_fire_department_rounded,
-              size: 16.0,
-              color: streak > 0
-                  ? const Color(0xFFF59E0B)
-                  : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-            ),
-            const SizedBox(width: 4.0),
-            Text(
-              '${streak}d',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationBell(
-    bool isDark,
-    Color textPrimary,
-    Color textSecondary,
-  ) {
-    final int unreadCount =
-        _notifications.where((NotificationModel n) => !n.isRead).length;
-
-    return InkWell(
-      onTap: _handleOpenNotifications,
-      borderRadius: BorderRadius.circular(12.0),
-      child: Container(
-        width: 38.0,
-        height: 38.0,
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-          borderRadius: BorderRadius.circular(12.0),
-          border: Border.all(
-            color: unreadCount > 0
-                ? AppColors.primary.withValues(alpha: 0.4)
-                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-            width: 1.0,
-          ),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: <Widget>[
-            Icon(
-              unreadCount > 0
-                  ? Icons.notifications_rounded
-                  : Icons.notifications_none_rounded,
-              size: 19.0,
-              color: unreadCount > 0 ? textPrimary : textSecondary,
-            ),
-            if (unreadCount > 0)
-              Positioned(
-                top: 8.0,
-                right: 8.0,
-                child: Container(
-                  width: 7.0,
-                  height: 7.0,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.6),
-                        blurRadius: 4.0,
-                      ),
-                    ],
+  /// Icon and number with no box around them. The tap area stays 48dp tall.
+  Widget _buildStatItem({
+    required IconData icon,
+    required String value,
+    required String semanticLabel,
+    required Color textPrimary,
+    required Color textSecondary,
+    required String message,
+  }) {
+    return Semantics(
+      button: true,
+      label: '$semanticLabel $value',
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          AppToast.showInfo(context, message);
+        },
+        borderRadius: BorderRadius.circular(8.0),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48.0, minWidth: 48.0),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                ExcludeSemantics(
+                  child: Icon(icon, size: 18.0, color: textSecondary),
+                ),
+                const SizedBox(width: 4.0),
+                ExcludeSemantics(
+                  child: Text(
+                    value,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 13.0,
+                      fontWeight: FontWeight.w600,
+                      color: textPrimary,
+                    ),
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationBell(Color textPrimary, Color textSecondary) {
+    final int unreadCount = _notifications
+        .where((NotificationModel n) => !n.isRead)
+        .length;
+
+    return Semantics(
+      button: true,
+      label: unreadCount > 0
+          ? 'Notifications, $unreadCount unread'
+          : 'Notifications',
+      child: InkWell(
+        onTap: _handleOpenNotifications,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 48.0,
+          height: 48.0,
+          child: Stack(
+            alignment: Alignment.center,
+            children: <Widget>[
+              Icon(
+                unreadCount > 0
+                    ? Icons.notifications_rounded
+                    : Icons.notifications_none_rounded,
+                size: 22.0,
+                color: unreadCount > 0 ? textPrimary : textSecondary,
               ),
-          ],
+              if (unreadCount > 0)
+                const Positioned(
+                  top: 12.0,
+                  right: 13.0,
+                  child: SizedBox(
+                    width: 7.0,
+                    height: 7.0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -559,7 +513,7 @@ class _LearnScreenState extends State<LearnScreen> {
   }
 
   // ===========================================================================
-  // 2. HERO ACTIVE PATHWAY CARD (Split-Block Archetype Matching Web /learn 1:1)
+  // 2. ACTIVE MODULE: plain section, no card
   // ===========================================================================
   Widget _buildHeroPathwayCard({
     required bool isDark,
@@ -567,7 +521,7 @@ class _LearnScreenState extends State<LearnScreen> {
     required Color textSecondary,
     required PathwayModel pathway,
   }) {
-    // Strict 0% Handling per AGENTS.md rule 2.3
+    // Strict 0% handling (AGENTS.md 2.3): no minimum sliver.
     final double progressValue = pathway.completion <= 0
         ? 0.0
         : (pathway.completion / 100.0).clamp(0.0, 1.0);
@@ -575,312 +529,181 @@ class _LearnScreenState extends State<LearnScreen> {
     final String ctaLabel = pathway.completion >= 100
         ? 'Review Track'
         : pathway.completion > 0
-            ? 'Continue Learning'
-            : 'Start Learning';
+        ? 'Continue Learning'
+        : 'Start Learning';
 
-    final String targetTopic = pathway.completion >= 100
-        ? 'Track Mastered'
+    final bool isDone = pathway.completion >= 100;
+    final String topicLabel = isDone ? 'Completed' : 'Up next';
+    final String topicTitle = isDone
+        ? 'Every topic in this module is done'
         : (pathway.currentModule.isNotEmpty
-            ? pathway.currentModule
-            : 'Getting Started');
+              ? pathway.currentModule
+              : 'Topic 1');
 
-    final String helperText = pathway.completion >= 100
-        ? 'All challenges passed'
-        : pathway.completion > 0
-            ? 'Pick up right where you paused'
-            : 'Ready to start topic 1';
+    final Color onPrimary = isDark ? AppColors.onPrimaryDark : Colors.white;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-        borderRadius: BorderRadius.circular(24.0),
-        border: Border.all(
-          color: isDark
-              ? AppColors.darkBorder
-              : AppColors.lightBorder,
-          width: 1.0,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            LanguageAvatarStack(
+              languages: pathway.stack.isNotEmpty
+                  ? pathway.stack
+                  : <String>[pathway.language],
+              size: 24.0,
+              overlap: 6.0,
+              borderColor: isDark
+                  ? AppColors.darkBackground
+                  : AppColors.lightBackground,
+            ),
+            Text(
+              '${pathway.completion}% Complete',
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 12.0,
+                fontWeight: FontWeight.w600,
+                color: textSecondary,
+              ),
+            ),
+          ],
         ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.3)
-                : const Color(0x0A000000),
-            blurRadius: 16.0,
-            offset: const Offset(0, 4),
+        const SizedBox(height: 16.0),
+        Text(
+          pathway.title,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 20.0,
+            fontWeight: FontWeight.w700,
+            color: textPrimary,
+            letterSpacing: -0.3,
+            height: 1.25,
           ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          // ── UPPER BLOCK: MODULE SCOPE (Dark Context / Surface Container Lowest) ──
-          Container(
-            padding: const EdgeInsets.all(20.0),
-            color: isDark
-                ? AppColors.darkSurfaceLowest
-                : AppColors.lightSurfaceCard,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 6.0),
+        Text(
+          pathway.description.isNotEmpty
+              ? pathway.description
+              : 'Continue practicing structured lessons and algorithmic problems.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.0,
+            fontWeight: FontWeight.w400,
+            color: textSecondary,
+            height: 1.5,
+          ),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 20.0),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999.0),
+          child: SizedBox(
+            height: 4.0,
+            child: LinearProgressIndicator(
+              value: progressValue,
+              backgroundColor: isDark
+                  ? AppColors.darkSurfaceHighest
+                  : AppColors.lightBorder,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                AppColors.primary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16.0),
+        Text(
+          topicLabel,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.0,
+            fontWeight: FontWeight.w500,
+            color: textSecondary,
+          ),
+        ),
+        const SizedBox(height: 2.0),
+        Text(
+          topicTitle,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15.0,
+            fontWeight: FontWeight.w600,
+            color: textPrimary,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 20.0),
+        SizedBox(
+          width: double.infinity,
+          height: 48.0,
+          child: ElevatedButton(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.push('/modules/${pathway.id}');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: onPrimary,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.0),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                // Header Kicker Row: "MODULE" on left + LanguageAvatarStack on right
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      'MODULE',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    LanguageAvatarStack(
-                      languages: pathway.stack.isNotEmpty
-                          ? pathway.stack
-                          : <String>[pathway.language],
-                      size: 26.0,
-                      overlap: 6.0,
-                      borderColor: isDark
-                          ? AppColors.darkSurfaceLowest
-                          : AppColors.lightSurfaceCard,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12.0),
-
-                // Module Title
+                const Icon(Icons.play_arrow_rounded, size: 18.0),
+                const SizedBox(width: 6.0),
                 Text(
-                  pathway.title,
+                  ctaLabel,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 17.5,
+                    fontSize: 14.0,
                     fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                    letterSpacing: -0.3,
-                    height: 1.25,
+                    color: onPrimary,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 6.0),
-
-                // Module Description
+                const SizedBox(width: 6.0),
+                const Icon(Icons.arrow_forward_rounded, size: 16.0),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 4.0),
+        InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/modules/${pathway.id}');
+          },
+          borderRadius: BorderRadius.circular(8.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
                 Text(
-                  pathway.description.isNotEmpty
-                      ? pathway.description
-                      : 'Continue practicing structured lessons and algorithmic problems.',
+                  'View all topics',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.0,
-                    fontWeight: FontWeight.w400,
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w600,
                     color: textSecondary,
-                    height: 1.45,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 14.0),
-
-                // "View all topics ->" link
-                InkWell(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    context.push('/modules/${pathway.id}');
-                  },
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2.0),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Text(
-                          'View all topics',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w600,
-                            color: textSecondary,
-                          ),
-                        ),
-                        const SizedBox(width: 4.0),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 13.5,
-                          color: textSecondary,
-                        ),
-                      ],
-                    ),
-                  ),
+                const SizedBox(width: 4.0),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 14.0,
+                  color: textSecondary,
                 ),
               ],
             ),
           ),
-
-          // Hairline separator between blocks
-          Divider(
-            height: 1.0,
-            thickness: 1.0,
-            color: isDark
-                ? AppColors.darkBorder.withValues(alpha: 0.6)
-                : AppColors.lightBorder,
-          ),
-
-          // ── LOWER BLOCK: TARGET STEP & ACTION (Elevated Surface) ──
-          Container(
-            padding: const EdgeInsets.all(20.0),
-            color: isDark
-                ? AppColors.darkSurfaceCard
-                : Colors.white,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Topic Kicker
-                Text(
-                  pathway.completion >= 100
-                      ? 'COMPLETED'
-                      : 'TOPIC 1',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10.0,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.4,
-                    color: textSecondary.withValues(alpha: 0.8),
-                  ),
-                ),
-                const SizedBox(height: 4.0),
-
-                // Target Topic Title
-                Text(
-                  targetTopic,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                    letterSpacing: -0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 14.0),
-
-                // Micro Progress Header Row with Percentage
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Text(
-                      'Progress',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: textSecondary,
-                      ),
-                    ),
-                    Text(
-                      '${pathway.completion}% Complete',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: pathway.completion > 0
-                            ? AppColors.primary
-                            : textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 7.0),
-
-                // Progress Bar (Strict 0% Handling per AGENTS.md 2.3)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999.0),
-                  child: SizedBox(
-                    height: 6.0,
-                    child: LinearProgressIndicator(
-                      value: progressValue,
-                      backgroundColor: isDark
-                          ? AppColors.darkSurfaceHighest
-                          : AppColors.lightBorder,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        pathway.completion >= 100
-                            ? AppColors.accent
-                            : AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18.0),
-
-                // Action Row: Helper status text + Pill CTA button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        helperText,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.0,
-                          fontWeight: FontWeight.w500,
-                          color: textSecondary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 12.0),
-
-                    // Pill CTA Button with Play icon + text + forward arrow
-                    ElevatedButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        context.push('/modules/${pathway.id}');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18.0,
-                          vertical: 10.0,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999.0),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const Icon(
-                            Icons.play_arrow_rounded,
-                            size: 16.0,
-                          ),
-                          const SizedBox(width: 4.0),
-                          Text(
-                            ctaLabel,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? AppColors.onPrimaryDark : Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 4.0),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 13.0,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   // ===========================================================================
-  // 3. SKELETON LOADING STATE (Split-Block Archetype Matching Web 1:1)
+  // 3. SKELETON LOADING STATE (matches the flat layout above)
   // ===========================================================================
   Widget _buildDashboardSkeleton({required bool isDark}) {
     return ShimmerLoading(
@@ -889,140 +712,58 @@ class _LearnScreenState extends State<LearnScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Top Header Skeleton
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Row(
-                children: <Widget>[
-                  const SkeletonBox(
-                    width: 44.0,
-                    height: 44.0,
-                    borderRadius: 14.0,
-                  ),
-                  const SizedBox(width: 12.0),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const <Widget>[
-                      SkeletonBox(width: 80.0, height: 12.0, borderRadius: 4.0),
-                      SizedBox(height: 6.0),
-                      SkeletonBox(width: 120.0, height: 16.0, borderRadius: 4.0),
-                    ],
-                  ),
-                  const Spacer(),
-                  const SkeletonBox(width: 75.0, height: 38.0, borderRadius: 12.0),
-                  const SizedBox(width: 8.0),
-                  const SkeletonBox(width: 38.0, height: 38.0, borderRadius: 12.0),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20.0),
-
-            // Split-Block Hero Card Skeleton
-            Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                borderRadius: BorderRadius.circular(24.0),
-                border: Border.all(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  width: 1.0,
+          children: const <Widget>[
+            Row(
+              children: <Widget>[
+                SkeletonBox(width: 40.0, height: 40.0, borderRadius: 20.0),
+                SizedBox(width: 12.0),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    SkeletonBox(width: 80.0, height: 12.0, borderRadius: 4.0),
+                    SizedBox(height: 6.0),
+                    SkeletonBox(width: 120.0, height: 16.0, borderRadius: 4.0),
+                  ],
                 ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  // Top Block Skeleton
-                  Container(
-                    color: isDark ? AppColors.darkSurfaceLowest : AppColors.lightSurfaceCard,
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const <Widget>[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            SkeletonBox(width: 60.0, height: 12.0, borderRadius: 4.0),
-                            SkeletonBox(width: 64.0, height: 26.0, borderRadius: 13.0),
-                          ],
-                        ),
-                        SizedBox(height: 12.0),
-                        SkeletonBox(width: 200.0, height: 18.0, borderRadius: 4.0),
-                        SizedBox(height: 8.0),
-                        SkeletonBox(width: double.infinity, height: 12.0, borderRadius: 4.0),
-                        SizedBox(height: 14.0),
-                        SkeletonBox(width: 100.0, height: 12.0, borderRadius: 4.0),
-                      ],
-                    ),
-                  ),
-                  Divider(
-                    height: 1.0,
-                    thickness: 1.0,
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
-                  // Lower Block Skeleton
-                  Container(
-                    color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const <Widget>[
-                        SkeletonBox(width: 50.0, height: 10.0, borderRadius: 4.0),
-                        SizedBox(height: 6.0),
-                        SkeletonBox(width: 160.0, height: 16.0, borderRadius: 4.0),
-                        SizedBox(height: 14.0),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            SkeletonBox(width: 50.0, height: 12.0, borderRadius: 4.0),
-                            SkeletonBox(width: 75.0, height: 12.0, borderRadius: 4.0),
-                          ],
-                        ),
-                        SizedBox(height: 8.0),
-                        SkeletonBox(width: double.infinity, height: 6.0, borderRadius: 999.0),
-                        SizedBox(height: 18.0),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            SkeletonBox(width: 130.0, height: 12.0, borderRadius: 4.0),
-                            SkeletonBox(width: 120.0, height: 34.0, borderRadius: 999.0),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-            const SizedBox(height: 20.0),
-
-            // Heatmap Card Skeleton
-            Container(
-              padding: const EdgeInsets.all(18.0),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                borderRadius: BorderRadius.circular(20.0),
-                border: Border.all(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  width: 1.0,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      SkeletonBox(width: 120.0, height: 15.0, borderRadius: 4.0),
-                      SkeletonBox(width: 110.0, height: 13.0, borderRadius: 4.0),
-                    ],
-                  ),
-                  SizedBox(height: 8.0),
-                  SkeletonBox(width: 160.0, height: 11.0, borderRadius: 4.0),
-                  SizedBox(height: 18.0),
-                  SkeletonBox(width: double.infinity, height: 100.0, borderRadius: 8.0),
-                ],
-              ),
+            SizedBox(height: 32.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                SkeletonBox(width: 64.0, height: 24.0, borderRadius: 12.0),
+                SkeletonBox(width: 90.0, height: 12.0, borderRadius: 4.0),
+              ],
+            ),
+            SizedBox(height: 16.0),
+            SkeletonBox(width: 240.0, height: 22.0, borderRadius: 4.0),
+            SizedBox(height: 8.0),
+            SkeletonBox(
+              width: double.infinity,
+              height: 12.0,
+              borderRadius: 4.0,
+            ),
+            SizedBox(height: 6.0),
+            SkeletonBox(width: 200.0, height: 12.0, borderRadius: 4.0),
+            SizedBox(height: 20.0),
+            SkeletonBox(
+              width: double.infinity,
+              height: 4.0,
+              borderRadius: 999.0,
+            ),
+            SizedBox(height: 20.0),
+            SkeletonBox(
+              width: double.infinity,
+              height: 48.0,
+              borderRadius: 12.0,
+            ),
+            SizedBox(height: 32.0),
+            SkeletonBox(width: 140.0, height: 15.0, borderRadius: 4.0),
+            SizedBox(height: 16.0),
+            SkeletonBox(
+              width: double.infinity,
+              height: 100.0,
+              borderRadius: 8.0,
             ),
           ],
         ),

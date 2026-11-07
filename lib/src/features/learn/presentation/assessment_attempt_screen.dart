@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../common_widgets/app_toast.dart';
+import '../../../common_widgets/filter_tab_bar.dart';
 import '../../../common_widgets/language_icon.dart';
 import '../../../constants/app_colors.dart';
 import '../data/assessment_repository.dart';
@@ -42,7 +43,8 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
 
   int _activeChallengeIdx = 0;
   final Map<String, String> _userCodes = <String, String>{};
-  final TextEditingController _codeController = TextEditingController();
+  final SyntaxHighlightingTextEditingController _codeController =
+      SyntaxHighlightingTextEditingController(language: 'javascript');
 
   // Active view: 'problem', 'editor', 'console', 'history'
   String _activeTab = 'problem';
@@ -151,12 +153,6 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     final String mm = m.toString().padLeft(2, '0');
     final String ss = s.toString().padLeft(2, '0');
     return '$mm:$ss';
-  }
-
-  Color _getTimerColor() {
-    if (_secsLeft < 300) return const Color(0xFFEF4444);
-    if (_secsLeft < 600) return const Color(0xFFF59E0B);
-    return AppColors.primary;
   }
 
   AssessmentChallengeModel? get _currentChallenge {
@@ -362,69 +358,57 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       context: context,
       builder: (BuildContext ctx) {
         final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final Color textPrimary =
+            isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+        final Color textSecondary =
+            isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
         return AlertDialog(
-          backgroundColor:
-              isDark ? AppColors.darkSurfaceCard : Colors.white,
+          backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20.0),
+            borderRadius: BorderRadius.circular(12.0),
+            side: BorderSide(
+              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            ),
           ),
-          title: Row(
-            children: <Widget>[
-              const Icon(
-                Icons.warning_amber_rounded,
-                color: Color(0xFFEF4444),
-                size: 24.0,
-              ),
-              const SizedBox(width: 8.0),
-              Text(
-                'Exit Exam Early?',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16.0,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? AppColors.darkTextPrimary
-                      : AppColors.lightTextPrimary,
-                ),
-              ),
-            ],
+          title: Text(
+            'Exit the exam?',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 17.0,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
           ),
           content: Text(
-            'Exiting now will pause your examination and your benchmark score will not be submitted.',
+            'If you leave now, your answers will not be submitted and no score will be recorded.',
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 13.0,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
-              height: 1.4,
+              fontSize: 14.0,
+              color: textSecondary,
+              height: 1.45,
             ),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
+              style: TextButton.styleFrom(minimumSize: const Size(64.0, 48.0)),
               child: Text(
-                'Continue Exam',
+                'Keep working',
                 style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14.0,
                   fontWeight: FontWeight.w600,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
+                  color: textPrimary,
                 ),
               ),
             ),
-            ElevatedButton(
+            TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                elevation: 0,
-              ),
+              style: TextButton.styleFrom(minimumSize: const Size(64.0, 48.0)),
               child: Text(
-                'Exit Exam',
+                'Exit exam',
                 style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.error,
                 ),
               ),
             ),
@@ -441,6 +425,12 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
   Future<void> _showSubmitConfirmation() async {
     HapticFeedback.selectionClick();
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textPrimary =
+        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final Color textSecondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final int totalChallenges = _assessment?.challenges.length ?? 1;
     final int completedCount =
@@ -453,13 +443,12 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
         return Container(
-          padding: const EdgeInsets.all(22.0),
+          padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 12.0),
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24.0)),
-            border: Border.all(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            ),
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(16.0)),
+            border: Border(top: BorderSide(color: borderColor)),
           ),
           child: SafeArea(
             top: false,
@@ -468,97 +457,84 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    const Icon(
-                      Icons.assignment_turned_in_rounded,
-                      color: AppColors.primary,
-                      size: 24.0,
+                Center(
+                  child: Container(
+                    width: 36.0,
+                    height: 4.0,
+                    margin: const EdgeInsets.only(bottom: 16.0),
+                    decoration: BoxDecoration(
+                      color: borderColor,
+                      borderRadius: BorderRadius.circular(2.0),
                     ),
-                    const SizedBox(width: 8.0),
-                    Text(
-                      'Submit Final Assessment?',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 17.0,
-                        fontWeight: FontWeight.w800,
-                        color: isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.lightTextPrimary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 10.0),
                 Text(
-                  'Once submitted, your solutions will be evaluated by the benchmark engine to generate your readiness scorecard.',
+                  'Submit your exam?',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.lightTextSecondary,
-                    height: 1.4,
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8.0),
+                Text(
+                  'Every problem is run against its test cases and scored. You cannot change your answers after submitting.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.0,
+                    color: textSecondary,
+                    height: 1.5,
                   ),
                 ),
                 const SizedBox(height: 16.0),
-
                 Container(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.darkBackground
-                        : AppColors.lightBackground,
-                    borderRadius: BorderRadius.circular(14.0),
-                    border: Border.all(
-                      color: isDark
-                          ? AppColors.darkBorder
-                          : AppColors.lightBorder,
+                    border: Border.symmetric(
+                      horizontal: BorderSide(color: borderColor),
                     ),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: <Widget>[
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            'Completed',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.0,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextSecondary,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'Passed in your test runs',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.0,
+                                color: textSecondary,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '$completedCount of $totalChallenges Tasks',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 13.0,
-                              fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? AppColors.darkTextPrimary
-                                  : AppColors.lightTextPrimary,
+                            const SizedBox(height: 2.0),
+                            Text(
+                              '$completedCount of $totalChallenges',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 15.0,
+                                fontWeight: FontWeight.w600,
+                                color: textPrimary,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: <Widget>[
                           Text(
-                            'Time Left',
+                            'Time left',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.0,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextSecondary,
+                              fontSize: 12.0,
+                              color: textSecondary,
                             ),
                           ),
+                          const SizedBox(height: 2.0),
                           Text(
                             _formatTime(_secsLeft),
                             style: GoogleFonts.jetBrainsMono(
-                              fontSize: 13.0,
-                              fontWeight: FontWeight.w700,
-                              color: _getTimerColor(),
+                              fontSize: 15.0,
+                              fontWeight: FontWeight.w600,
+                              color: textPrimary,
                             ),
                           ),
                         ],
@@ -566,64 +542,45 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20.0),
-
+                const SizedBox(height: 16.0),
                 Row(
                   children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(ctx).pop(false),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 13.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          side: BorderSide(
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
-                          ),
-                        ),
-                        child: Text(
-                          'Back to Exam',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.0,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.lightTextSecondary,
-                          ),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(64.0, 48.0),
+                      ),
+                      child: Text(
+                        'Keep working',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14.0,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
                         ),
                       ),
                     ),
                     const SizedBox(width: 12.0),
                     Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(ctx).pop(true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: isDark
-                              ? AppColors.onPrimaryDark
-                              : Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 13.0),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            const Icon(Icons.send_rounded, size: 16.0),
-                            const SizedBox(width: 6.0),
-                            Text(
-                              'Confirm Submit',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.0,
-                                fontWeight: FontWeight.w700,
-                              ),
+                      child: SizedBox(
+                        height: 48.0,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor:
+                                isDark ? AppColors.onPrimaryDark : Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
-                          ],
+                          ),
+                          child: Text(
+                            'Submit exam',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.0,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -816,201 +773,132 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       );
     }
 
+    final Color timerColor = _secsLeft < 300
+        ? AppColors.error
+        : (_secsLeft < 600 ? const Color(0xFFF59E0B) : textPrimary);
+
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: <Widget>[
-            // ── Top Header Bar ──
+            // Header
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 10.0,
-              ),
+              height: 56.0,
+              padding: const EdgeInsets.only(left: 4.0, right: 12.0),
               decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkSurfaceCard
-                    : AppColors.lightSurfaceCard,
                 border: Border(bottom: BorderSide(color: borderColor)),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
-                  // Exit exam button
-                  GestureDetector(
-                    onTap: _showExitConfirmation,
-                    behavior: HitTestBehavior.opaque,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(
-                          Icons.arrow_back_rounded,
-                          size: 18.0,
-                          color: textPrimary,
-                        ),
-                        const SizedBox(width: 4.0),
-                        Text(
-                          'Exit',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ],
+                  IconButton(
+                    tooltip: 'Exit exam',
+                    onPressed: _showExitConfirmation,
+                    constraints:
+                        const BoxConstraints(minWidth: 48.0, minHeight: 48.0),
+                    icon: Icon(
+                      Icons.arrow_back_rounded,
+                      size: 22.0,
+                      color: textPrimary,
                     ),
                   ),
-
-                  // Language & Title
+                  LanguageIcon(
+                    language:
+                        asm.stack.isNotEmpty ? asm.stack.first : 'javascript',
+                    size: 18.0,
+                  ),
+                  const SizedBox(width: 8.0),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          LanguageIcon(
-                            language: asm.stack.isNotEmpty
-                                ? asm.stack.first
-                                : 'javascript',
-                            size: 16.0,
-                          ),
-                          const SizedBox(width: 6.0),
-                          Expanded(
-                            child: Text(
-                              asm.title,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: textPrimary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                    child: Text(
+                      asm.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-
-                  // Right: Flag + Timer
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      IconButton(
-                        onPressed: _handleReport,
-                        icon: const Icon(Icons.flag_outlined, size: 18.0),
-                        color: textSecondary.withValues(alpha: 0.6),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      const SizedBox(width: 8.0),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10.0,
-                          vertical: 4.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getTimerColor().withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(16.0),
-                          border: Border.all(
-                            color: _getTimerColor().withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: <Widget>[
-                            Icon(
-                              Icons.timer_outlined,
-                              size: 13.0,
-                              color: _getTimerColor(),
-                            ),
-                            const SizedBox(width: 4.0),
-                            Text(
-                              _formatTime(_secsLeft),
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 12.0,
-                                fontWeight: FontWeight.w800,
-                                color: _getTimerColor(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    tooltip: 'Report an issue',
+                    onPressed: _handleReport,
+                    constraints:
+                        const BoxConstraints(minWidth: 48.0, minHeight: 48.0),
+                    icon: Icon(
+                      Icons.flag_outlined,
+                      size: 20.0,
+                      color: textSecondary,
+                    ),
+                  ),
+                  Icon(Icons.timer_outlined, size: 16.0, color: timerColor),
+                  const SizedBox(width: 4.0),
+                  Text(
+                    _formatTime(_secsLeft),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w700,
+                      color: timerColor,
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // ── Problem Switcher Strip (P1, P2, ...) ──
-            Container(
-              height: 42.0,
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkBackground
-                    : AppColors.lightBackground,
-                border: Border(bottom: BorderSide(color: borderColor)),
-              ),
+            // Problem switcher
+            SizedBox(
+              height: 48.0,
               child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 scrollDirection: Axis.horizontal,
                 itemCount: asm.challenges.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(width: 8.0),
-                itemBuilder: (context, index) {
+                separatorBuilder: (BuildContext context, int index) =>
+                    const SizedBox(width: 20.0),
+                itemBuilder: (BuildContext context, int index) {
                   final AssessmentChallengeModel c = asm.challenges[index];
                   final bool isSelected = index == _activeChallengeIdx;
                   final bool isPassed = _challengePassedMap[c.id] == true;
-
-                  return Center(
-                    child: GestureDetector(
+                  return Semantics(
+                    button: true,
+                    selected: isSelected,
+                    label:
+                        'Problem ${index + 1}${isPassed ? ', passed' : ''}',
+                    child: InkWell(
                       onTap: () => _selectChallenge(index),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12.0,
-                          vertical: 5.0,
-                        ),
+                        constraints: const BoxConstraints(minWidth: 48.0),
+                        alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primary
-                              : (isDark
-                                  ? AppColors.darkSurfaceCard
-                                  : Colors.white),
-                          borderRadius: BorderRadius.circular(10.0),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primary
-                                : borderColor,
+                          border: Border(
+                            bottom: BorderSide(
+                              color:
+                                  isSelected ? textPrimary : Colors.transparent,
+                              width: 2.0,
+                            ),
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            if (isPassed) ...<Widget>[
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 12.0,
-                                color: isSelected
-                                    ? Colors.white
-                                    : const Color(0xFF3ECF8E),
-                              ),
-                              const SizedBox(width: 4.0),
-                            ],
                             Text(
                               'P${index + 1}',
                               style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11.5,
+                                fontSize: 14.0,
                                 fontWeight: isSelected
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                                color: isSelected
-                                    ? (isDark
-                                        ? AppColors.onPrimaryDark
-                                        : Colors.white)
-                                    : textSecondary,
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isSelected ? textPrimary : textSecondary,
                               ),
                             ),
+                            if (isPassed) ...<Widget>[
+                              const SizedBox(width: 4.0),
+                              Icon(
+                                Icons.check_rounded,
+                                size: 14.0,
+                                color: textSecondary,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1019,55 +907,37 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                 },
               ),
             ),
+            Divider(height: 1.0, color: borderColor),
 
-            // ── Segmented View Switcher: Problem | Editor | Console ──
+            // View switcher
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 6.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
               decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkSurfaceCard
-                    : AppColors.lightSurfaceCard,
                 border: Border(bottom: BorderSide(color: borderColor)),
               ),
-              child: Row(
-                children: <Widget>[
-                  _buildSegmentButton(
-                    id: 'problem',
-                    label: 'Problem',
-                    icon: Icons.description_outlined,
-                    isDark: isDark,
-                  ),
-                  const SizedBox(width: 8.0),
-                  _buildSegmentButton(
-                    id: 'editor',
-                    label: 'Editor',
-                    icon: Icons.code_rounded,
-                    isDark: isDark,
-                  ),
-                  const SizedBox(width: 8.0),
-                  _buildSegmentButton(
-                    id: 'console',
-                    label: 'Console',
-                    icon: Icons.terminal_rounded,
-                    isDark: isDark,
-                  ),
-                  const SizedBox(width: 8.0),
-                  _buildSegmentButton(
+              child: FilterTabBar(
+                height: 44.0,
+                tabs: <FilterTabItem>[
+                  const FilterTabItem(id: 'problem', label: 'Problem'),
+                  const FilterTabItem(id: 'editor', label: 'Editor'),
+                  const FilterTabItem(id: 'console', label: 'Console'),
+                  FilterTabItem(
                     id: 'history',
-                    label: (_historyByChallenge[ch.id]?.isNotEmpty ?? false)
-                        ? 'History (${_historyByChallenge[ch.id]!.length})'
-                        : 'History',
-                    icon: Icons.history_rounded,
-                    isDark: isDark,
+                    label: 'History',
+                    count: (_historyByChallenge[ch.id]?.isNotEmpty ?? false)
+                        ? _historyByChallenge[ch.id]!.length
+                        : null,
                   ),
                 ],
+                selectedId: _activeTab,
+                onTabSelected: (String id) {
+                  setState(() => _activeTab = id);
+                  if (id == 'history') _loadHistory();
+                },
               ),
             ),
 
-            // ── Main Body Content ──
+            // Body
             Expanded(
               child: IndexedStack(
                 index: _activeTab == 'problem'
@@ -1076,19 +946,12 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                         ? 1
                         : (_activeTab == 'console' ? 2 : 3)),
                 children: <Widget>[
-                  // Tab 0: Problem View
                   _buildProblemView(ch, isDark, textPrimary, textSecondary),
-
-                  // Tab 1: Code Editor View
                   _buildEditorView(ch, isDark),
-
-                  // Tab 2: Console / Test Cases View
                   _buildConsoleView(ch, isDark, textPrimary, textSecondary),
-
-                  // Tab 3: Past submissions for this challenge
                   SubmissionsHistoryView(
-                    submissions:
-                        _historyByChallenge[ch.id] ?? const <SubmissionHistoryModel>[],
+                    submissions: _historyByChallenge[ch.id] ??
+                        const <SubmissionHistoryModel>[],
                     isLoading: _isLoadingHistory,
                     onRefresh: () => _loadHistory(force: true),
                     onRestoreCode: _restoreHistoricalCode,
@@ -1097,123 +960,98 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
               ),
             ),
 
-            // ── Bottom Action Bar ──
+            // Actions
             Container(
-              padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
+              padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 10.0),
               decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkSurfaceCard
-                    : AppColors.lightSurfaceCard,
+                color: bgColor,
                 border: Border(top: BorderSide(color: borderColor)),
               ),
               child: SafeArea(
                 top: false,
                 child: Row(
                   children: <Widget>[
-                    // Run sample tests
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed:
-                            _isRunningTests ? null : _handleRunSampleTests,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
+                      child: SizedBox(
+                        height: 48.0,
+                        child: OutlinedButton(
+                          onPressed:
+                              _isRunningTests ? null : _handleRunSampleTests,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: textPrimary,
+                            side: BorderSide(color: borderColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
                           ),
-                          side: BorderSide(color: borderColor),
-                        ),
-                        child: _isRunningTests
-                            ? const SizedBox(
-                                width: 16.0,
-                                height: 16.0,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.0,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppColors.primary,
+                          child: _isRunningTests
+                              ? const SizedBox(
+                                  width: 18.0,
+                                  height: 18.0,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.0,
+                                  ),
+                                )
+                              : Text(
+                                  'Run tests',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14.0,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: <Widget>[
-                                  const Icon(
-                                    Icons.play_arrow_rounded,
-                                    size: 17.0,
-                                    color: Color(0xFF3ECF8E),
-                                  ),
-                                  const SizedBox(width: 4.0),
-                                  Text(
-                                    'Run Tests',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 10.0),
-
-                    // Submit Exam
+                    const SizedBox(width: 12.0),
                     Expanded(
-                      child: ElevatedButton(
-                        onPressed:
-                            _isSubmitting ? null : _showSubmitConfirmation,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: isDark
-                              ? AppColors.onPrimaryDark
-                              : Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12.0),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
+                      child: SizedBox(
+                        height: 48.0,
+                        child: ElevatedButton(
+                          onPressed:
+                              _isSubmitting ? null : _showSubmitConfirmation,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor:
+                                isDark ? AppColors.onPrimaryDark : Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
                           ),
-                        ),
-                        child: _isSubmitting
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: <Widget>[
-                                  const SizedBox(
-                                    width: 16.0,
-                                    height: 16.0,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.0,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  ),
-                                  if (_submitStage.isNotEmpty) ...<Widget>[
-                                    const SizedBox(width: 8.0),
-                                    Flexible(
-                                      child: Text(
-                                        _submitStage,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                          child: _isSubmitting
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: <Widget>[
+                                    const SizedBox(
+                                      width: 16.0,
+                                      height: 16.0,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.0,
                                       ),
                                     ),
+                                    if (_submitStage.isNotEmpty) ...<Widget>[
+                                      const SizedBox(width: 8.0),
+                                      Flexible(
+                                        child: Text(
+                                          _submitStage,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 12.0,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
-                                ],
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: <Widget>[
-                                  const Icon(Icons.send_rounded, size: 15.0),
-                                  const SizedBox(width: 5.0),
-                                  Text(
-                                    'Submit Exam',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                )
+                              : Text(
+                                  'Submit exam',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14.0,
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                ],
-                              ),
+                                ),
+                        ),
                       ),
                     ),
                   ],
@@ -1221,70 +1059,6 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSegmentButton({
-    required String id,
-    required String label,
-    required IconData icon,
-    required bool isDark,
-  }) {
-    final bool isSelected = _activeTab == id;
-    final Color activeColor = AppColors.primary;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() => _activeTab = id);
-          if (id == 'history') _loadHistory();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.symmetric(vertical: 6.0),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected
-                ? activeColor.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8.0),
-            border: Border.all(
-              color: isSelected
-                  ? activeColor.withValues(alpha: 0.3)
-                  : Colors.transparent,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(
-                icon,
-                size: 14.0,
-                color: isSelected
-                    ? activeColor
-                    : (isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.lightTextSecondary),
-              ),
-              const SizedBox(width: 4.0),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  fontWeight:
-                      isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected
-                      ? activeColor
-                      : (isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.lightTextSecondary),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -1296,55 +1070,34 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     Color textPrimary,
     Color textSecondary,
   ) {
-    final Color borderColor = isDark
-        ? AppColors.darkBorder
-        : AppColors.lightBorder;
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(18.0),
+      padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 24.0),
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Header: Task Tag
-          Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8.0,
-                  vertical: 2.5,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6.0),
-                ),
-                child: Text(
-                  'TASK ${_activeChallengeIdx + 1}',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10.0,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            'Problem ${_activeChallengeIdx + 1}',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.0,
+              color: textSecondary,
+            ),
           ),
-          const SizedBox(height: 10.0),
-
-          // Title
+          const SizedBox(height: 4.0),
           Text(
             ch.title,
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 17.0,
-              fontWeight: FontWeight.w800,
+              fontSize: 20.0,
+              fontWeight: FontWeight.w700,
               color: textPrimary,
-              letterSpacing: -0.3,
+              letterSpacing: -0.2,
+              height: 1.25,
             ),
           ),
           const SizedBox(height: 12.0),
-
-          // Problem Statement Markdown
           MarkdownContentView(
             markdown: ch.problemStatement.isNotEmpty
                 ? ch.problemStatement
@@ -1352,25 +1105,20 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
             isDark: isDark,
             textPrimary: textPrimary,
             textSecondary: textSecondary,
-            cardBg: isDark
-                ? AppColors.darkSurfaceCard
-                : AppColors.lightSurfaceCard,
+            cardBg: isDark ? AppColors.darkSurface : AppColors.lightSurface,
             borderColor: borderColor,
           ),
-          const SizedBox(height: 20.0),
-
-          // Sample Test Cases
           if (ch.testCases.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 24.0),
             Text(
-              'SAMPLE ASSERTIONS',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: textSecondary,
-                letterSpacing: 0.8,
+              'Sample test cases',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14.0,
+                fontWeight: FontWeight.w600,
+                color: textPrimary,
               ),
             ),
-            const SizedBox(height: 8.0),
+            const SizedBox(height: 4.0),
             ...ch.testCases.asMap().entries.map((entry) {
               final int idx = entry.key;
               final Map<String, dynamic> tc = entry.value;
@@ -1380,75 +1128,29 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                   tc['expected']?.toString() ??
                   tc['test_expected_output']?.toString() ??
                   '';
-
               return Container(
-                margin: const EdgeInsets.only(bottom: 8.0),
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkSurfaceCard
-                      : AppColors.lightSurfaceCard,
-                  borderRadius: BorderRadius.circular(12.0),
-                  border: Border.all(
-                    color: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.lightBorder,
-                  ),
+                  border: Border(bottom: BorderSide(color: borderColor)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Sample ${idx + 1}',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10.0,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                      'Case ${idx + 1}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        color: textSecondary,
                       ),
                     ),
+                    const SizedBox(height: 6.0),
+                    _labelledValue('Input', input, textPrimary, textSecondary),
                     const SizedBox(height: 4.0),
-                    Row(
-                      children: <Widget>[
-                        Text(
-                          'Input: ',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            input,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0),
-                    Row(
-                      children: <Widget>[
-                        Text(
-                          'Expected: ',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.0,
-                            color: textSecondary,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            output,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF3ECF8E),
-                            ),
-                          ),
-                        ),
-                      ],
+                    _labelledValue(
+                      'Expected',
+                      output,
+                      textPrimary,
+                      textSecondary,
                     ),
                   ],
                 ),
@@ -1457,6 +1159,39 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _labelledValue(
+    String label,
+    String value,
+    Color textPrimary,
+    Color textSecondary, {
+    Color? valueColor,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        SizedBox(
+          width: 72.0,
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              color: textSecondary,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 13.0,
+              color: valueColor ?? textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1483,6 +1218,8 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
     Color textPrimary,
     Color textSecondary,
   ) {
+    final Color borderColor =
+        isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final List<Map<String, dynamic>>? results = _testResultsByChallenge[ch.id];
 
     if (results == null) {
@@ -1492,27 +1229,22 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(
-                Icons.terminal_rounded,
-                size: 40.0,
-                color: textSecondary.withValues(alpha: 0.4),
-              ),
-              const SizedBox(height: 10.0),
               Text(
-                'No Test Results Yet',
+                'No test results yet',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 15.0,
+                  fontWeight: FontWeight.w600,
                   color: textPrimary,
                 ),
               ),
-              const SizedBox(height: 4.0),
+              const SizedBox(height: 6.0),
               Text(
-                'Tap "Run Tests" below to evaluate your solution against sample assertions.',
+                'Tap "Run tests" to check your solution against the sample test cases.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
+                  fontSize: 13.0,
                   color: textSecondary,
+                  height: 1.45,
                 ),
               ),
             ],
@@ -1521,79 +1253,49 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
       );
     }
 
-    final bool allPassed = results.every((r) => r['passed'] == true);
+    final int passedCount =
+        results.where((Map<String, dynamic> r) => r['passed'] == true).length;
+    final bool allPassed = passedCount == results.length;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(18.0),
+      padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 24.0),
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Status banner
-          Container(
-            padding: const EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: allPassed
-                  ? const Color(0xFF3ECF8E).withValues(alpha: 0.12)
-                  : const Color(0xFFEF4444).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12.0),
-              border: Border.all(
-                color: allPassed
-                    ? const Color(0xFF3ECF8E).withValues(alpha: 0.3)
-                    : const Color(0xFFEF4444).withValues(alpha: 0.3),
+          Row(
+            children: <Widget>[
+              Icon(
+                allPassed
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.error_outline_rounded,
+                size: 20.0,
+                color: allPassed ? AppColors.primary : AppColors.error,
               ),
-            ),
-            child: Row(
-              children: <Widget>[
-                Icon(
+              const SizedBox(width: 8.0),
+              Expanded(
+                child: Text(
                   allPassed
-                      ? Icons.check_circle_rounded
-                      : Icons.error_outline_rounded,
-                  color: allPassed
-                      ? const Color(0xFF3ECF8E)
-                      : const Color(0xFFEF4444),
-                  size: 20.0,
-                ),
-                const SizedBox(width: 8.0),
-                Expanded(
-                  child: Text(
-                    allPassed
-                        ? 'All sample test cases passed successfully!'
-                        : 'Some assertions failed. Verify your logic and retry.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.0,
-                      fontWeight: FontWeight.w600,
-                      color: allPassed
-                          ? const Color(0xFF3ECF8E)
-                          : const Color(0xFFEF4444),
-                    ),
+                      ? 'All $passedCount sample test cases passed'
+                      : '$passedCount of ${results.length} sample test cases passed',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15.0,
+                    fontWeight: FontWeight.w600,
+                    color: textPrimary,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 14.0),
-
-          // Assertion cards
+          const SizedBox(height: 8.0),
           ...results.asMap().entries.map((entry) {
             final int idx = entry.key;
             final Map<String, dynamic> r = entry.value;
             final bool passed = r['passed'] == true;
-            final Color itemColor = passed
-                ? const Color(0xFF3ECF8E)
-                : const Color(0xFFEF4444);
-
             return Container(
-              margin: const EdgeInsets.only(bottom: 10.0),
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
               decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkSurfaceCard
-                    : AppColors.lightSurfaceCard,
-                borderRadius: BorderRadius.circular(12.0),
-                border: Border.all(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                ),
+                border: Border(bottom: BorderSide(color: borderColor)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1602,78 +1304,55 @@ class _AssessmentAttemptScreenState extends State<AssessmentAttemptScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: <Widget>[
                       Text(
-                        'Sample Assertion ${idx + 1}',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.0,
-                          fontWeight: FontWeight.w700,
+                        'Case ${idx + 1}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.0,
+                          fontWeight: FontWeight.w600,
                           color: textPrimary,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8.0,
-                          vertical: 2.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: itemColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6.0),
-                        ),
-                        child: Text(
-                          passed ? 'PASSED (${r['timeMs']}ms)' : 'FAILED',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            color: itemColor,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            passed ? Icons.check_rounded : Icons.close_rounded,
+                            size: 16.0,
+                            color: passed ? textSecondary : AppColors.error,
                           ),
-                        ),
+                          const SizedBox(width: 4.0),
+                          Text(
+                            passed ? 'Passed · ${r['timeMs']} ms' : 'Failed',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 12.0,
+                              color: passed ? textSecondary : AppColors.error,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 8.0),
-                  Text(
-                    'Input:',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 10.0,
-                      color: textSecondary,
-                    ),
-                  ),
-                  Text(
+                  _labelledValue(
+                    'Input',
                     r['input']?.toString() ?? '',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      color: textPrimary,
-                    ),
+                    textPrimary,
+                    textSecondary,
                   ),
                   const SizedBox(height: 4.0),
-                  Text(
-                    'Expected Output:',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 10.0,
-                      color: textSecondary,
-                    ),
-                  ),
-                  Text(
+                  _labelledValue(
+                    'Expected',
                     r['expected']?.toString() ?? '',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      color: const Color(0xFF3ECF8E),
-                    ),
+                    textPrimary,
+                    textSecondary,
                   ),
                   if (!passed) ...<Widget>[
                     const SizedBox(height: 4.0),
-                    Text(
-                      'Actual Output:',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10.0,
-                        color: textSecondary,
-                      ),
-                    ),
-                    Text(
+                    _labelledValue(
+                      'Actual',
                       r['actual']?.toString() ?? '',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11.0,
-                        color: const Color(0xFFEF4444),
-                      ),
+                      textPrimary,
+                      textSecondary,
+                      valueColor: AppColors.error,
                     ),
                   ],
                 ],

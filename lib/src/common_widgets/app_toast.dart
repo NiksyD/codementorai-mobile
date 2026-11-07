@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -39,18 +38,17 @@ abstract class AppToast {
     _showToast(
       context,
       message: message,
-      icon: Icons.check_circle_rounded,
-      accentColor: AppColors.primary,
+      icon: Icons.check_rounded,
+      isError: false,
     );
   }
 
   static void showError(BuildContext context, dynamic message) {
-    final String formattedMessage = cleanErrorMessage(message);
     _showToast(
       context,
-      message: formattedMessage,
-      icon: Icons.error_rounded,
-      accentColor: AppColors.error,
+      message: cleanErrorMessage(message),
+      icon: Icons.error_outline_rounded,
+      isError: true,
     );
   }
 
@@ -58,8 +56,8 @@ abstract class AppToast {
     _showToast(
       context,
       message: message,
-      icon: Icons.info_rounded,
-      accentColor: const Color(0xFF38BDF8), // Clean Sky Blue
+      icon: Icons.info_outline_rounded,
+      isError: false,
     );
   }
 
@@ -67,20 +65,34 @@ abstract class AppToast {
     _showToast(
       context,
       message: message,
-      icon: Icons.warning_rounded,
-      accentColor: AppColors.warning,
+      icon: Icons.warning_amber_rounded,
+      isError: false,
     );
   }
 
+  /// A solid bar with a hairline border: an icon, one message, and a close button.
+  /// Only an error uses colour (its icon); the icon shape says what kind of message it is.
   static void _showToast(
     BuildContext context, {
     required String message,
     required IconData icon,
-    required Color accentColor,
+    required bool isError,
   }) {
     HapticFeedback.lightImpact();
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color surface = isDark
+        ? AppColors.darkSurfaceCard
+        : AppColors.lightSurface;
+    final Color border = isDark
+        ? AppColors.darkBorderVariant
+        : AppColors.lightBorder;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
@@ -89,97 +101,55 @@ abstract class AppToast {
         backgroundColor: Colors.transparent,
         elevation: 0,
         margin: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 84.0),
-        duration: const Duration(seconds: 4),
+        duration: Duration(seconds: isError ? 5 : 3),
         dismissDirection: DismissDirection.horizontal,
         padding: EdgeInsets.zero,
-        content: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20.0),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.12),
-                blurRadius: 20.0,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20.0),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14.0, 12.0, 12.0, 12.0),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkSurfaceCard.withValues(alpha: 0.90)
-                      : Colors.white.withValues(alpha: 0.94),
-                  borderRadius: BorderRadius.circular(20.0),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.14)
-                        : const Color(0xFFE2E8F0),
-                    width: 1.0,
+        content: Semantics(
+          liveRegion: true,
+          child: Container(
+            padding: const EdgeInsets.only(left: 14.0),
+            constraints: const BoxConstraints(minHeight: 48.0),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(12.0),
+              border: Border.all(color: border),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  icon,
+                  size: 20.0,
+                  color: isError ? AppColors.error : textPrimary,
+                ),
+                const SizedBox(width: 10.0),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10.0),
+                    child: Text(
+                      message,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w500,
+                        color: textPrimary,
+                        height: 1.35,
+                      ),
+                    ),
                   ),
                 ),
-                child: Row(
-                  children: <Widget>[
-                    // Accent icon squircle
-                    Container(
-                      width: 32.0,
-                      height: 32.0,
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10.0),
-                        border: Border.all(
-                          color: accentColor.withValues(alpha: 0.25),
-                          width: 1.0,
-                        ),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          icon,
-                          color: accentColor,
-                          size: 17.0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12.0),
-
-                    // Toast message
-                    Expanded(
-                      child: Text(
-                        message,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13.0,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                          letterSpacing: -0.2,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8.0),
-
-                    // Close micro-button
-                    InkWell(
-                      onTap: () {
-                        messenger.hideCurrentSnackBar();
-                      },
-                      borderRadius: BorderRadius.circular(12.0),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 16.0,
-                          color: isDark
-                              ? const Color(0xFF94A3B8)
-                              : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                  ],
+                IconButton(
+                  tooltip: 'Dismiss',
+                  constraints: const BoxConstraints(
+                    minWidth: 48.0,
+                    minHeight: 48.0,
+                  ),
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 18.0,
+                    color: textSecondary,
+                  ),
+                  onPressed: messenger.hideCurrentSnackBar,
                 ),
-              ),
+              ],
             ),
           ),
         ),

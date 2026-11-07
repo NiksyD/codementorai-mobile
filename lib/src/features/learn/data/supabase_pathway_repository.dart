@@ -1400,6 +1400,7 @@ Your program must compile without syntax errors and pass the validation test cas
     String exerciseId,
     String code,
     String language,
+  {bool passed = true,}
   ) async {
     try {
       String? createdSubId;
@@ -1414,10 +1415,10 @@ Your program must compile without syntax errors and pass the validation test cas
                 'item_id': exerciseId,
                 'sub_code': code,
                 'sub_language': language.toLowerCase(),
-                'sub_status': 'accepted',
+                'sub_status': passed ? 'accepted' : 'wrong_answer',
                 'sub_verdict': <String, dynamic>{
-                  'verdict': 'Accepted',
-                  'grade': 'A+',
+                  'verdict': passed ? 'Accepted' : 'Wrong Answer',
+                  'grade': passed ? 'A+' : 'F',
                 },
                 'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
               })
@@ -1436,7 +1437,7 @@ Your program must compile without syntax errors and pass the validation test cas
       }
 
       // 2. Compute accurate completion based on total practice activities (1:1 with Web)
-      if (userId.isNotEmpty && moduleId.isNotEmpty) {
+      if (passed && userId.isNotEmpty && moduleId.isNotEmpty) {
         try {
           final List<Map<String, dynamic>> tRows = await _supabase
               .from('topics')
@@ -1810,6 +1811,7 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
     String challengeId,
     String code,
     String language,
+  {bool passed = true,}
   ) async {
     try {
       String? createdSubId;
@@ -1824,10 +1826,10 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
                 'item_id': challengeId,
                 'sub_code': code,
                 'sub_language': language.toLowerCase(),
-                'sub_status': 'accepted',
+                'sub_status': passed ? 'accepted' : 'wrong_answer',
                 'sub_verdict': <String, dynamic>{
-                  'verdict': 'Accepted',
-                  'grade': 'A+',
+                  'verdict': passed ? 'Accepted' : 'Wrong Answer',
+                  'grade': passed ? 'A+' : 'F',
                 },
                 'sub_submitted_at': DateTime.now().toUtc().toIso8601String(),
               })

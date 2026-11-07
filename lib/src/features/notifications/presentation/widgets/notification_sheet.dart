@@ -62,8 +62,8 @@ class _NotificationSheetState extends State<NotificationSheet> {
   }
 
   Future<void> _loadNotifications() async {
-    final List<NotificationModel> list =
-        await widget.repository.getNotifications(widget.userId);
+    final List<NotificationModel> list = await widget.repository
+        .getNotifications(widget.userId);
     if (mounted) {
       setState(() {
         _items = list;
@@ -89,7 +89,9 @@ class _NotificationSheetState extends State<NotificationSheet> {
   Future<void> _handleMarkAllAsRead() async {
     HapticFeedback.mediumImpact();
     setState(() {
-      _items = _items.map((NotificationModel n) => n.copyWith(isRead: true)).toList();
+      _items = _items
+          .map((NotificationModel n) => n.copyWith(isRead: true))
+          .toList();
     });
     widget.onChanged?.call();
 
@@ -97,6 +99,28 @@ class _NotificationSheetState extends State<NotificationSheet> {
   }
 
   Future<void> _handleClearAll() async {
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (BuildContext ctx) => AlertDialog(
+            title: const Text('Clear all notifications?'),
+            content: const Text(
+              'This removes every notification and cannot be undone.',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Clear all'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
     HapticFeedback.mediumImpact();
     setState(() {
       _items = <NotificationModel>[];
@@ -120,17 +144,22 @@ class _NotificationSheetState extends State<NotificationSheet> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color backgroundColor =
-        isDark ? AppColors.darkSurface : AppColors.lightSurface;
-    final Color borderColor =
-        isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color backgroundColor = isDark
+        ? AppColors.darkSurface
+        : AppColors.lightSurface;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
-    final int unreadCount =
-        _items.where((NotificationModel n) => !n.isRead).length;
+    final int unreadCount = _items
+        .where((NotificationModel n) => !n.isRead)
+        .length;
 
     return Container(
       constraints: BoxConstraints(
@@ -138,8 +167,8 @@ class _NotificationSheetState extends State<NotificationSheet> {
       ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24.0)),
-        border: Border.all(color: borderColor.withValues(alpha: 0.6), width: 0.8),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16.0)),
+        border: Border(top: BorderSide(color: borderColor, width: 1.0)),
       ),
       child: SafeArea(
         top: false,
@@ -148,10 +177,9 @@ class _NotificationSheetState extends State<NotificationSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            // Drag handle
             Center(
               child: Container(
-                margin: const EdgeInsets.only(top: 12.0, bottom: 8.0),
+                margin: const EdgeInsets.only(top: 10.0, bottom: 4.0),
                 width: 36.0,
                 height: 4.0,
                 decoration: BoxDecoration(
@@ -161,119 +189,29 @@ class _NotificationSheetState extends State<NotificationSheet> {
               ),
             ),
 
-            // Header row
+            // Title row
             Padding(
-              padding: const EdgeInsets.fromLTRB(20.0, 4.0, 12.0, 0.0),
+              padding: const EdgeInsets.fromLTRB(20.0, 4.0, 4.0, 0.0),
               child: Row(
                 children: <Widget>[
                   Expanded(
-                    child: Row(
-                      children: <Widget>[
-                        Text(
-                          'Notifications',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 17.0,
-                            fontWeight: FontWeight.w800,
-                            color: textPrimary,
-                          ),
-                        ),
-                        if (unreadCount > 0) ...<Widget>[
-                          const SizedBox(width: 8.0),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7.0,
-                              vertical: 2.0,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10.0),
-                            ),
-                            child: Text(
-                              '$unreadCount',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11.0,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                    child: Text(
+                      'Notifications',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
-
-                  // Overflow menu
-                  if (_items.isNotEmpty)
-                    PopupMenuButton<String>(
-                      icon: Icon(
-                        Icons.more_horiz_rounded,
-                        size: 20.0,
-                        color: textSecondary,
-                      ),
-                      tooltip: 'More options',
-                      color: backgroundColor,
-                      elevation: 4.0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                        side: BorderSide(color: borderColor, width: 0.8),
-                      ),
-                      onSelected: (String action) {
-                        if (action == 'mark_read') {
-                          _handleMarkAllAsRead();
-                        } else if (action == 'clear_all') {
-                          _handleClearAll();
-                        }
-                      },
-                      itemBuilder: (BuildContext context) =>
-                          <PopupMenuEntry<String>>[
-                        if (unreadCount > 0)
-                          PopupMenuItem<String>(
-                            value: 'mark_read',
-                            child: Row(
-                              children: <Widget>[
-                                const Icon(
-                                  Icons.done_all_rounded,
-                                  size: 16.0,
-                                  color: AppColors.primary,
-                                ),
-                                const SizedBox(width: 10.0),
-                                Text(
-                                  'Mark all as read',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13.0,
-                                    fontWeight: FontWeight.w600,
-                                    color: textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        PopupMenuItem<String>(
-                          value: 'clear_all',
-                          child: Row(
-                            children: <Widget>[
-                              Icon(
-                                Icons.delete_sweep_outlined,
-                                size: 16.0,
-                                color: Colors.red.shade400,
-                              ),
-                              const SizedBox(width: 10.0),
-                              Text(
-                                'Clear all',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.0,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.red.shade400,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 20.0),
+                    tooltip: 'Close',
+                    constraints: const BoxConstraints(
+                      minWidth: 48.0,
+                      minHeight: 48.0,
+                    ),
+                    icon: const Icon(Icons.close_rounded, size: 22.0),
                     color: textSecondary,
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -281,15 +219,48 @@ class _NotificationSheetState extends State<NotificationSheet> {
               ),
             ),
 
-            // Hairline divider below header
-            const SizedBox(height: 8.0),
-            Divider(
-              height: 1.0,
-              thickness: 0.8,
-              color: borderColor.withValues(alpha: 0.5),
-            ),
+            // Count on the left, plain text actions on the right
+            if (_items.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20.0, 0.0, 8.0, 0.0),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: <InlineSpan>[
+                            TextSpan(
+                              text: '$unreadCount',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 12.0,
+                                fontWeight: FontWeight.w600,
+                                color: textPrimary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: ' unread',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.0,
+                                color: textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (unreadCount > 0)
+                      _textAction(
+                        'Mark all read',
+                        textSecondary,
+                        _handleMarkAllAsRead,
+                      ),
+                    _textAction('Clear all', textSecondary, _handleClearAll),
+                  ],
+                ),
+              ),
 
-            // List
+            Divider(height: 1.0, thickness: 1.0, color: borderColor),
+
             Flexible(
               child: _isLoading
                   ? const Center(
@@ -302,31 +273,49 @@ class _NotificationSheetState extends State<NotificationSheet> {
                       ),
                     )
                   : _items.isEmpty
-                      ? _buildEmptyState(textPrimary, textSecondary)
-                      : ListView.separated(
-                          padding: EdgeInsets.zero,
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: _items.length,
-                          separatorBuilder: (BuildContext ctx, int i) =>
-                              Divider(
-                            height: 1.0,
-                            thickness: 0.6,
-                            // indent aligns hairline with text column start
-                            indent: 60.0,
-                            color: borderColor.withValues(alpha: 0.4),
-                          ),
-                          itemBuilder: (BuildContext ctx, int i) {
-                            final NotificationModel item = _items[i];
-                            return _buildNotificationItem(
-                              item: item,
-                              isDark: isDark,
-                              textPrimary: textPrimary,
-                              textSecondary: textSecondary,
-                            );
-                          },
-                        ),
+                  ? _buildEmptyState(textPrimary, textSecondary)
+                  : ListView.separated(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _items.length,
+                      separatorBuilder: (BuildContext ctx, int i) => Divider(
+                        height: 1.0,
+                        thickness: 1.0,
+                        indent: 20.0,
+                        endIndent: 20.0,
+                        color: borderColor,
+                      ),
+                      itemBuilder: (BuildContext ctx, int i) {
+                        return _buildNotificationItem(
+                          item: _items[i],
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                        );
+                      },
+                    ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _textAction(String label, Color color, VoidCallback onTap) {
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(48.0, 48.0),
+        padding: const EdgeInsets.symmetric(horizontal: 10.0),
+        foregroundColor: color,
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 12.0,
+          fontWeight: FontWeight.w600,
+          decoration: TextDecoration.underline,
+          decorationColor: color,
         ),
       ),
     );
@@ -334,184 +323,145 @@ class _NotificationSheetState extends State<NotificationSheet> {
 
   Widget _buildNotificationItem({
     required NotificationModel item,
-    required bool isDark,
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    final (IconData icon, Color iconColor) = _getTypeStyle(item.type, item.title);
-
-    return Material(
-      color: Colors.transparent,
+    return Semantics(
+      button: true,
+      label:
+          '${item.isRead ? '' : 'Unread. '}${item.title}. ${item.message}. ${item.timeAgo}',
       child: InkWell(
         onTap: () => _handleNavigate(item),
-        child: Stack(
-          children: <Widget>[
-            // Left accent bar for unread items
-            if (!item.isRead)
-              Positioned(
-                left: 0.0,
-                top: 10.0,
-                bottom: 10.0,
-                width: 3.0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: iconColor,
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(2.0),
-                      bottomRight: Radius.circular(2.0),
-                    ),
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 1.0),
+                child: Icon(
+                  _getTypeIcon(item.type, item.title),
+                  size: 20.0,
+                  color: textSecondary,
                 ),
               ),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 13.0,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  // Compact borderless icon circle
-                  Container(
-                    width: 32.0,
-                    height: 32.0,
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(
-                        alpha: isDark ? 0.14 : 0.10,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, size: 15.0, color: iconColor),
-                  ),
-                  const SizedBox(width: 12.0),
-
-                  // Text
-                  Expanded(
-                    child: Column(
+              const SizedBox(width: 14.0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                item.title,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.0,
-                                  fontWeight: item.isRead
-                                      ? FontWeight.w600
-                                      : FontWeight.w700,
-                                  color: item.isRead
-                                      ? textPrimary.withValues(alpha: 0.7)
-                                      : textPrimary,
-                                  letterSpacing: -0.1,
-                                ),
-                              ),
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.0,
+                              fontWeight: item.isRead
+                                  ? FontWeight.w500
+                                  : FontWeight.w700,
+                              color: textPrimary,
+                              height: 1.3,
                             ),
-                            const SizedBox(width: 8.0),
-                            Text(
-                              item.timeAgo,
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 10.0,
-                                color: textSecondary.withValues(alpha: 0.55),
-                              ),
-                            ),
-                            if (!item.isRead) ...<Widget>[
-                              const SizedBox(width: 6.0),
-                              Container(
-                                width: 6.0,
-                                height: 6.0,
-                                decoration: BoxDecoration(
-                                  color: iconColor,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 3.0),
+                        const SizedBox(width: 10.0),
                         Text(
-                          item.message,
-                          style: GoogleFonts.plusJakartaSans(
+                          item.timeAgo,
+                          style: GoogleFonts.jetBrainsMono(
                             fontSize: 12.0,
-                            fontWeight: FontWeight.w400,
-                            color: textSecondary.withValues(
-                              alpha: item.isRead ? 0.65 : 0.88,
-                            ),
-                            height: 1.4,
+                            color: textSecondary,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4.0),
+                    Text(
+                      item.message,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.0,
+                        color: textSecondary,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (!item.isRead) ...<Widget>[
+                const SizedBox(width: 10.0),
+                Padding(
+                  padding: const EdgeInsets.only(top: 6.0),
+                  child: Container(
+                    width: 8.0,
+                    height: 8.0,
+                    decoration: BoxDecoration(
+                      color: textPrimary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  (IconData, Color) _getTypeStyle(String type, [String? title]) {
+  /// One neutral icon per kind of notification. Unread is shown by bold text and a dot, not colour.
+  IconData _getTypeIcon(String type, [String? title]) {
     final String lowerTitle = (title ?? '').toLowerCase();
     if (lowerTitle.contains('invitation') || lowerTitle.contains('invite')) {
-      return (Icons.mail_outline_rounded, const Color(0xFF10B981));
+      return Icons.mail_outline_rounded;
     }
     switch (type) {
       case 'room_member':
       case 'hub_member':
-        return (Icons.school_outlined, const Color(0xFF94A3B8));
+        return Icons.school_outlined;
       case 'room_submission':
       case 'hub_submission':
-        return (Icons.code_rounded, const Color(0xFF94A3B8));
+        return Icons.code_rounded;
       case 'ai':
-        return (Icons.diamond_outlined, AppColors.primary);
+        return Icons.rate_review_outlined;
       case 'streak':
-        return (Icons.local_fire_department_rounded, const Color(0xFFF59E0B));
+        return Icons.local_fire_department_outlined;
       case 'achievement':
-        return (Icons.check_circle_outline_rounded, const Color(0xFF10B981));
+        return Icons.check_circle_outline_rounded;
       case 'assessment':
-        return (Icons.emoji_events_outlined, const Color(0xFFF59E0B));
+        return Icons.timer_outlined;
       case 'report':
-        return (Icons.flag_outlined, const Color(0xFFF43F5E));
+        return Icons.flag_outlined;
       case 'revenue':
-        return (Icons.monetization_on_outlined, const Color(0xFF10B981));
+        return Icons.monetization_on_outlined;
       default:
-        return (Icons.terminal_rounded, const Color(0xFF94A3B8));
+        return Icons.notifications_none_rounded;
     }
   }
 
   Widget _buildEmptyState(Color textPrimary, Color textSecondary) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 48.0),
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 56.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(
-              Icons.notifications_none_rounded,
-              size: 40.0,
-              color: textSecondary.withValues(alpha: 0.35),
-            ),
-            const SizedBox(height: 12.0),
             Text(
-              'All caught up',
+              'No notifications yet',
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 14.0,
-                fontWeight: FontWeight.w700,
+                fontSize: 15.0,
+                fontWeight: FontWeight.w600,
                 color: textPrimary,
               ),
             ),
-            const SizedBox(height: 4.0),
+            const SizedBox(height: 6.0),
             Text(
-              'Activity updates and challenge alerts will appear here.',
+              'Updates on your submissions, hubs and streak will show up here.',
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.0,
-                color: textSecondary.withValues(alpha: 0.7),
-                height: 1.4,
+                fontSize: 13.0,
+                color: textSecondary,
+                height: 1.45,
               ),
             ),
           ],

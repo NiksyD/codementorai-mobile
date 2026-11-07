@@ -92,7 +92,7 @@ class FakeLearnNotificationRepository implements NotificationRepository {
 }
 
 void main() {
-  group('LearnScreen Widget Tests (Web 1:1 Redesign Parity)', () {
+  group('LearnScreen Widget Tests', () {
     const PathwayModel samplePathway = PathwayModel(
       id: 'python-core-101',
       title: 'Python Essentials',
@@ -160,11 +160,11 @@ void main() {
       expect(find.text('Alex'), findsOneWidget);
 
       // CodeCoins Badge
-      expect(find.byIcon(Icons.monetization_on_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.monetization_on_outlined), findsOneWidget);
       expect(find.text('0'), findsOneWidget);
 
       // Streak Badge next to Notification Bell
-      expect(find.byIcon(Icons.local_fire_department_rounded), findsWidgets);
+      expect(find.byIcon(Icons.local_fire_department_outlined), findsWidgets);
       expect(find.text('4d'), findsOneWidget);
 
       // Notification Bell
@@ -189,14 +189,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Upper Block: MODULE kicker + Title + Description + View all topics
-      expect(find.text('MODULE'), findsOneWidget);
+      // Flat hero: title, description, progress, next topic, CTA, topics link.
+      // No "MODULE" / "TOPIC 1" kickers any more.
+      expect(find.text('MODULE'), findsNothing);
       expect(find.text('Python Essentials'), findsOneWidget);
       expect(find.text('Master idiomatic Python through interactive exercises.'), findsOneWidget);
       expect(find.text('View all topics'), findsOneWidget);
 
-      // Lower Block: TOPIC kicker + Target Topic + Progress + Continue Learning CTA
-      expect(find.text('TOPIC 1'), findsOneWidget);
+      expect(find.text('TOPIC 1'), findsNothing);
+      expect(find.text('Up next'), findsOneWidget);
       expect(find.text('Variables & Data Types'), findsOneWidget);
       expect(find.text('45% Complete'), findsOneWidget);
       expect(find.text('Continue Learning'), findsOneWidget);

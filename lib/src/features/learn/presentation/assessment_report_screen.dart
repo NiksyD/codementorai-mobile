@@ -203,32 +203,31 @@ class _AssessmentReportScreenState extends State<AssessmentReportScreen> {
                       ),
                       onRetry: _gaveUp && !_allReady ? _retry : null,
                     ),
-                    const SizedBox(height: 22.0),
+                    const SizedBox(height: 24.0),
                     Text(
                       'Challenge reviews',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        fontWeight: FontWeight.w700,
-                        color: textSecondary,
-                        letterSpacing: 0.4,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4.0),
+                    const SizedBox(height: 2.0),
                     Text(
                       'Open a challenge to read its AI code review.',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
+                        fontSize: 13.0,
                         color: textSecondary,
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 10.0),
+                    const SizedBox(height: 4.0),
                     ...args.results.asMap().entries.map(
                       (MapEntry<int, AssessmentChallengeResult> e) {
                         final AssessmentChallengeResult r = e.value;
                         final String subId = r.submissionId ?? '';
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 10.0),
+                          padding: EdgeInsets.zero,
                           child: _ChallengeCard(
                             index: e.key,
                             result: r,
@@ -259,7 +258,7 @@ class _AssessmentReportScreenState extends State<AssessmentReportScreen> {
                           isDark ? AppColors.onPrimaryDark : Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14.0),
+                        borderRadius: BorderRadius.circular(12.0),
                       ),
                     ),
                     child: Text(
@@ -308,10 +307,10 @@ class _SummaryCard extends StatelessWidget {
   Widget _stat(String label, Widget value) {
     return Expanded(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             label,
-            textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12.0,
               color: textSecondary,
@@ -328,102 +327,98 @@ class _SummaryCard extends StatelessWidget {
         text,
         style: GoogleFonts.jetBrainsMono(
           fontSize: 15.0,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: textPrimary,
         ),
       );
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20.0),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        children: <Widget>[
-          Text(
-            args.hasEvaluation ? '${args.score}%' : '—',
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 44.0,
-              fontWeight: FontWeight.w800,
-              color: accent,
-              letterSpacing: -1.0,
-            ),
+    final String status = !args.hasEvaluation
+        ? 'Not evaluated'
+        : (isPassed ? 'Passed' : 'Needs review');
+    final IconData statusIcon = !args.hasEvaluation
+        ? Icons.remove_rounded
+        : (isPassed ? Icons.check_rounded : Icons.error_outline_rounded);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          args.assessment.title,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14.0,
+            color: textSecondary,
           ),
-          const SizedBox(height: 8.0),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20.0),
-              border: Border.all(color: accent.withValues(alpha: 0.35)),
-            ),
-            child: Text(
-              !args.hasEvaluation
-                  ? 'Not evaluated'
-                  : (isPassed ? 'Passed' : 'Needs review'),
+        ),
+        const SizedBox(height: 8.0),
+        Text(
+          args.hasEvaluation ? '${args.score}%' : '—',
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 44.0,
+            fontWeight: FontWeight.w700,
+            color: textPrimary,
+            letterSpacing: -1.0,
+            height: 1.1,
+          ),
+        ),
+        const SizedBox(height: 8.0),
+        Row(
+          children: <Widget>[
+            Icon(statusIcon, size: 18.0, color: accent),
+            const SizedBox(width: 6.0),
+            Text(
+              status,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.0,
-                fontWeight: FontWeight.w700,
+                fontSize: 15.0,
+                fontWeight: FontWeight.w600,
                 color: accent,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 4.0),
+        Text(
+          args.hasEvaluation
+              ? 'Score = tasks passed ÷ total tasks'
+              : 'No task was run, so there is no score yet.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.0,
+            color: textSecondary,
           ),
-          const SizedBox(height: 6.0),
-          Text(
-            args.hasEvaluation
-                ? 'Score = tasks passed ÷ total tasks'
-                : 'No task was run, so there is no score yet.',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              color: textSecondary,
-            ),
+        ),
+        const SizedBox(height: 16.0),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          decoration: BoxDecoration(
+            border: Border.symmetric(horizontal: BorderSide(color: borderColor)),
           ),
-          const SizedBox(height: 14.0),
-          Text(
-            args.assessment.title,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 17.0,
-              fontWeight: FontWeight.w800,
-              color: textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 16.0),
-          Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               _stat('Time spent', _metric(timeSpent)),
-              Container(width: 1.0, height: 44.0, color: borderColor),
               _stat(
                 'Tasks passed',
                 _metric('${args.passedCount} / ${args.results.length}'),
               ),
-              Container(width: 1.0, height: 44.0, color: borderColor),
               _stat('AI code quality', aiStat),
             ],
           ),
-          if (onRetry != null) ...<Widget>[
-            const SizedBox(height: 8.0),
-            TextButton(
-              onPressed: onRetry,
-              style: TextButton.styleFrom(minimumSize: const Size(48.0, 48.0)),
-              child: Text(
-                'Check AI reviews again',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13.0,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
+        ),
+        if (onRetry != null)
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(minimumSize: const Size(48.0, 48.0)),
+            child: Text(
+              'Check AI reviews again',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14.0,
+                fontWeight: FontWeight.w600,
+                color: textPrimary,
               ),
             ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -522,10 +517,10 @@ class _ChallengeCard extends StatelessWidget {
   Widget _reviewStatus() {
     if (onTap == null || !result.wasEvaluated) return const SizedBox.shrink();
     if (reviewReady) {
-      return const Icon(
-        Icons.check_circle_rounded,
-        size: 20.0,
-        color: AppColors.primary,
+      return Icon(
+        Icons.check_rounded,
+        size: 18.0,
+        color: textSecondary,
         semanticLabel: 'AI review ready',
       );
     }
@@ -550,90 +545,92 @@ class _ChallengeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color c = result.passed ? AppColors.success : AppColors.error;
     final String tests = result.totalCases > 0
         ? '${result.verdict} · ${result.passedCases}/${result.totalCases} tests'
         : result.verdict;
 
-    return Material(
-      color: cardColor,
-      borderRadius: BorderRadius.circular(16.0),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16.0),
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 48.0),
-          padding: const EdgeInsets.all(14.0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 34.0,
-                height: 34.0,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: c.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  'P${index + 1}',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12.0,
-                    fontWeight: FontWeight.w800,
-                    color: c,
-                  ),
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 64.0),
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: borderColor)),
+        ),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 36.0,
+              child: Text(
+                'P${index + 1}',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 13.0,
+                  color: textSecondary,
                 ),
               ),
-              const SizedBox(width: 12.0),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      result.challenge.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    result.challenge.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15.0,
+                      fontWeight: FontWeight.w600,
+                      color: textPrimary,
                     ),
-                    const SizedBox(height: 3.0),
-                    Text(
-                      tests,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        color: textSecondary,
+                  ),
+                  const SizedBox(height: 4.0),
+                  Row(
+                    children: <Widget>[
+                      Icon(
+                        result.passed
+                            ? Icons.check_rounded
+                            : Icons.close_rounded,
+                        size: 14.0,
+                        color:
+                            result.passed ? textSecondary : AppColors.error,
                       ),
-                    ),
-                    if ((result.detail ?? '').isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 4.0),
-                      Text(
-                        result.detail!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 12.0,
-                          height: 1.4,
-                          color: AppColors.error,
+                      const SizedBox(width: 4.0),
+                      Expanded(
+                        child: Text(
+                          tests,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.0,
+                            color: result.passed
+                                ? textSecondary
+                                : AppColors.error,
+                          ),
                         ),
                       ),
                     ],
+                  ),
+                  if ((result.detail ?? '').isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 4.0),
+                    Text(
+                      result.detail!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 12.0,
+                        height: 1.4,
+                        color: textSecondary,
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
-              const SizedBox(width: 8.0),
-              _reviewStatus(),
-              if (onTap != null) ...<Widget>[
-                const SizedBox(width: 4.0),
-                Icon(Icons.chevron_right_rounded, color: textSecondary),
-              ],
+            ),
+            const SizedBox(width: 8.0),
+            _reviewStatus(),
+            if (onTap != null) ...<Widget>[
+              const SizedBox(width: 4.0),
+              Icon(Icons.chevron_right_rounded, color: textSecondary),
             ],
-          ),
+          ],
         ),
       ),
     );

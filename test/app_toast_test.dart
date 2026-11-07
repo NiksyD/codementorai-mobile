@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:codementorai_mobile/src/common_widgets/app_toast.dart';
 
 void main() {
-  group('AppToast Widget Tests (Redesigned Floating Frosted Capsule Toast)', () {
-    testWidgets('Renders info toast with message, sky blue icon, and close button', (
+  group('AppToast Widget Tests', () {
+    testWidgets('Renders info toast with message, icon, and dismiss button', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -35,7 +35,7 @@ void main() {
         find.text('Email address is linked to your account and cannot be modified.'),
         findsOneWidget,
       );
-      expect(find.byIcon(Icons.info_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.info_outline_rounded), findsOneWidget);
       expect(find.byIcon(Icons.close_rounded), findsOneWidget);
 
       // Tap close button dismisses toast
@@ -83,19 +83,19 @@ void main() {
       await tester.tap(find.text('Success Btn'));
       await tester.pump();
       expect(find.text('Success!'), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
 
       // Test Error
       await tester.tap(find.text('Error Btn'));
       await tester.pump();
       expect(find.text('Error!'), findsOneWidget);
-      expect(find.byIcon(Icons.error_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.error_outline_rounded), findsOneWidget);
 
       // Test Warning
       await tester.tap(find.text('Warning Btn'));
       await tester.pump();
       expect(find.text('Warning!'), findsOneWidget);
-      expect(find.byIcon(Icons.warning_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
     });
   });
 }

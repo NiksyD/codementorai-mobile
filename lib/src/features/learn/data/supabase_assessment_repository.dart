@@ -311,23 +311,6 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
         onConflict: 'user_id,assessment_id',
       );
 
-      // 2.5 Record in user_assessment_attempts for CRA Competency scoring
-      try {
-        final int passingScore = await _getPassingScore(assessmentId);
-        await _supabase.from('user_assessment_attempts').insert(<String, dynamic>{
-          'user_id': userId,
-          'assessment_id': assessmentId,
-          'status': 'completed',
-          'score': score,
-          'passing_score': passingScore,
-          'is_passed': score >= passingScore,
-          'duration_seconds': timeSpentSecs,
-          'submitted_at': DateTime.now().toUtc().toIso8601String(),
-        });
-      } catch (attErr) {
-        debugPrint('Non-critical attempt insert error: $attErr');
-      }
-
       // 3. Insert submissions for each challenge if provided
       for (final Map<String, dynamic> item in challengeSubmissions) {
         try {
@@ -363,10 +346,121 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
         }
       }
 
+      // 4. Record the attempt for CRA scoring. The snapshot lists each problem
+      // with its test result and submission id (same shape as the web), which is
+      // what the readiness calculation reads. It needs the submission ids, so it
+      // is written after the submissions.
+      try {
+        final int passingScore = await _getPassingScore(assessmentId);
+        final DateTime submittedAt = DateTime.now().toUtc();
+        final List<Map<String, dynamic>> problems = <Map<String, dynamic>>[
+          for (final Map<String, dynamic> item in challengeSubmissions)
+            <String, dynamic>{
+              'id': item['challenge_id']?.toString() ?? '',
+              'language': item['language']?.toString() ?? 'javascript',
+              'passed': item['passed'] == true,
+              'submissionId': submissionIds[item['challenge_id']?.toString()],
+            },
+        ];
+        await _supabase.from('user_assessment_attempts').insert(<String, dynamic>{
+          'user_id': userId,
+          'assessment_id': assessmentId,
+          'status': 'completed',
+          'score': score,
+          'passing_score': passingScore,
+          'is_passed': score >= passingScore,
+          'duration_seconds': timeSpentSecs,
+          'snapshot': <String, dynamic>{
+            'assessmentId': assessmentId,
+            'passingScore': passingScore,
+            'overallScore': score,
+            'isPassed': score >= passingScore,
+            'passedCount': problems.where((Map<String, dynamic> p) => p['passed'] == true).length,
+            'totalCount': problems.length,
+            'submittedAt': submittedAt.toIso8601String(),
+            'challenges': problems,
+          },
+          'submitted_at': submittedAt.toIso8601String(),
+        });
+      } catch (attErr) {
+        debugPrint('Non-critical attempt insert error: $attErr');
+      }
+
       return submissionIds;
     } catch (e) {
       debugPrint('Error submitting assessment attempt: $e');
       return null;
+    }
+  }
+
+  /// Adds `cra_problems` to each attempt: the snapshot's problems joined with the
+  /// AI correctness and efficiency ratings of their submissions (web: craData.ts).
+  /// A problem whose submission has no AI review yet gets null ratings, which the
+  /// calculation treats as pending. The raw snapshot is dropped afterwards.
+  Future<void> _attachCraProblems(List<Map<String, dynamic>> attempts) async {
+    List<dynamic> challengesOf(Map<String, dynamic> a) {
+      final dynamic snap = a['snapshot'];
+      final dynamic c = snap is Map ? snap['challenges'] : null;
+      return c is List ? c : const <dynamic>[];
+    }
+
+    final Set<String> ids = <String>{
+      for (final Map<String, dynamic> a in attempts)
+        for (final dynamic c in challengesOf(a))
+          if (c is Map && (c['submissionId']?.toString() ?? '').isNotEmpty)
+            c['submissionId'].toString(),
+    };
+
+    final Map<String, Map<String, dynamic>> ratings =
+        <String, Map<String, dynamic>>{};
+    if (ids.isNotEmpty) {
+      try {
+        final dynamic rows = await _supabase
+            .from('submissions')
+            .select('sub_id, ai_audits(audit_findings)')
+            .inFilter('sub_id', ids.toList());
+        if (rows is List) {
+          for (final dynamic r in rows) {
+            if (r is! Map) continue;
+            final dynamic audit = r['ai_audits'] is List
+                ? ((r['ai_audits'] as List).isEmpty
+                    ? null
+                    : (r['ai_audits'] as List).first)
+                : r['ai_audits'];
+            final dynamic f = audit is Map ? audit['audit_findings'] : null;
+            ratings[r['sub_id'].toString()] = <String, dynamic>{
+              'correctness': f is Map ? f['correctness'] : null,
+              'efficiency': f is Map ? f['efficiency'] : null,
+            };
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching AI ratings for readiness: $e');
+      }
+    }
+
+    for (final Map<String, dynamic> a in attempts) {
+      final List<dynamic> challenges = challengesOf(a);
+      a.remove('snapshot');
+      if (challenges.isEmpty) continue;
+      a['cra_problems'] = <Map<String, dynamic>>[
+        for (int i = 0; i < challenges.length; i++)
+          if (challenges[i] is Map)
+            () {
+              final Map<dynamic, dynamic> c = challenges[i] as Map;
+              final String subId = c['submissionId']?.toString() ?? '';
+              final Map<String, dynamic>? rating =
+                  subId.isEmpty ? null : ratings[subId];
+              return <String, dynamic>{
+                'id': c['id']?.toString() ?? '${a['id']}-$i',
+                'hasSubmission': subId.isNotEmpty,
+                'passedTests': c['passed'] == true,
+                'correctness': rating?['correctness'],
+                'efficiency': rating?['efficiency'],
+                'topics': c['topics'] is List ? c['topics'] : const <dynamic>[],
+              };
+            }(),
+      ];
     }
   }
 
@@ -377,12 +471,14 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
     try {
       final dynamic attemptsData = await _supabase
           .from('user_assessment_attempts')
-          .select('assessment_id, status, score')
+          .select('id, assessment_id, status, score, is_passed, submitted_at, snapshot')
           .eq('user_id', userId);
 
       final List<Map<String, dynamic>> attempts = attemptsData is List
           ? attemptsData.cast<Map<String, dynamic>>().toList()
           : <Map<String, dynamic>>[];
+
+      await _attachCraProblems(attempts);
 
       // Web parity: assessments with no scored attempt row fall back to their
       // user_assessment_library best_score (merged per assessment).

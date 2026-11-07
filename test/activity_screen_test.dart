@@ -80,8 +80,7 @@ class FakeActivityPathwayRepository implements PathwayRepository {
     String moduleId,
     String exerciseId,
     String code,
-    String language,
-  ) async => 'sub-practice-123';
+    String language, {bool passed = true}) async => 'sub-practice-123';
 
   @override
   Future<PracticeExerciseModel?> getChallengeExercise(
@@ -96,8 +95,7 @@ class FakeActivityPathwayRepository implements PathwayRepository {
     String moduleId,
     String challengeId,
     String code,
-    String language,
-  ) async => 'sub-challenge-123';
+    String language, {bool passed = true}) async => 'sub-challenge-123';
 
   @override
   Future<List<SubmissionHistoryModel>> getExerciseSubmissions({
@@ -388,15 +386,13 @@ void main() {
         await tester.pumpAndSettle();
 
         // Dedicated review screen is mounted
-        expect(find.text('Verified Passed'), findsOneWidget);
-        expect(find.text('All Tests Passed'), findsOneWidget);
-        expect(find.text('Automated Code Feedback'), findsOneWidget);
-        expect(find.text('Correctness'), findsOneWidget);
-        expect(find.text('Readability'), findsOneWidget);
-        expect(find.text('Maintainability'), findsOneWidget);
-        expect(find.text('Efficiency'), findsOneWidget);
-        expect(find.text('Submission Review'), findsOneWidget);
-        expect(find.byTooltip('Back to Activity'), findsOneWidget);
+        expect(find.text('Submission review'), findsOneWidget);
+        expect(find.textContaining('All tests passed'), findsOneWidget);
+        // This fake has no AI findings, so the screen says so instead of
+        // inventing criteria. (Criteria are covered in the review screen's own test.)
+        expect(find.text("The AI review isn't ready yet"), findsOneWidget);
+        expect(find.text('Submitted code'), findsOneWidget);
+        expect(find.byTooltip('Back'), findsOneWidget);
       },
     );
 
@@ -425,7 +421,7 @@ void main() {
       expect(find.text('Browse Modules'), findsOneWidget);
     });
 
-    testWidgets('Active tab shows 3 metric cards and redesigned empty state with Clear Filters button', (
+    testWidgets('Active tab lists modules and shows the empty state with a Clear Filters button', (
       WidgetTester tester,
     ) async {
       final List<PathwayModel> testModules = <PathwayModel>[
@@ -456,7 +452,6 @@ void main() {
 
       // Verify Active tab rendered cleanly with search, filters, and module cards
       expect(find.text('Active'), findsWidgets);
-      expect(find.text('Showing:'), findsOneWidget);
       expect(find.text('Computer Programming I: C Syntax and Logic'), findsOneWidget);
 
       // Filter by searching for non-existing query

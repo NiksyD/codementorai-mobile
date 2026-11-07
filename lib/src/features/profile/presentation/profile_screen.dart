@@ -52,14 +52,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _fetchProfile() async {
     final user = _getAuthUser();
     if (user != null) {
-      final ProfileModel? profile = await widget.profileRepository.getProfile(user.id);
+      final ProfileModel? profile = await widget.profileRepository.getProfile(
+        user.id,
+      );
       final metadata = user.userMetadata ?? <String, dynamic>{};
 
       if (mounted) {
         setState(() {
           _profile = profile;
-          _firstName = profile?.firstName ?? (metadata['first_name'] as String?) ?? '';
-          _lastName = profile?.lastName ?? (metadata['last_name'] as String?) ?? '';
+          _firstName =
+              profile?.firstName ?? (metadata['first_name'] as String?) ?? '';
+          _lastName =
+              profile?.lastName ?? (metadata['last_name'] as String?) ?? '';
           _isLoading = false;
         });
       }
@@ -93,7 +97,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final bytes = await image.readAsBytes();
       final String fileExt = image.name.split('.').last.toLowerCase();
-      final String filePath = '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final String filePath =
+          '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
 
       await Supabase.instance.client.storage
           .from('avatars')
@@ -108,7 +113,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         email: user.email ?? _profile?.email ?? '',
         firstName: _firstName,
         lastName: _lastName,
-        role: _profile?.role ?? (user.userMetadata?['role'] as String?) ?? 'student',
+        role:
+            _profile?.role ??
+            (user.userMetadata?['role'] as String?) ??
+            'student',
         avatarUrl: publicUrl,
         primaryLanguage: _profile?.primaryLanguage,
         skillLevel: _profile?.skillLevel,
@@ -135,8 +143,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showEditNameSheet() {
     HapticFeedback.selectionClick();
-    final TextEditingController firstCtrl = TextEditingController(text: _firstName);
-    final TextEditingController lastCtrl = TextEditingController(text: _lastName);
+    final TextEditingController firstCtrl = TextEditingController(
+      text: _firstName,
+    );
+    final TextEditingController lastCtrl = TextEditingController(
+      text: _lastName,
+    );
 
     showModalBottomSheet<void>(
       context: context,
@@ -149,11 +161,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           top: false,
           bottom: true,
           child: Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
             child: Container(
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24.0)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24.0),
+                ),
               ),
               padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 24.0),
               child: Column(
@@ -165,7 +181,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 36.0,
                       height: 4.0,
                       decoration: BoxDecoration(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
                         borderRadius: BorderRadius.circular(2.0),
                       ),
                     ),
@@ -176,7 +194,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16.0,
                       fontWeight: FontWeight.w800,
-                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.lightTextPrimary,
                     ),
                   ),
                   const SizedBox(height: 14.0),
@@ -184,7 +204,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     controller: firstCtrl,
                     decoration: InputDecoration(
                       labelText: 'First Name',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12.0),
@@ -192,7 +214,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     controller: lastCtrl,
                     decoration: InputDecoration(
                       labelText: 'Last Name',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18.0),
@@ -213,7 +237,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             email: _profile?.email ?? user.email ?? '',
                             firstName: newFirst,
                             lastName: newLast,
-                            role: _profile?.role ?? (user.userMetadata?['role'] as String?) ?? 'student',
+                            role:
+                                _profile?.role ??
+                                (user.userMetadata?['role'] as String?) ??
+                                'student',
                             avatarUrl: _profile?.avatarUrl,
                             primaryLanguage: _profile?.primaryLanguage,
                             skillLevel: _profile?.skillLevel,
@@ -225,14 +252,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _lastName = newLast;
                               _profile = updated;
                             });
-                            AppToast.showSuccess(context, 'Name updated successfully');
+                            AppToast.showSuccess(
+                              context,
+                              'Name updated successfully',
+                            );
                           }
                         }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                        foregroundColor: isDark
+                            ? AppColors.onPrimaryDark
+                            : Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
                       ),
                       child: Text(
                         'Save Changes',
@@ -273,7 +307,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
         return AlertDialog(
           backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
           title: Text(
             title,
             style: GoogleFonts.plusJakartaSans(
@@ -310,7 +346,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
         return AlertDialog(
           backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
           title: Text(
             'Sign Out',
             style: GoogleFonts.plusJakartaSans(
@@ -327,9 +365,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(
                 'Cancel',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
               ),
             ),
             ElevatedButton(
@@ -344,9 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Text(
                 'Sign Out',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -365,33 +399,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color backgroundColor =
-        isDark ? AppColors.darkBackground : AppColors.lightBackground;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final Color sectionHeaderColor =
-        isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-    final Color cardBg =
-        isDark ? AppColors.darkSurfaceCard : Colors.white;
-    final Color borderColor =
-        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final Color backgroundColor = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
 
     final User? authUser = _getAuthUser();
-    final Map<String, dynamic> authMeta = authUser?.userMetadata ?? <String, dynamic>{};
+    final Map<String, dynamic> authMeta =
+        authUser?.userMetadata ?? <String, dynamic>{};
     final String displayName = _profile?.fullName.isNotEmpty == true
         ? _profile!.fullName
         : ((authMeta['full_name'] as String?) ??
-            authUser?.email?.split('@').first ??
-            'Developer');
+              authUser?.email?.split('@').first ??
+              'Developer');
     final String email = _profile?.email.isNotEmpty == true
         ? _profile!.email
         : (authUser?.email ?? '');
     final String? resolvedAvatar = (_profile?.avatarUrl?.isNotEmpty == true)
         ? _profile!.avatarUrl
-        : ((authMeta['avatar_url'] as String?) ?? (authMeta['picture'] as String?));
-    final String avatarUrl = (resolvedAvatar != null && resolvedAvatar.trim().isNotEmpty)
+        : ((authMeta['avatar_url'] as String?) ??
+              (authMeta['picture'] as String?));
+    final String avatarUrl =
+        (resolvedAvatar != null && resolvedAvatar.trim().isNotEmpty)
         ? resolvedAvatar.trim()
         : 'https://api.dicebear.com/7.x/avataaars/png?seed=$displayName';
 
@@ -405,7 +442,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               )
             : SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 16.0,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -430,25 +470,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 18.0),
 
-                    // 2. USER PROFILE HERO CARD
-                    Container(
-                      padding: const EdgeInsets.all(18.0),
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(20.0),
-                        border: Border.all(color: borderColor),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-                            blurRadius: 12.0,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          // Avatar with camera micro-badge
-                          GestureDetector(
+                    // 2. WHO YOU ARE: avatar, name, email. No card.
+                    Row(
+                      children: <Widget>[
+                        Semantics(
+                          button: true,
+                          label: 'Change profile photo',
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
                             onTap: () {
                               HapticFeedback.selectionClick();
                               _handleAvatarUpload();
@@ -461,35 +490,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   height: 64.0,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: AppColors.primary.withValues(alpha: 0.35),
-                                      width: 2.0,
-                                    ),
+                                    color: isDark
+                                        ? AppColors.darkSurfaceCard
+                                        : AppColors.lightSurfaceCard,
                                   ),
-                                  child: ClipOval(
-                                    child: _isUploadingAvatar
-                                        ? const Center(
-                                            child: SizedBox(
-                                              width: 22.0,
-                                              height: 22.0,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2.5,
-                                                color: AppColors.primary,
-                                              ),
-                                            ),
-                                          )
-                                        : Image.network(
-                                            avatarUrl,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    Icon(
-                                              Icons.person_rounded,
-                                              size: 34.0,
-                                              color: textSecondary,
+                                  clipBehavior: Clip.antiAlias,
+                                  child: _isUploadingAvatar
+                                      ? const Center(
+                                          child: SizedBox(
+                                            width: 22.0,
+                                            height: 22.0,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                              color: AppColors.primary,
                                             ),
                                           ),
-                                  ),
+                                        )
+                                      : Image.network(
+                                          avatarUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  Icon(
+                                                    Icons.person_rounded,
+                                                    size: 34.0,
+                                                    color: textSecondary,
+                                                  ),
+                                        ),
                                 ),
                                 Positioned(
                                   bottom: -2.0,
@@ -498,275 +525,215 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     width: 22.0,
                                     height: 22.0,
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF262626) : Colors.white,
+                                      color: backgroundColor,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                                        color: borderColor,
                                         width: 1.5,
                                       ),
-                                      boxShadow: <BoxShadow>[
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.25),
-                                          blurRadius: 4.0,
-                                        ),
-                                      ],
                                     ),
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.camera_alt_rounded,
-                                        size: 11.0,
-                                        color: isDark
-                                            ? Colors.white
-                                            : const Color(0xFF334155),
-                                      ),
+                                    child: Icon(
+                                      Icons.camera_alt_outlined,
+                                      size: 12.0,
+                                      color: textSecondary,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 16.0),
-
-                          // Name + Email
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  displayName,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 17.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: textPrimary,
-                                    letterSpacing: -0.3,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 16.0),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                displayName,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 18.0,
+                                  fontWeight: FontWeight.w700,
+                                  color: textPrimary,
+                                  letterSpacing: -0.2,
                                 ),
-                                const SizedBox(height: 3.0),
-                                Text(
-                                  email,
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 12.0,
-                                    fontWeight: FontWeight.w400,
-                                    color: textSecondary,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2.0),
+                              Text(
+                                email,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.0,
+                                  color: textSecondary,
                                 ),
-                              ],
-                            ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8.0),
-
-                          // Quick Edit Name Pencil Button
-                          IconButton(
-                            onPressed: _showEditNameSheet,
-                            icon: Icon(
-                              Icons.edit_outlined,
-                              size: 18.0,
-                              color: textSecondary,
-                            ),
-                            tooltip: 'Edit Name',
+                        ),
+                        IconButton(
+                          onPressed: _showEditNameSheet,
+                          constraints: const BoxConstraints(
+                            minWidth: 48.0,
+                            minHeight: 48.0,
                           ),
-                        ],
-                      ),
+                          icon: Icon(
+                            Icons.edit_outlined,
+                            size: 20.0,
+                            color: textSecondary,
+                          ),
+                          tooltip: 'Edit name',
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 22.0),
+                    const SizedBox(height: 28.0),
 
-                    // 3. ACCOUNT DETAILS (1:1 Web /settings/account)
-                    _buildSectionHeader('ACCOUNT DETAILS', sectionHeaderColor),
-                    const SizedBox(height: 8.0),
-                    Material(
-                      color: cardBg,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18.0),
-                        side: BorderSide(color: borderColor),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        children: <Widget>[
-                          _buildSettingRow(
-                            icon: Icons.person_outline_rounded,
-                            title: 'Display Name',
-                            subtitle: displayName,
-                            trailing: Icon(
-                              Icons.chevron_right_rounded,
-                              size: 20.0,
-                              color: textSecondary,
-                            ),
-                            onTap: _showEditNameSheet,
-                            textPrimary: textPrimary,
-                            textSecondary: textSecondary,
-                            isDark: isDark,
+                    // 3. ACCOUNT DETAILS
+                    _buildSectionHeader('Account details', textSecondary),
+                    _buildGroup(
+                      borderColor: borderColor,
+                      rows: <Widget>[
+                        _buildSettingRow(
+                          icon: Icons.person_outline_rounded,
+                          title: 'Display Name',
+                          subtitle: displayName,
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            size: 22.0,
+                            color: textSecondary,
                           ),
-                          Divider(
-                            height: 1.0,
-                            thickness: 1.0,
-                            indent: 66.0,
-                            endIndent: 16.0,
-                            color: isDark
-                                ? AppColors.darkBorder.withValues(alpha: 0.6)
-                                : const Color(0xFFF1F5F9),
+                          onTap: _showEditNameSheet,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                          isDark: isDark,
+                        ),
+                        _buildSettingRow(
+                          icon: Icons.alternate_email_rounded,
+                          title: 'Email Address',
+                          subtitle: email,
+                          trailing: Icon(
+                            Icons.lock_outline_rounded,
+                            size: 18.0,
+                            color: textSecondary,
                           ),
-                          _buildSettingRow(
-                            icon: Icons.alternate_email_rounded,
-                            title: 'Email Address',
-                            subtitle: email,
-                            trailing: Icon(
-                              Icons.lock_outline_rounded,
-                              size: 16.0,
-                              color: textSecondary.withValues(alpha: 0.7),
-                            ),
-                            onTap: () {
-                              HapticFeedback.lightImpact();
-                              AppToast.showInfo(
-                                context,
-                                'Email address is linked to your account and cannot be modified.',
-                              );
-                            },
-                            textPrimary: textPrimary,
-                            textSecondary: textSecondary,
-                            isDark: isDark,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 22.0),
-
-                    // 4. PREFERENCES (1:1 Web /settings/notifications + Appearance)
-                    _buildSectionHeader('PREFERENCES', sectionHeaderColor),
-                    const SizedBox(height: 8.0),
-                    Material(
-                      color: cardBg,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18.0),
-                        side: BorderSide(color: borderColor),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: _buildSettingRow(
-                        icon: Icons.palette_outlined,
-                        title: 'Appearance',
-                        subtitle: isDark ? 'Dark Theme' : 'Light Theme',
-                        trailing: Switch.adaptive(
-                          value: isDark,
-                          activeTrackColor: AppColors.primary,
-                          onChanged: (bool val) {
-                            HapticFeedback.selectionClick();
-                            themeModeController.toggleTheme();
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            AppToast.showInfo(
+                              context,
+                              'Email address is linked to your account and cannot be modified.',
+                            );
                           },
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                          isDark: isDark,
                         ),
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        isDark: isDark,
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 22.0),
+                    const SizedBox(height: 28.0),
 
-                    // 5. SECURITY & LEGAL (1:1 Web /settings/security)
-                    _buildSectionHeader('SECURITY & LEGAL', sectionHeaderColor),
-                    const SizedBox(height: 8.0),
-                    Material(
-                      color: cardBg,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18.0),
-                        side: BorderSide(color: borderColor),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        children: <Widget>[
-                          _buildSettingRow(
-                            icon: Icons.lock_outline_rounded,
-                            title: 'Change Password',
-                            subtitle: 'Update account credentials',
-                            trailing: Icon(
-                              Icons.chevron_right_rounded,
-                              size: 20.0,
-                              color: textSecondary,
-                            ),
-                            onTap: _showChangePasswordSheet,
-                            textPrimary: textPrimary,
-                            textSecondary: textSecondary,
-                            isDark: isDark,
+                    // 4. PREFERENCES
+                    _buildSectionHeader('Preferences', textSecondary),
+                    _buildGroup(
+                      borderColor: borderColor,
+                      rows: <Widget>[
+                        _buildSettingRow(
+                          icon: Icons.palette_outlined,
+                          title: 'Appearance',
+                          subtitle: isDark ? 'Dark theme' : 'Light theme',
+                          trailing: Switch.adaptive(
+                            value: isDark,
+                            activeTrackColor: AppColors.primary,
+                            onChanged: (bool val) {
+                              HapticFeedback.selectionClick();
+                              themeModeController.toggleTheme();
+                            },
                           ),
-                          Divider(
-                            height: 1.0,
-                            thickness: 1.0,
-                            indent: 66.0,
-                            endIndent: 16.0,
-                            color: isDark
-                                ? AppColors.darkBorder.withValues(alpha: 0.6)
-                                : const Color(0xFFF1F5F9),
-                          ),
-                          _buildSettingRow(
-                            icon: Icons.description_outlined,
-                            title: 'Privacy Policy & Terms',
-                            subtitle: 'Terms of service & privacy notice',
-                            trailing: Icon(
-                              Icons.chevron_right_rounded,
-                              size: 20.0,
-                              color: textSecondary,
-                            ),
-                            onTap: () => _showLegalDialog(
-                              'Privacy & Terms',
-                              'CodeMentor AI respects your data privacy. Code submissions and practice progress are securely stored in your personal account.',
-                            ),
-                            textPrimary: textPrimary,
-                            textSecondary: textSecondary,
-                            isDark: isDark,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24.0),
-
-                    // 6. SIGN OUT BUTTON (Modern Destructive Card)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(16.0),
-                      onTap: _handleSignOut,
-                      child: Container(
-                        height: 48.0,
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(16.0),
-                          border: Border.all(
-                            color: AppColors.error
-                                .withValues(alpha: isDark ? 0.30 : 0.20),
-                            width: 1.0,
-                          ),
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                          isDark: isDark,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            const Icon(
-                              Icons.logout_rounded,
-                              size: 18.0,
-                              color: AppColors.error,
-                            ),
-                            const SizedBox(width: 8.0),
-                            Text(
-                              'Sign Out',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
+                      ],
+                    ),
+                    const SizedBox(height: 28.0),
+
+                    // 5. SECURITY & LEGAL
+                    _buildSectionHeader('Security and legal', textSecondary),
+                    _buildGroup(
+                      borderColor: borderColor,
+                      rows: <Widget>[
+                        _buildSettingRow(
+                          icon: Icons.lock_outline_rounded,
+                          title: 'Change Password',
+                          subtitle: 'Update account credentials',
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            size: 22.0,
+                            color: textSecondary,
+                          ),
+                          onTap: _showChangePasswordSheet,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                          isDark: isDark,
+                        ),
+                        _buildSettingRow(
+                          icon: Icons.description_outlined,
+                          title: 'Privacy Policy and Terms',
+                          subtitle: 'Terms of service and privacy notice',
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            size: 22.0,
+                            color: textSecondary,
+                          ),
+                          onTap: () => _showLegalDialog(
+                            'Privacy & Terms',
+                            'CodeMentor AI respects your data privacy. Code submissions and practice progress are securely stored in your personal account.',
+                          ),
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                          isDark: isDark,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28.0),
+
+                    // 6. SIGN OUT: a plain row; red text is the only warning
+                    Semantics(
+                      button: true,
+                      label: 'Sign out',
+                      child: InkWell(
+                        onTap: _handleSignOut,
+                        child: SizedBox(
+                          height: 56.0,
+                          child: Row(
+                            children: <Widget>[
+                              const Icon(
+                                Icons.logout_rounded,
+                                size: 20.0,
                                 color: AppColors.error,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 14.0),
+                              Text(
+                                'Sign out',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15.0,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16.0),
+                    const SizedBox(height: 12.0),
 
-                    // 7. APP VERSION BADGE
-                    Center(
-                      child: Text(
-                        'CodeMentor AI v1.0.0 (Build 42)',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.0,
-                          fontWeight: FontWeight.w500,
-                          color: textSecondary.withValues(alpha: 0.6),
-                        ),
+                    // 7. VERSION
+                    Text(
+                      'CodeMentor AI version 1.0.0',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        color: textSecondary,
                       ),
                     ),
                     const SizedBox(height: 96.0),
@@ -774,6 +741,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
       ),
+    );
+  }
+
+  /// Rows with a hairline above, between and below. No card, no shadow.
+  Widget _buildGroup({required Color borderColor, required List<Widget> rows}) {
+    final List<Widget> children = <Widget>[];
+    for (int i = 0; i < rows.length; i++) {
+      if (i > 0) {
+        children.add(Divider(height: 1.0, thickness: 1.0, color: borderColor));
+      }
+      children.add(rows[i]);
+    }
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.symmetric(
+          horizontal: BorderSide(color: borderColor, width: 1.0),
+        ),
+      ),
+      child: Column(children: children),
     );
   }
 
@@ -787,35 +773,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color textSecondary,
     required bool isDark,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
+    // Leading icons stay a muted slate tone (AGENTS.md 2.4), never a coloured accent.
+    final Color iconColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 60.0),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 13.0),
+          padding: const EdgeInsets.symmetric(vertical: 10.0),
           child: Row(
             children: <Widget>[
-              // Monochromatic slate squircle leading icon container
-              Container(
-                width: 36.0,
-                height: 36.0,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                child: Center(
-                  child: Icon(
-                    icon,
-                    size: 18.0,
-                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14.0),
-
-              // Title + subtitle
+              Icon(icon, size: 22.0, color: iconColor),
+              const SizedBox(width: 16.0),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -824,7 +795,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       title,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
+                        fontSize: 15.0,
                         fontWeight: FontWeight.w600,
                         color: textPrimary,
                       ),
@@ -834,8 +805,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Text(
                         subtitle,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.0,
-                          fontWeight: FontWeight.w400,
+                          fontSize: 13.0,
                           color: textSecondary,
                         ),
                         maxLines: 1,
@@ -846,8 +816,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(width: 8.0),
-
-              // Trailing widget
               trailing,
             ],
           ),
@@ -858,13 +826,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildSectionHeader(String title, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4.0),
+      padding: const EdgeInsets.only(bottom: 4.0),
       child: Text(
         title,
-        style: GoogleFonts.jetBrainsMono(
-          fontSize: 11.0,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.0,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 13.0,
+          fontWeight: FontWeight.w600,
           color: color,
         ),
       ),
@@ -912,7 +879,8 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
   // Password Security Criteria (100% Parity with Register & Web Security)
   bool get _hasMinLength => _newPassword.length >= 8;
   bool get _hasUpperAndLower =>
-      RegExp(r'[A-Z]').hasMatch(_newPassword) && RegExp(r'[a-z]').hasMatch(_newPassword);
+      RegExp(r'[A-Z]').hasMatch(_newPassword) &&
+      RegExp(r'[a-z]').hasMatch(_newPassword);
   bool get _hasNumberOrSymbol =>
       RegExp(r'[0-9]|[^A-Za-z0-9]').hasMatch(_newPassword);
 
@@ -920,11 +888,13 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
     if (_newPassword.isEmpty) return 0;
     int score = 0;
     if (_newPassword.length >= 8) score += 1;
-    if (RegExp(r'[A-Z]').hasMatch(_newPassword) && RegExp(r'[a-z]').hasMatch(_newPassword)) {
+    if (RegExp(r'[A-Z]').hasMatch(_newPassword) &&
+        RegExp(r'[a-z]').hasMatch(_newPassword)) {
       score += 1;
     }
     if (RegExp(r'[0-9]').hasMatch(_newPassword)) score += 1;
-    if (RegExp(r'[^A-Za-z0-9]').hasMatch(_newPassword) || _newPassword.length >= 12) {
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(_newPassword) ||
+        _newPassword.length >= 12) {
       score += 1;
     }
     return score;
@@ -959,7 +929,10 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
 
     if (!_hasMinLength || !_hasUpperAndLower || !_hasNumberOrSymbol) {
       HapticFeedback.vibrate();
-      AppToast.showError(context, 'Please meet all password security requirements');
+      AppToast.showError(
+        context,
+        'Please meet all password security requirements',
+      );
       return;
     }
 
@@ -997,8 +970,16 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
           _isUpdating = false;
         });
         HapticFeedback.heavyImpact();
-        final String rawMsg = e.toString().replaceAll('AuthException: ', '').replaceAll('Exception: ', '');
-        AppToast.showError(context, rawMsg.contains('Invalid login') ? 'Incorrect current password' : rawMsg);
+        final String rawMsg = e
+            .toString()
+            .replaceAll('AuthException: ', '')
+            .replaceAll('Exception: ', '');
+        AppToast.showError(
+          context,
+          rawMsg.contains('Invalid login')
+              ? 'Incorrect current password'
+              : rawMsg,
+        );
       }
     }
   }
@@ -1006,10 +987,18 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color textPrimary = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final Color surfaceColor = isDark ? AppColors.darkSurfaceCard : Colors.white;
-    final Color borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final Color surfaceColor = isDark
+        ? AppColors.darkSurfaceCard
+        : Colors.white;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
 
     final int score = _strengthScore;
     final Color activeStrengthColor = _strengthColors[score];
@@ -1019,11 +1008,15 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
       top: false,
       bottom: true,
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: surfaceColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24.0)),
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(24.0),
+            ),
           ),
           padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 24.0),
           child: SingleChildScrollView(
@@ -1058,14 +1051,19 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                   obscureText: _obscureCurrent,
                   decoration: InputDecoration(
                     labelText: 'Current Password',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureCurrent ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        _obscureCurrent
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                         color: textSecondary,
                         size: 20.0,
                       ),
-                      onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                      onPressed: () =>
+                          setState(() => _obscureCurrent = !_obscureCurrent),
                     ),
                   ),
                 ),
@@ -1077,14 +1075,19 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                   obscureText: _obscureNew,
                   decoration: InputDecoration(
                     labelText: 'New Password',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        _obscureNew
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                         color: textSecondary,
                         size: 20.0,
                       ),
-                      onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                      onPressed: () =>
+                          setState(() => _obscureNew = !_obscureNew),
                     ),
                   ),
                 ),
@@ -1099,9 +1102,15 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                         return Expanded(
                           child: Container(
                             height: 4.0,
-                            margin: EdgeInsets.only(right: index < 3 ? 4.0 : 0.0),
+                            margin: EdgeInsets.only(
+                              right: index < 3 ? 4.0 : 0.0,
+                            ),
                             decoration: BoxDecoration(
-                              color: isFilled ? activeStrengthColor : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              color: isFilled
+                                  ? activeStrengthColor
+                                  : (isDark
+                                        ? const Color(0xFF334155)
+                                        : const Color(0xFFE2E8F0)),
                               borderRadius: BorderRadius.circular(2.0),
                             ),
                           ),
@@ -1121,9 +1130,21 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                   const SizedBox(height: 10.0),
 
                   // Requirements Checklist
-                  _buildRequirementItem('At least 8 characters', _hasMinLength, textSecondary),
-                  _buildRequirementItem('Upper & lowercase letters', _hasUpperAndLower, textSecondary),
-                  _buildRequirementItem('Number or symbol', _hasNumberOrSymbol, textSecondary),
+                  _buildRequirementItem(
+                    'At least 8 characters',
+                    _hasMinLength,
+                    textSecondary,
+                  ),
+                  _buildRequirementItem(
+                    'Upper & lowercase letters',
+                    _hasUpperAndLower,
+                    textSecondary,
+                  ),
+                  _buildRequirementItem(
+                    'Number or symbol',
+                    _hasNumberOrSymbol,
+                    textSecondary,
+                  ),
                 ],
 
                 const SizedBox(height: 12.0),
@@ -1134,14 +1155,19 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                   obscureText: _obscureConfirm,
                   decoration: InputDecoration(
                     labelText: 'Confirm New Password',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        _obscureConfirm
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                         color: textSecondary,
                         size: 20.0,
                       ),
-                      onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                      onPressed: () =>
+                          setState(() => _obscureConfirm = !_obscureConfirm),
                     ),
                   ),
                 ),
@@ -1155,8 +1181,12 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
                     onPressed: _isUpdating ? null : _handleUpdatePassword,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                      foregroundColor: isDark
+                          ? AppColors.onPrimaryDark
+                          : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
                     ),
                     child: _isUpdating
                         ? const SizedBox(
@@ -1190,9 +1220,13 @@ class _ChangePasswordModalState extends State<_ChangePasswordModal> {
       child: Row(
         children: <Widget>[
           Icon(
-            isMet ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+            isMet
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
             size: 13.0,
-            color: isMet ? const Color(0xFF3ECF8E) : textSecondary.withValues(alpha: 0.6),
+            color: isMet
+                ? const Color(0xFF3ECF8E)
+                : textSecondary.withValues(alpha: 0.6),
           ),
           const SizedBox(width: 6.0),
           Text(

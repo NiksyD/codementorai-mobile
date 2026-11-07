@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:codementorai_mobile/src/features/learn/data/assessment_repository.dart';
 import 'package:codementorai_mobile/src/features/learn/data/pathway_repository.dart';
+import 'package:codementorai_mobile/src/features/learn/domain/assessment_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/activity_submission_review_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/learn_dashboard_data.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/module_detail_model.dart';
@@ -9,6 +11,15 @@ import 'package:codementorai_mobile/src/features/learn/domain/pathway_model.dart
 import 'package:codementorai_mobile/src/features/learn/domain/practice_exercise_model.dart';
 import 'package:codementorai_mobile/src/features/learn/domain/submission_history_model.dart';
 import 'package:codementorai_mobile/src/features/learn/presentation/modules_screen.dart';
+
+class FakeAssessmentRepository implements AssessmentRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<List<AssessmentModel>> getPublishedAssessments(String userId) async =>
+      const <AssessmentModel>[];
+}
 
 class FakePathwayRepository implements PathwayRepository {
   FakePathwayRepository(this.modules);
@@ -64,13 +75,13 @@ class FakePathwayRepository implements PathwayRepository {
   Future<PracticeExerciseModel?> getPracticeExercise(String moduleId, String exerciseId, String userId) async => null;
 
   @override
-  Future<String?> submitPracticeExercise(String userId, String moduleId, String exerciseId, String code, String language) async => 'sub-practice-123';
+  Future<String?> submitPracticeExercise(String userId, String moduleId, String exerciseId, String code, String language, {bool passed = true}) async => 'sub-practice-123';
 
   @override
   Future<PracticeExerciseModel?> getChallengeExercise(String moduleId, String challengeId, String userId) async => null;
 
   @override
-  Future<String?> submitChallengeExercise(String userId, String moduleId, String challengeId, String code, String language) async => 'sub-challenge-123';
+  Future<String?> submitChallengeExercise(String userId, String moduleId, String challengeId, String code, String language, {bool passed = true}) async => 'sub-challenge-123';
 
   @override
   Future<List<SubmissionHistoryModel>> getExerciseSubmissions({required String userId, required String moduleId, required String exerciseId}) async => <SubmissionHistoryModel>[];
@@ -160,7 +171,7 @@ void main() {
       ),
     ];
 
-    testWidgets('Renders Explore Modules screen with header, tabs, and cards', (
+    testWidgets('Renders Explore screen with header, tabs, and cards', (
       WidgetTester tester,
     ) async {
       tester.view.physicalSize = const Size(800, 1600);
@@ -174,13 +185,16 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ModulesScreen(pathwayRepository: repository),
+          home: ModulesScreen(
+            pathwayRepository: repository,
+            assessmentRepository: FakeAssessmentRepository(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
       // Verify title & caption per AGENTS.md rule 1.3
-      expect(find.text('Explore Modules'), findsOneWidget);
+      expect(find.text('Explore'), findsOneWidget);
       expect(
         find.text('Browse coding modules and practice challenges.'),
         findsOneWidget,
@@ -190,7 +204,8 @@ void main() {
       expect(find.text('All'), findsOneWidget);
       expect(find.text('In Progress'), findsOneWidget);
       expect(find.text('Saved'), findsOneWidget);
-      expect(find.text('Completed'), findsOneWidget);
+      // "Completed" is both a filter tab and the status shown on a finished card.
+      expect(find.text('Completed'), findsNWidgets(2));
       expect(find.text('3'), findsAtLeastNWidgets(1)); // 3 total modules
 
       // Verify module card rendering
@@ -198,8 +213,7 @@ void main() {
       expect(find.text('Java Multithreading & Memory Model'), findsOneWidget);
       expect(find.text('React & Component Architecture'), findsOneWidget);
 
-      // Verify completed card has "Done" badge and "Review" CTA
-      expect(find.text('Done'), findsOneWidget);
+      // The finished module offers "Review" instead of a start/continue action.
       expect(find.text('Review'), findsOneWidget);
 
       // Verify in-progress card has "Continue Learning" CTA
@@ -216,7 +230,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ModulesScreen(pathwayRepository: repository),
+          home: ModulesScreen(
+            pathwayRepository: repository,
+            assessmentRepository: FakeAssessmentRepository(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -230,8 +247,8 @@ void main() {
       expect(find.text('Java Multithreading & Memory Model'), findsNothing);
       expect(find.text('React & Component Architecture'), findsNothing);
 
-      // Tap "Completed" tab
-      await tester.tap(find.text('Completed'));
+      // Tap "Completed" tab (the filter is the first "Completed" on screen)
+      await tester.tap(find.text('Completed').first);
       await tester.pumpAndSettle();
 
       // Only completed Java module should appear
@@ -247,7 +264,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ModulesScreen(pathwayRepository: repository),
+          home: ModulesScreen(
+            pathwayRepository: repository,
+            assessmentRepository: FakeAssessmentRepository(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -270,7 +290,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ModulesScreen(pathwayRepository: repository),
+          home: ModulesScreen(
+            pathwayRepository: repository,
+            assessmentRepository: FakeAssessmentRepository(),
+          ),
         ),
       );
       await tester.pumpAndSettle();

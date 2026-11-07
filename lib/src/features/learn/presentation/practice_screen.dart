@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../common_widgets/app_toast.dart';
+import '../../../common_widgets/select_filter.dart';
 import '../../../common_widgets/shimmer_skeleton.dart';
 import '../../../constants/app_colors.dart';
 import '../data/code_execution_service.dart';
@@ -39,7 +41,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
   PracticeExerciseModel? _exercise;
   bool _isLoading = true;
   String _selectedLanguage = 'java';
-  String _activeTab = 'description'; // 'description', 'editor', 'testcases', or 'submissions'
+  String _activeTab =
+      'description'; // 'description', 'editor', 'testcases', or 'submissions'
   bool _isExecuting = false;
   ExecutionResultModel? _lastResult;
   int _selectedTestCaseIdx = 0;
@@ -73,11 +76,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
     if (_submissions.isEmpty || forceLoading) {
       setState(() => _isLoadingSubmissions = true);
     }
-    final List<SubmissionHistoryModel> list = await widget.pathwayRepository.getExerciseSubmissions(
-      userId: userId,
-      moduleId: widget.moduleId,
-      exerciseId: widget.exerciseId,
-    );
+    final List<SubmissionHistoryModel> list = await widget.pathwayRepository
+        .getExerciseSubmissions(
+          userId: userId,
+          moduleId: widget.moduleId,
+          exerciseId: widget.exerciseId,
+        );
 
     if (mounted) {
       setState(() {
@@ -99,7 +103,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
         _exercise = ex;
         _isLoading = false;
         if (ex != null) {
-          final String initialLang = ex.languages.isNotEmpty ? ex.languages.first : 'java';
+          final String initialLang = ex.languages.isNotEmpty
+              ? ex.languages.first
+              : 'java';
           _selectedLanguage = initialLang;
           _codeController.language = initialLang;
           final String starter = ex.starterCodes[initialLang] ?? '';
@@ -119,16 +125,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
       _userCodeByLanguage[_selectedLanguage] = code;
       _activeTab = 'editor';
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Restored code from attempt into editor.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 12.5),
-        ),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AppToast.showInfo(context, 'Restored code from attempt into editor.');
   }
 
   void _switchLanguage(String newLang) {
@@ -138,9 +135,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
     // Save current language code
     _userCodeByLanguage[_selectedLanguage] = _codeController.text;
 
-    final String nextCode = _userCodeByLanguage[newLang] ??
-        _exercise?.starterCodes[newLang] ??
-        '';
+    final String nextCode =
+        _userCodeByLanguage[newLang] ?? _exercise?.starterCodes[newLang] ?? '';
 
     setState(() {
       _selectedLanguage = newLang;
@@ -157,10 +153,15 @@ class _PracticeScreenState extends State<PracticeScreen> {
         backgroundColor: Theme.of(context).brightness == Brightness.dark
             ? AppColors.darkSurfaceCard
             : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.0),
+        ),
         title: Text(
           'Reset to Starter Template?',
-          style: GoogleFonts.plusJakartaSans(fontSize: 16.0, fontWeight: FontWeight.w700),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16.0,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         content: Text(
           'This will revert your editor code back to the initial template.',
@@ -194,7 +195,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
   }
 
   void _handleBackNavigation() {
-    final bool isDirty = _codeController.text.trim() != _initialCodeForCurrentLang.trim();
+    final bool isDirty =
+        _codeController.text.trim() != _initialCodeForCurrentLang.trim();
     if (isDirty) {
       showDialog<void>(
         context: context,
@@ -202,10 +204,15 @@ class _PracticeScreenState extends State<PracticeScreen> {
           backgroundColor: Theme.of(context).brightness == Brightness.dark
               ? AppColors.darkSurfaceCard
               : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
           title: Text(
             'Unsaved Code Changes',
-            style: GoogleFonts.plusJakartaSans(fontSize: 16.0, fontWeight: FontWeight.w700),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16.0,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           content: Text(
             'You have modified code. Are you sure you want to leave without submitting?',
@@ -294,28 +301,18 @@ class _PracticeScreenState extends State<PracticeScreen> {
       _lastResult = result;
     });
 
-    if (!result.isSuccess) {
-      PracticeConsoleSheet.show(
-        context,
-        result: result,
-        testCases: testCases,
-        onRunCode: _handleRunCode,
-        onSubmitSolution: _handleSubmitSolution,
-      );
-      return;
-    }
-
     final user = Supabase.instance.client.auth.currentUser;
     final String userId = user?.id ?? '';
 
-    final String? createdSubId =
-        await widget.pathwayRepository.submitPracticeExercise(
-      userId,
-      widget.moduleId,
-      widget.exerciseId,
-      _codeController.text,
-      _selectedLanguage,
-    );
+    final String? createdSubId = await widget.pathwayRepository
+        .submitPracticeExercise(
+          userId,
+          widget.moduleId,
+          widget.exerciseId,
+          _codeController.text,
+          _selectedLanguage,
+          passed: result.isSuccess,
+        );
 
     // Refresh submissions list in background
     _loadSubmissions(forceLoading: true);
@@ -324,7 +321,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
       PracticeCompletionModal.show(
         context,
         exerciseTitle: _exercise?.title ?? 'Practice Exercise',
-        onViewAiReview: createdSubId != null && createdSubId.isNotEmpty && createdSubId != 'success'
+        solved: result.isSuccess,
+        testSummary: '${result.passedTestCases} of ${result.totalTestCases} test cases passed',
+        onViewAiReview:
+            createdSubId != null &&
+                createdSubId.isNotEmpty &&
+                createdSubId != 'success'
             ? () {
                 Navigator.of(context).pop(); // Dismiss sheet
                 context.push('/learn/activity/$createdSubId');
@@ -341,11 +343,19 @@ class _PracticeScreenState extends State<PracticeScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color backgroundColor = isDark ? AppColors.darkBackground : AppColors.lightBackground;
+    final Color backgroundColor = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
     final Color cardBg = isDark ? AppColors.darkSurfaceCard : Colors.white;
-    final Color borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final Color textPrimary = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     if (_isLoading) {
       return PopScope(
@@ -374,9 +384,17 @@ class _PracticeScreenState extends State<PracticeScreen> {
                 children: <Widget>[
                   SkeletonBox(width: 220.0, height: 24.0, borderRadius: 6.0),
                   SizedBox(height: 16.0),
-                  SkeletonBox(width: double.infinity, height: 180.0, borderRadius: 16.0),
+                  SkeletonBox(
+                    width: double.infinity,
+                    height: 180.0,
+                    borderRadius: 16.0,
+                  ),
                   SizedBox(height: 16.0),
-                  SkeletonBox(width: double.infinity, height: 240.0, borderRadius: 16.0),
+                  SkeletonBox(
+                    width: double.infinity,
+                    height: 240.0,
+                    borderRadius: 16.0,
+                  ),
                 ],
               ),
             ),
@@ -406,7 +424,10 @@ class _PracticeScreenState extends State<PracticeScreen> {
             ),
           ),
           body: Center(
-            child: Text('Exercise not found', style: TextStyle(color: textSecondary)),
+            child: Text(
+              'Exercise not found',
+              style: TextStyle(color: textSecondary),
+            ),
           ),
         ),
       );
@@ -430,387 +451,341 @@ class _PracticeScreenState extends State<PracticeScreen> {
             color: textPrimary,
             onPressed: _handleBackNavigation,
           ),
-        title: Text(
-          ex.title,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 15.0,
-            fontWeight: FontWeight.w800,
-            color: textPrimary,
+          title: Text(
+            ex.title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15.0,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          actions: <Widget>[
+            // Language: plain text when there is one, a filter sheet when there are several
+            if (ex.languages.length <= 1)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Center(
+                  child: Text(
+                    _languageName(_selectedLanguage),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.0,
+                      fontWeight: FontWeight.w600,
+                      color: textSecondary,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Center(
+                child: SelectFilter(
+                  title: 'Language',
+                  height: 40.0,
+                  options: <SelectOption>[
+                    for (final String lang in ex.languages)
+                      SelectOption(id: lang, label: _languageName(lang)),
+                  ],
+                  selectedId: _selectedLanguage,
+                  onSelected: _switchLanguage,
+                ),
+              ),
+
+            // Copy code button (1:1 Web parity)
+            IconButton(
+              icon: const Icon(Icons.copy_rounded, size: 20.0),
+              color: textSecondary,
+              tooltip: 'Copy solution code',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _codeController.text));
+                HapticFeedback.lightImpact();
+                AppToast.showSuccess(context, 'Code copied to clipboard');
+              },
+            ),
+
+            // Reset code button
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              color: textSecondary,
+              tooltip: 'Reset code template',
+              onPressed: _handleResetCode,
+            ),
+
+            // Report activity issue
+            IconButton(
+              icon: const Icon(Icons.flag_outlined, size: 20.0),
+              color: textSecondary,
+              tooltip: 'Report activity issue',
+              onPressed: () {
+                ReportModuleSheet.show(
+                  context,
+                  moduleId: widget.moduleId,
+                  moduleTitle: ex.title,
+                  activityId: widget.exerciseId,
+                  activityTitle: ex.title,
+                  pathwayRepository: widget.pathwayRepository,
+                );
+              },
+            ),
+          ],
         ),
-        actions: <Widget>[
-          // Language selector: static badge if 1 language, dropdown if multi-language
-          if (ex.languages.length <= 1)
+        body: Column(
+          children: <Widget>[
+            // Sub-navigation: plain text tabs with an underline, like the rest of the app
+            _buildSubNav(
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+              borderColor: borderColor,
+            ),
+
+            // Main View
+            Expanded(
+              child: _activeTab == 'description'
+                  ? _buildDescriptionView(
+                      ex,
+                      isDark,
+                      textPrimary,
+                      textSecondary,
+                      cardBg,
+                      borderColor,
+                    )
+                  : (_activeTab == 'editor'
+                        ? PracticeCodeEditor(
+                            controller: _codeController,
+                            language: _selectedLanguage,
+                          )
+                        : (_activeTab == 'testcases'
+                              ? _buildTestCasesView(
+                                  ex,
+                                  isDark,
+                                  textPrimary,
+                                  textSecondary,
+                                  cardBg,
+                                  borderColor,
+                                )
+                              : SubmissionsHistoryView(
+                                  submissions: _submissions,
+                                  isLoading: _isLoadingSubmissions,
+                                  onRefresh: _loadSubmissions,
+                                  onRestoreCode: _restoreHistoricalCode,
+                                ))),
+            ),
+
+            // Floating Bottom Action Dock
             Container(
-              margin: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
-              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
               decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(8.0),
-                border: Border.all(color: borderColor),
+                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                border: Border(top: BorderSide(color: borderColor, width: 1.0)),
               ),
-              child: Text(
-                _selectedLanguage.toUpperCase(),
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
-              ),
-            )
-          else
-            PopupMenuButton<String>(
-              initialValue: _selectedLanguage,
-              onSelected: _switchLanguage,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-              color: cardBg,
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 12.0),
-                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
-                decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(color: borderColor),
-                ),
+              child: SafeArea(
+                top: false,
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Text(
-                      _selectedLanguage.toUpperCase(),
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                    // Quick Test Cases / Console Drawer Button
+                    Container(
+                      margin: const EdgeInsets.only(right: 10.0),
+                      child: SizedBox(
+                        height: 44.0,
+                        width: 44.0,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            PracticeConsoleSheet.show(
+                              context,
+                              result: _lastResult,
+                              testCases: ex.testCases,
+                              onRunCode: _handleRunCode,
+                              onSubmitSolution: _handleSubmitSolution,
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            side: BorderSide(color: borderColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                            foregroundColor: textSecondary,
+                          ),
+                          child: const Icon(Icons.terminal_rounded, size: 20.0),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 4.0),
-                    Icon(Icons.expand_more_rounded, size: 16.0, color: textSecondary),
+
+                    // Run Code Button (Secondary Outline)
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        height: 44.0,
+                        child: OutlinedButton.icon(
+                          onPressed: _isExecuting ? null : _handleRunCode,
+                          icon: _isExecuting
+                              ? const SizedBox(
+                                  width: 14.0,
+                                  height: 14.0,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.0,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.play_arrow_rounded,
+                                  size: 20.0,
+                                ),
+                          label: Text(
+                            'Run Code',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.0,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: textPrimary,
+                            side: BorderSide(color: borderColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12.0),
+
+                    // Submit Solution Button (Primary Emerald)
+                    Expanded(
+                      flex: 3,
+                      child: SizedBox(
+                        height: 44.0,
+                        child: ElevatedButton.icon(
+                          onPressed: _isExecuting
+                              ? null
+                              : _handleSubmitSolution,
+                          icon: const Icon(
+                            Icons.check_circle_rounded,
+                            size: 18.0,
+                          ),
+                          label: Text(
+                            'Submit Solution',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: isDark
+                                ? AppColors.onPrimaryDark
+                                : Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              itemBuilder: (BuildContext ctx) => ex.languages.map((String lang) {
-                final String display = lang == 'javascript'
-                    ? 'JavaScript'
-                    : lang == 'php'
-                        ? 'PHP'
-                        : lang == 'cpp'
-                            ? 'C++'
-                            : lang == 'csharp'
-                                ? 'C#'
-                                : lang.length <= 2
-                                    ? lang.toUpperCase()
-                                    : lang[0].toUpperCase() + lang.substring(1);
-                return PopupMenuItem<String>(
-                  value: lang,
-                  child: Text(display, style: const TextStyle(fontWeight: FontWeight.w600)),
-                );
-              }).toList(),
             ),
-
-          // Copy code button (1:1 Web parity)
-          IconButton(
-            icon: const Icon(Icons.copy_rounded, size: 20.0),
-            color: textSecondary,
-            tooltip: 'Copy solution code',
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: _codeController.text));
-              HapticFeedback.lightImpact();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: const <Widget>[
-                      Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18.0),
-                      SizedBox(width: 8.0),
-                      Text('Code copied to clipboard'),
-                    ],
-                  ),
-                  duration: const Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-
-          // Reset code button
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            color: textSecondary,
-            tooltip: 'Reset code template',
-            onPressed: _handleResetCode,
-          ),
-
-          // Report activity issue
-          IconButton(
-            icon: const Icon(Icons.flag_outlined, size: 20.0),
-            color: textSecondary,
-            tooltip: 'Report activity issue',
-            onPressed: () {
-              ReportModuleSheet.show(
-                context,
-                moduleId: widget.moduleId,
-                moduleTitle: ex.title,
-                activityId: widget.exerciseId,
-                activityTitle: ex.title,
-                pathwayRepository: widget.pathwayRepository,
-              );
-            },
-          ),
-        ],
+          ],
+        ),
       ),
-      body: Column(
-        children: <Widget>[
-          // Segmented Sub-Nav: [ Description ] <-> [ Code Editor ] <-> [ Test Cases ] <-> [ Submissions ]
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              border: Border(
-                bottom: BorderSide(
-                  color: borderColor.withValues(alpha: 0.6),
-                  width: 1.0,
-                ),
-              ),
-            ),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: _buildSubNavTab(
-                    id: 'description',
-                    label: 'Description',
-                    icon: Icons.article_outlined,
-                    isSelected: _activeTab == 'description',
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ),
-                Expanded(
-                  child: _buildSubNavTab(
-                    id: 'editor',
-                    label: 'Editor',
-                    icon: Icons.code_rounded,
-                    isSelected: _activeTab == 'editor',
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ),
-                Expanded(
-                  child: _buildSubNavTab(
-                    id: 'testcases',
-                    label: 'Test Cases',
-                    icon: Icons.checklist_rounded,
-                    isSelected: _activeTab == 'testcases',
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ),
-                Expanded(
-                  child: _buildSubNavTab(
-                    id: 'submissions',
-                    label: _submissions.isNotEmpty
-                        ? 'History (${_submissions.length})'
-                        : 'History',
-                    icon: Icons.history_rounded,
-                    isSelected: _activeTab == 'submissions',
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+    );
+  }
 
-          // Main View
-          Expanded(
-            child: _activeTab == 'description'
-                ? _buildDescriptionView(
-                    ex,
-                    isDark,
-                    textPrimary,
-                    textSecondary,
-                    cardBg,
-                    borderColor,
-                  )
-                : (_activeTab == 'editor'
-                    ? PracticeCodeEditor(
-                        controller: _codeController,
-                        language: _selectedLanguage,
-                      )
-                    : (_activeTab == 'testcases'
-                        ? _buildTestCasesView(
-                            ex,
-                            isDark,
-                            textPrimary,
-                            textSecondary,
-                            cardBg,
-                            borderColor,
-                          )
-                        : SubmissionsHistoryView(
-                            submissions: _submissions,
-                            isLoading: _isLoadingSubmissions,
-                            onRefresh: _loadSubmissions,
-                            onRestoreCode: _restoreHistoricalCode,
-                          ))),
-          ),
+  String _languageName(String lang) {
+    const Map<String, String> names = <String, String>{
+      'javascript': 'JavaScript',
+      'typescript': 'TypeScript',
+      'php': 'PHP',
+      'cpp': 'C++',
+      'csharp': 'C#',
+      'sql': 'SQL',
+    };
+    return names[lang] ??
+        (lang.length <= 2
+            ? lang.toUpperCase()
+            : lang[0].toUpperCase() + lang.substring(1));
+  }
 
-          // Floating Bottom Action Dock
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              border: Border(
-                top: BorderSide(
-                  color: borderColor.withValues(alpha: 0.6),
-                  width: 1.0,
-                ),
-              ),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Row(
-                children: <Widget>[
-                  // Quick Test Cases / Console Drawer Button
-                  Container(
-                    margin: const EdgeInsets.only(right: 10.0),
-                    child: SizedBox(
-                      height: 44.0,
-                      width: 44.0,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          PracticeConsoleSheet.show(
-                            context,
-                            result: _lastResult,
-                            testCases: ex.testCases,
-                            onRunCode: _handleRunCode,
-                            onSubmitSolution: _handleSubmitSolution,
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          side: BorderSide(color: borderColor),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          foregroundColor: textSecondary,
-                        ),
-                        child: const Icon(Icons.terminal_rounded, size: 20.0),
-                      ),
-                    ),
-                  ),
-
-                  // Run Code Button (Secondary Outline)
-                  Expanded(
-                    flex: 2,
-                    child: SizedBox(
-                      height: 44.0,
-                      child: OutlinedButton.icon(
-                        onPressed: _isExecuting ? null : _handleRunCode,
-                        icon: _isExecuting
-                            ? const SizedBox(
-                                width: 14.0,
-                                height: 14.0,
-                                child: CircularProgressIndicator(strokeWidth: 2.0),
-                              )
-                            : const Icon(Icons.play_arrow_rounded, size: 20.0),
-                        label: Text(
-                          'Run Code',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.0,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: textPrimary,
-                          side: BorderSide(color: borderColor),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-
-                  // Submit Solution Button (Primary Emerald)
-                  Expanded(
-                    flex: 3,
-                    child: SizedBox(
-                      height: 44.0,
-                      child: ElevatedButton.icon(
-                        onPressed: _isExecuting ? null : _handleSubmitSolution,
-                        icon: const Icon(Icons.check_circle_rounded, size: 18.0),
-                        label: Text(
-                          'Submit Solution',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor:
-                              isDark ? AppColors.onPrimaryDark : Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-  Widget _buildSubNavTab({
-    required String id,
-    required String label,
-    required IconData icon,
-    required bool isSelected,
+  Widget _buildSubNav({
     required Color textPrimary,
     required Color textSecondary,
+    required Color borderColor,
   }) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _activeTab = id);
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12.0),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isSelected ? AppColors.primary : Colors.transparent,
-              width: 2.0,
-            ),
-          ),
-        ),
+    final List<(String, String)> tabs = <(String, String)>[
+      ('description', 'Description'),
+      ('editor', 'Editor'),
+      ('testcases', 'Test Cases'),
+      ('submissions', 'History'),
+    ];
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: borderColor, width: 1.0)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20.0),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Icon(
-              icon,
-              size: 15.0,
-              color: isSelected ? AppColors.primary : textSecondary,
-            ),
-            const SizedBox(width: 5.0),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.0,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                color: isSelected ? AppColors.primary : textSecondary,
+            for (int i = 0; i < tabs.length; i++) ...<Widget>[
+              if (i > 0) const SizedBox(width: 22.0),
+              Semantics(
+                button: true,
+                selected: _activeTab == tabs[i].$1,
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _activeTab = tabs[i].$1);
+                  },
+                  child: Container(
+                    height: 48.0,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: _activeTab == tabs[i].$1
+                              ? textPrimary
+                              : Colors.transparent,
+                          width: 2.0,
+                        ),
+                      ),
+                    ),
+                    child: Text.rich(
+                      TextSpan(
+                        children: <InlineSpan>[
+                          TextSpan(
+                            text: tabs[i].$2,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.0,
+                              fontWeight: _activeTab == tabs[i].$1
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: _activeTab == tabs[i].$1
+                                  ? textPrimary
+                                  : textSecondary,
+                            ),
+                          ),
+                          if (tabs[i].$1 == 'submissions' &&
+                              _submissions.isNotEmpty)
+                            TextSpan(
+                              text: '  ${_submissions.length}',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 12.0,
+                                color: textSecondary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -840,150 +815,125 @@ class _PracticeScreenState extends State<PracticeScreen> {
             borderColor: borderColor,
           ),
 
-          // Examples & Test Cases (1:1 with Web BrowserIde)
-          if (ex.testCases.isNotEmpty) ...<Widget>[
+          // Worked examples from the test cases, unless the description already has its own
+          if (ex.testCases.isNotEmpty &&
+              !ex.description.toLowerCase().contains('example')) ...<Widget>[
             const SizedBox(height: 24.0),
-            Row(
-              children: <Widget>[
-                const Icon(
-                  Icons.playlist_add_check_rounded,
-                  size: 18.0,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: 8.0),
-                Text(
-                  'EXAMPLES & TEST CASES',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: textPrimary,
-                  ),
-                ),
-              ],
+            Text(
+              'Examples',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 17.0,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
             ),
-            const SizedBox(height: 12.0),
-            ...ex.testCases.take(3).toList().asMap().entries.map((entry) {
-              final int idx = entry.key;
-              final TestCaseModel tc = entry.value;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12.0),
+            const SizedBox(height: 4.0),
+            for (int idx = 0; idx < ex.testCases.take(3).length; idx++)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(top: 14.0),
+                padding: const EdgeInsets.only(left: 14.0),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF161618) : cardBg,
-                  borderRadius: BorderRadius.circular(12.0),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF26262B) : borderColor,
+                  border: Border(
+                    left: BorderSide(color: borderColor, width: 2.0),
                   ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14.0,
-                        vertical: 8.0,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1E1E22)
-                            : const Color(0xFFF8FAFC),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(11.0),
-                        ),
-                        border: Border(
-                          bottom: BorderSide(
-                            color: isDark ? const Color(0xFF26262B) : borderColor,
-                            width: 0.8,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        'Example ${idx + 1}',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.0,
-                          fontWeight: FontWeight.w700,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          if (tc.input.isNotEmpty) ...<Widget>[
-                            Text(
-                              'Input:',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.0,
-                                fontWeight: FontWeight.w700,
-                                color: textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 4.0),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(8.0),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? const Color(0xFF121214)
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(8.0),
-                                border: Border.all(
-                                  color: isDark ? const Color(0xFF26262B) : borderColor,
-                                ),
-                              ),
-                              child: Text(
-                                tc.input,
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11.5,
-                                  color: textPrimary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 10.0),
-                          ],
-                          Text(
-                            'Output:',
+                    Text.rich(
+                      TextSpan(
+                        children: <InlineSpan>[
+                          TextSpan(
+                            text: 'Example ',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.0,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF10B981),
+                              fontSize: 13.0,
+                              fontWeight: FontWeight.w600,
+                              color: textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 4.0),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(8.0),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF121214)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(8.0),
-                              border: Border.all(
-                                color: isDark ? const Color(0xFF26262B) : borderColor,
-                              ),
-                            ),
-                            child: Text(
-                              tc.expectedOutput,
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11.5,
-                                color: const Color(0xFF10B981),
-                                fontWeight: FontWeight.w600,
-                              ),
+                          TextSpan(
+                            text: '${idx + 1}',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 13.0,
+                              color: textPrimary,
                             ),
                           ),
                         ],
                       ),
                     ),
+                    if (ex.testCases[idx].input.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 8.0),
+                      _codeBlock(
+                        label: 'Input',
+                        text: ex.testCases[idx].input,
+                        isDark: isDark,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
+                        borderColor: borderColor,
+                      ),
+                    ],
+                    const SizedBox(height: 8.0),
+                    _codeBlock(
+                      label: 'Output',
+                      text: ex.testCases[idx].expectedOutput,
+                      isDark: isDark,
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                      borderColor: borderColor,
+                    ),
                   ],
                 ),
-              );
-            }),
+              ),
           ],
         ],
       ),
+    );
+  }
+
+  /// A label over a code or output box. The box is the only tinted thing; the colours carry no meaning.
+  Widget _codeBlock({
+    required String label,
+    required String text,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+    bool selectable = false,
+    Color? textColor,
+    Color? boxBorder,
+  }) {
+    final TextStyle style = GoogleFonts.jetBrainsMono(
+      fontSize: 12.5,
+      color: textColor ?? textPrimary,
+      height: 1.45,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.0,
+            color: textSecondary,
+          ),
+        ),
+        const SizedBox(height: 4.0),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10.0),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkSurfaceLowest
+                : AppColors.lightSurfaceCard,
+            borderRadius: BorderRadius.circular(8.0),
+            border: Border.all(color: boxBorder ?? borderColor),
+          ),
+          child: selectable
+              ? SelectableText(text, style: style)
+              : Text(text, style: style),
+        ),
+      ],
     );
   }
 
@@ -1001,7 +951,10 @@ class _PracticeScreenState extends State<PracticeScreen> {
           padding: const EdgeInsets.all(24.0),
           child: Text(
             'No test cases defined for this exercise.',
-            style: TextStyle(color: textSecondary),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.0,
+              color: textSecondary,
+            ),
           ),
         ),
       );
@@ -1011,7 +964,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
     final TestCaseModel tc = ex.testCases[safeIdx];
     final bool hasRun = _lastResult != null;
 
-    final TestCaseResultModel? activeCr = hasRun && _lastResult!.caseResults.length > safeIdx
+    final TestCaseResultModel? activeCr =
+        hasRun && _lastResult!.caseResults.length > safeIdx
         ? _lastResult!.caseResults[safeIdx]
         : null;
 
@@ -1022,333 +976,248 @@ class _PracticeScreenState extends State<PracticeScreen> {
     final String actualOutputText = activeCr != null
         ? activeCr.actual
         : (hasRun
-            ? (_lastResult!.stdout.isNotEmpty
-                ? _lastResult!.stdout.join('\n')
-                : (_lastResult!.isSuccess ? tc.expectedOutput : 'No stdout recorded'))
-            : '');
+              ? (_lastResult!.stdout.isNotEmpty
+                    ? _lastResult!.stdout.join('\n')
+                    : (_lastResult!.isSuccess
+                          ? tc.expectedOutput
+                          : 'No stdout recorded'))
+              : '');
+
+    final String resultLine = !hasRun
+        ? ''
+        : _lastResult!.isSuccess
+        ? 'Passed ${_lastResult!.passedTestCases} of ${_lastResult!.totalTestCases}'
+        : (_lastResult!.isCompileError
+              ? 'Compilation error'
+              : 'Failed ${_lastResult!.passedTestCases} of ${_lastResult!.totalTestCases}');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Header info & status badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
-              Text(
-                'TEST CASES (${ex.testCases.length})',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 11.0,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  color: textSecondary,
+              Text.rich(
+                TextSpan(
+                  children: <InlineSpan>[
+                    TextSpan(
+                      text: 'Test cases  ',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15.0,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '${ex.testCases.length}',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 13.0,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (hasRun)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-                  decoration: BoxDecoration(
-                    color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6.0),
-                    border: Border.all(
-                      color: (_lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error).withValues(alpha: 0.25),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      _lastResult!.isSuccess
+                          ? Icons.check_rounded
+                          : Icons.close_rounded,
+                      size: 16.0,
+                      color: _lastResult!.isSuccess
+                          ? textPrimary
+                          : AppColors.error,
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Container(
-                        width: 6.0,
-                        height: 6.0,
-                        margin: const EdgeInsets.only(right: 6.0),
-                        decoration: BoxDecoration(
-                          color: _lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error,
-                          shape: BoxShape.circle,
-                        ),
+                    const SizedBox(width: 4.0),
+                    Text(
+                      resultLine,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.0,
+                        fontWeight: FontWeight.w600,
+                        color: _lastResult!.isSuccess
+                            ? textPrimary
+                            : AppColors.error,
                       ),
-                      Text(
-                        _lastResult!.isSuccess
-                            ? 'Passed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'
-                            : (_lastResult!.isCompileError
-                                ? 'Compilation Error'
-                                : 'Failed (${_lastResult!.passedTestCases}/${_lastResult!.totalTestCases})'),
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.0,
-                          fontWeight: FontWeight.w700,
-                          color: _lastResult!.isSuccess ? const Color(0xFF10B981) : AppColors.error,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
             ],
           ),
-          const SizedBox(height: 12.0),
+          const SizedBox(height: 4.0),
 
-          // Case Selector Pills (Sleek minimalist horizontal selector)
+          // Case selector: plain text tabs. After a run each shows a check or a cross.
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: List<Widget>.generate(ex.testCases.length, (int idx) {
                 final bool isSelected = safeIdx == idx;
-                final TestCaseResultModel? cr = hasRun && _lastResult!.caseResults.length > idx
+                final TestCaseResultModel? cr =
+                    hasRun && _lastResult!.caseResults.length > idx
                     ? _lastResult!.caseResults[idx]
                     : null;
-                final bool? thisPassed = cr?.passed ?? (hasRun ? _lastResult!.isSuccess : null);
+                final bool? thisPassed =
+                    cr?.passed ?? (hasRun ? _lastResult!.isSuccess : null);
 
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: InkWell(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _selectedTestCaseIdx = idx);
-                    },
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.5),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? (isDark ? const Color(0xFF26262B) : const Color(0xFFE2E8F0))
-                            : (isDark ? const Color(0xFF18181B) : const Color(0xFFF1F5F9)),
-                        borderRadius: BorderRadius.circular(8.0),
-                        border: Border.all(
-                          color: isSelected
-                              ? (isDark ? const Color(0xFF3C3C44) : const Color(0xFFCBD5E1))
-                              : (isDark ? const Color(0xFF26262B) : borderColor.withValues(alpha: 0.5)),
-                          width: 1.0,
+                return InkWell(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _selectedTestCaseIdx = idx);
+                  },
+                  child: Container(
+                    height: 44.0,
+                    margin: const EdgeInsets.only(right: 18.0),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: isSelected ? textPrimary : Colors.transparent,
+                          width: 2.0,
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          if (hasRun && thisPassed != null) ...<Widget>[
-                            Container(
-                              width: 6.5,
-                              height: 6.5,
-                              margin: const EdgeInsets.only(right: 6.0),
-                              decoration: BoxDecoration(
-                                color: thisPassed ? const Color(0xFF10B981) : AppColors.error,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ],
-                          Text(
-                            'Case ${idx + 1}',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.5,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? textPrimary : textSecondary,
-                            ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (hasRun && thisPassed != null) ...<Widget>[
+                          Icon(
+                            thisPassed
+                                ? Icons.check_rounded
+                                : Icons.close_rounded,
+                            size: 15.0,
+                            color: thisPassed ? textSecondary : AppColors.error,
                           ),
+                          const SizedBox(width: 4.0),
                         ],
-                      ),
+                        Text.rich(
+                          TextSpan(
+                            children: <InlineSpan>[
+                              TextSpan(
+                                text: 'Case ',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.0,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? textPrimary
+                                      : textSecondary,
+                                ),
+                              ),
+                              TextSpan(
+                                text: '${idx + 1}',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 13.0,
+                                  color: isSelected
+                                      ? textPrimary
+                                      : textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );
               }),
             ),
           ),
+          Divider(height: 1.0, thickness: 1.0, color: borderColor),
           const SizedBox(height: 14.0),
 
-          // Unified Test Case Card (Clean neutral simplicity pattern)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161618) : Colors.white,
-              borderRadius: BorderRadius.circular(12.0),
-              border: Border.all(
-                color: isDark ? const Color(0xFF26262B) : borderColor,
-              ),
-            ),
-            child: Column(
+          _codeBlock(
+            label: 'Input',
+            text: tc.input.isEmpty ? '(empty input)' : tc.input,
+            selectable: true,
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            borderColor: borderColor,
+          ),
+          const SizedBox(height: 14.0),
+          _codeBlock(
+            label: 'Expected output',
+            text: tc.expectedOutput,
+            selectable: true,
+            isDark: isDark,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            borderColor: borderColor,
+          ),
+          const SizedBox(height: 14.0),
+          if (hasRun)
+            _codeBlock(
+              label: currentCasePassed
+                  ? 'Actual output'
+                  : 'Actual output (does not match)',
+              text: actualOutputText,
+              selectable: true,
+              isDark: isDark,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+              borderColor: borderColor,
+              textColor: currentCasePassed ? textPrimary : AppColors.error,
+              boxBorder: currentCasePassed ? borderColor : AppColors.error,
+            )
+          else
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Input Block
-                Text(
-                  'INPUT',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                    color: textSecondary,
-                  ),
+                Icon(
+                  Icons.play_arrow_rounded,
+                  size: 18.0,
+                  color: textSecondary,
                 ),
-                const SizedBox(height: 6.0),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10.0),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF121214) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF222226) : const Color(0xFFE2E8F0),
-                    ),
-                  ),
-                  child: SelectableText(
-                    tc.input.isEmpty ? '(empty input)' : tc.input,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.0,
-                      color: textPrimary,
-                      height: 1.45,
+                const SizedBox(width: 8.0),
+                Expanded(
+                  child: Text(
+                    'Press Run Code below to test your solution against this case.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.0,
+                      color: textSecondary,
+                      height: 1.4,
                     ),
                   ),
                 ),
-                const SizedBox(height: 14.0),
-
-                // Expected Output Block
-                Text(
-                  'EXPECTED OUTPUT',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                    color: const Color(0xFF10B981),
-                  ),
-                ),
-                const SizedBox(height: 6.0),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10.0),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF121214) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF222226) : const Color(0xFFE2E8F0),
-                    ),
-                  ),
-                  child: SelectableText(
-                    tc.expectedOutput,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.0,
-                      color: const Color(0xFF10B981),
-                      fontWeight: FontWeight.w600,
-                      height: 1.45,
-                    ),
-                  ),
-                ),
-
-                // Actual Output (stdout)
-                if (hasRun) ...<Widget>[
-                  const SizedBox(height: 14.0),
-                  Text(
-                    'ACTUAL OUTPUT',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                      color: currentCasePassed ? const Color(0xFF10B981) : AppColors.error,
-                    ),
-                  ),
-                  const SizedBox(height: 6.0),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10.0),
-                    decoration: BoxDecoration(
-                      color: currentCasePassed
-                          ? const Color(0xFF10B981).withValues(alpha: 0.08)
-                          : AppColors.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(
-                        color: currentCasePassed
-                            ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                            : AppColors.error.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: SelectableText(
-                      actualOutputText,
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 12.0,
-                        color: currentCasePassed ? const Color(0xFF10B981) : AppColors.error,
-                        fontWeight: FontWeight.w600,
-                        height: 1.45,
-                      ),
-                    ),
-                  ),
-                ] else ...<Widget>[
-                  const SizedBox(height: 14.0),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF121214) : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF222226) : const Color(0xFFE2E8F0),
-                      ),
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Icon(
-                          Icons.play_circle_outline_rounded,
-                          size: 16.0,
-                          color: textSecondary,
-                        ),
-                        const SizedBox(width: 8.0),
-                        Expanded(
-                          child: Text(
-                            'Click "Run Code" below to test your solution against this case.',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              color: textSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
-          ),
 
-          // Socratic Hint if failed
+          // Hint when a case fails
           if (hasRun && !currentCasePassed) ...<Widget>[
-            const SizedBox(height: 12.0),
+            const SizedBox(height: 18.0),
             Container(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.only(left: 14.0),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161618) : const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(10.0),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF2D2D35) : const Color(0xFFFECACA),
+                border: Border(
+                  left: BorderSide(color: borderColor, width: 2.0),
                 ),
               ),
-              child: Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Icon(
-                    Icons.lightbulb_outline_rounded,
-                    color: Color(0xFFF59E0B),
-                    size: 16.0,
+                  Text(
+                    'Mentor guidance',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.0,
+                      fontWeight: FontWeight.w600,
+                      color: textPrimary,
+                    ),
                   ),
-                  const SizedBox(width: 8.0),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'Mentor Guidance',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 3.0),
-                        Text(
-                          activeCr?.error ??
-                              (_lastResult!.socraticHint != null && _lastResult!.socraticHint!.isNotEmpty
-                                  ? _lastResult!.socraticHint!
-                                  : 'Your program did not produce the expected output. Review constraints and assertions.'),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            color: textSecondary,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 3.0),
+                  Text(
+                    activeCr?.error ??
+                        (_lastResult!.socraticHint != null &&
+                                _lastResult!.socraticHint!.isNotEmpty
+                            ? _lastResult!.socraticHint!
+                            : 'Your program did not produce the expected output. Review constraints and assertions.'),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.0,
+                      color: textSecondary,
+                      height: 1.45,
                     ),
                   ),
                 ],

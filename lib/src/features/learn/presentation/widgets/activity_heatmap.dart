@@ -48,8 +48,18 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
   late List<MapEntry<String, int>> _monthPositions;
 
   static const List<String> _monthNames = <String>[
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
@@ -102,7 +112,13 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
         final String dateStr =
             '${dayDate.year}-${dayDate.month.toString().padLeft(2, '0')}-${dayDate.day.toString().padLeft(2, '0')}';
         final int count = countsByDate[dateStr] ?? 0;
-        final int level = count == 0 ? 0 : count == 1 ? 1 : count <= 3 ? 2 : 3;
+        final int level = count == 0
+            ? 0
+            : count == 1
+            ? 1
+            : count <= 3
+            ? 2
+            : 3;
         final String month = _monthNames[dayDate.month - 1];
         final String formatted = '$month ${dayDate.day}, ${dayDate.year}';
 
@@ -121,7 +137,9 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
     return weeks;
   }
 
-  List<MapEntry<String, int>> _calculateMonthPositions(List<List<HeatmapDayData>> weeks) {
+  List<MapEntry<String, int>> _calculateMonthPositions(
+    List<List<HeatmapDayData>> weeks,
+  ) {
     final List<MapEntry<String, int>> positions = <MapEntry<String, int>>[];
     String lastMonth = '';
     for (int i = 0; i < weeks.length; i++) {
@@ -152,602 +170,619 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     const double cellSize = 11.0;
     const double cellGap = 3.0;
     final double totalGridWidth = _weeks.length * (cellSize + cellGap);
 
-    final List<DashboardSubmission> selectedDaySubmissions = _selectedDay == null
+    final List<DashboardSubmission> selectedDaySubmissions =
+        _selectedDay == null
         ? const <DashboardSubmission>[]
         : widget.submissions
-            .where((DashboardSubmission s) => s.rawDate == _selectedDay!.date)
-            .toList();
+              .where((DashboardSubmission s) => s.rawDate == _selectedDay!.date)
+              .toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1.0,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // ── Header: title and a plain summary line (the streak is already in the top row) ──
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Practice Activity',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15.0,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 3.0),
+              Text(
+                widget.totalActiveDays == 0
+                    ? 'No activity recorded yet · Last 12 months'
+                    : '${widget.totalActiveDays} active day${widget.totalActiveDays == 1 ? '' : 's'} · Last 12 months',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w500,
+                  color: textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          // ── Card Header (Mobile Optimized Clean Stack) ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                Expanded(
+
+        // ── Content ──
+        Padding(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // Horizontally scrollable 52-week heatmap grid with month header track
+              SingleChildScrollView(
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: SizedBox(
+                  width: totalGridWidth,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        'Practice Activity',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 3.0),
-                      Text(
-                        widget.totalActiveDays == 0
-                            ? 'No activity recorded yet · Last 12 months'
-                            : '${widget.totalActiveDays} active day${widget.totalActiveDays == 1 ? '' : 's'} · Last 12 months',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (widget.currentStreak > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.5, vertical: 4.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.32),
-                        width: 0.8,
-                      ),
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                          blurRadius: 8.0,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Icon(
-                          Icons.local_fire_department_rounded,
-                          size: 13.5,
-                          color: Color(0xFFF59E0B),
-                        ),
-                        const SizedBox(width: 4.5),
-                        Text(
-                          '${widget.currentStreak} Day Streak',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11.0,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                            color: const Color(0xFFF59E0B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Hairline separator
-          Divider(
-            height: 1.0,
-            thickness: 1.0,
-            color: isDark
-                ? AppColors.darkBorder.withValues(alpha: 0.5)
-                : AppColors.lightBorder.withValues(alpha: 0.8),
-          ),
-
-          // ── Card Content ──
-          Padding(
-            padding: const EdgeInsets.all(18.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Horizontally scrollable 52-week heatmap grid with month header track
-                SingleChildScrollView(
-                  controller: _scrollController,
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: SizedBox(
-                    width: totalGridWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        // Month Labels Header
-                        SizedBox(
-                          height: 16.0,
-                          width: totalGridWidth,
-                          child: Stack(
-                            children: _monthPositions.map((MapEntry<String, int> entry) {
-                              final double leftPos = entry.value * (cellSize + cellGap);
-                              return Positioned(
-                                left: leftPos,
-                                child: Text(
-                                  entry.key,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: textSecondary,
-                                  ),
+                      // Month Labels Header
+                      SizedBox(
+                        height: 16.0,
+                        width: totalGridWidth,
+                        child: Stack(
+                          children: _monthPositions.map((
+                            MapEntry<String, int> entry,
+                          ) {
+                            final double leftPos =
+                                entry.value * (cellSize + cellGap);
+                            return Positioned(
+                              left: leftPos,
+                              child: Text(
+                                entry.key,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: textSecondary,
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                        const SizedBox(height: 6.0),
-
-                        // 52-week Grid
-                        Row(
-                          children: _weeks.map((List<HeatmapDayData> week) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: cellGap),
-                              child: Column(
-                                children: week.map((HeatmapDayData day) {
-                                  final bool isSelected = _selectedDay?.date == day.date;
-                                  return GestureDetector(
-                                    key: ValueKey<String>('cell-${day.date}'),
-                                    onTap: () {
-                                      HapticFeedback.selectionClick();
-                                      setState(() {
-                                        _selectedDay = isSelected ? null : day;
-                                      });
-                                    },
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 150),
-                                      margin: const EdgeInsets.only(bottom: cellGap),
-                                      width: cellSize,
-                                      height: cellSize,
-                                      decoration: BoxDecoration(
-                                        color: _getCellColor(day.level, isDark),
-                                        borderRadius: BorderRadius.circular(2.5),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? (isDark ? Colors.white : AppColors.darkTextPrimary)
-                                              : (day.level > 0
-                                                  ? AppColors.primary.withValues(alpha: 0.3)
-                                                  : (isDark
-                                                      ? AppColors.darkBorder
-                                                      : AppColors.lightBorder)),
-                                          width: isSelected ? 1.5 : 0.8,
-                                        ),
-                                        boxShadow: isSelected
-                                            ? <BoxShadow>[
-                                                BoxShadow(
-                                                  color: AppColors.primary.withValues(alpha: 0.4),
-                                                  blurRadius: 4.0,
-                                                ),
-                                              ]
-                                            : null,
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
                               ),
                             );
                           }).toList(),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 6.0),
+
+                      // 52-week Grid
+                      Row(
+                        children: _weeks.map((List<HeatmapDayData> week) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: cellGap),
+                            child: Column(
+                              children: week.map((HeatmapDayData day) {
+                                final bool isSelected =
+                                    _selectedDay?.date == day.date;
+                                return GestureDetector(
+                                  key: ValueKey<String>('cell-${day.date}'),
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _selectedDay = isSelected ? null : day;
+                                    });
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    margin: const EdgeInsets.only(
+                                      bottom: cellGap,
+                                    ),
+                                    width: cellSize,
+                                    height: cellSize,
+                                    decoration: BoxDecoration(
+                                      color: _getCellColor(day.level, isDark),
+                                      borderRadius: BorderRadius.circular(2.5),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? (isDark
+                                                  ? Colors.white
+                                                  : AppColors.darkTextPrimary)
+                                            : (day.level > 0
+                                                  ? AppColors.primary
+                                                        .withValues(alpha: 0.3)
+                                                  : (isDark
+                                                        ? AppColors.darkBorder
+                                                        : AppColors
+                                                              .lightBorder)),
+                                        width: isSelected ? 1.5 : 0.8,
+                                      ),
+                                      boxShadow: isSelected
+                                          ? <BoxShadow>[
+                                              BoxShadow(
+                                                color: AppColors.primary
+                                                    .withValues(alpha: 0.4),
+                                                blurRadius: 4.0,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 14.0),
+              ),
+              const SizedBox(height: 14.0),
 
-                // ── Selected Day Activity Breakdown (Inline Collapsible List) ──
-                if (_selectedDay != null)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface : AppColors.lightSurfaceCard,
-                      borderRadius: BorderRadius.circular(16.0),
-                      border: Border.all(
-                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                        width: 1.0,
-                      ),
+              // ── Selected Day Activity Breakdown (Inline Collapsible List) ──
+              if (_selectedDay != null)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkSurface
+                        : AppColors.lightSurfaceCard,
+                    borderRadius: BorderRadius.circular(16.0),
+                    border: Border.all(
+                      color: isDark
+                          ? AppColors.darkBorder
+                          : AppColors.lightBorder,
+                      width: 1.0,
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        // Header Bar
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.darkSurfaceCard.withValues(alpha: 0.6)
-                                : Colors.white.withValues(alpha: 0.6),
-                            border: Border(
-                              bottom: BorderSide(
-                                color: isDark
-                                    ? AppColors.darkBorder.withValues(alpha: 0.5)
-                                    : AppColors.lightBorder.withValues(alpha: 0.6),
-                              ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      // Header Bar
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14.0,
+                          vertical: 10.0,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkSurfaceCard.withValues(alpha: 0.6)
+                              : Colors.white.withValues(alpha: 0.6),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: isDark
+                                  ? AppColors.darkBorder.withValues(alpha: 0.5)
+                                  : AppColors.lightBorder.withValues(
+                                      alpha: 0.6,
+                                    ),
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: <Widget>[
-                              Row(
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                Text(
+                                  _selectedDay!.formattedDate,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6.0,
+                                  ),
+                                  child: Text(
+                                    '·',
+                                    style: TextStyle(
+                                      color: textSecondary.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7.0,
+                                    vertical: 2.0,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _selectedDay!.count > 0
+                                        ? const Color(
+                                            0xFF10B981,
+                                          ).withValues(alpha: 0.12)
+                                        : (isDark
+                                              ? AppColors.darkSurface
+                                              : Colors.white),
+                                    borderRadius: BorderRadius.circular(6.0),
+                                    border: Border.all(
+                                      color: _selectedDay!.count > 0
+                                          ? const Color(
+                                              0xFF10B981,
+                                            ).withValues(alpha: 0.3)
+                                          : (isDark
+                                                ? AppColors.darkBorder
+                                                : AppColors.lightBorder),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      if (_selectedDay!.count > 0) ...<Widget>[
+                                        Container(
+                                          width: 5.0,
+                                          height: 5.0,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF10B981),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4.5),
+                                      ],
+                                      Text(
+                                        _selectedDay!.count == 0
+                                            ? 'No submissions'
+                                            : '${_selectedDay!.count} challenge${_selectedDay!.count == 1 ? '' : 's'} solved',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.0,
+                                          fontWeight: FontWeight.w600,
+                                          color: _selectedDay!.count > 0
+                                              ? const Color(0xFF10B981)
+                                              : textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: <Widget>[
+                                if (_selectedDay!.count > 0) ...<Widget>[
+                                  GestureDetector(
+                                    onTap: () {
+                                      HapticFeedback.lightImpact();
+                                      context.push('/activity');
+                                    },
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        Text(
+                                          'View all',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11.0,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 2.0),
+                                        const Icon(
+                                          Icons.arrow_forward_rounded,
+                                          size: 12.0,
+                                          color: AppColors.primary,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8.0),
+                                ],
+                                GestureDetector(
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _selectedDay = null);
+                                  },
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4.0),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? AppColors.darkBorder.withValues(
+                                              alpha: 0.5,
+                                            )
+                                          : AppColors.lightBorder.withValues(
+                                              alpha: 0.6,
+                                            ),
+                                      borderRadius: BorderRadius.circular(6.0),
+                                    ),
+                                    child: Icon(
+                                      Icons.close_rounded,
+                                      size: 13.0,
+                                      color: textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Submissions List or Empty Indicator
+                      if (selectedDaySubmissions.isNotEmpty)
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: selectedDaySubmissions.length,
+                          separatorBuilder: (context, index) => Divider(
+                            height: 1.0,
+                            thickness: 1.0,
+                            color: isDark
+                                ? AppColors.darkBorder.withValues(alpha: 0.4)
+                                : AppColors.lightBorder.withValues(alpha: 0.6),
+                          ),
+                          itemBuilder: (context, index) {
+                            final DashboardSubmission sub =
+                                selectedDaySubmissions[index];
+                            final bool isPassed = sub.status == 'Passed';
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14.0,
+                                vertical: 10.0,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
+                                  // Row 1: Title
                                   Text(
-                                    _selectedDay!.formattedDate,
+                                    sub.title,
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w700,
                                       color: textPrimary,
                                     ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                                    child: Text(
-                                      '·',
-                                      style: TextStyle(color: textSecondary.withValues(alpha: 0.5)),
+                                  const SizedBox(height: 3.0),
+
+                                  // Row 2: Module Name
+                                  Text(
+                                    sub.module,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.0,
+                                      color: textSecondary,
                                     ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.0),
-                                    decoration: BoxDecoration(
-                                      color: _selectedDay!.count > 0
-                                          ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                                          : (isDark ? AppColors.darkSurface : Colors.white),
-                                      borderRadius: BorderRadius.circular(6.0),
-                                      border: Border.all(
-                                        color: _selectedDay!.count > 0
-                                          ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                                          : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: <Widget>[
-                                        if (_selectedDay!.count > 0) ...<Widget>[
-                                          Container(
-                                            width: 5.0,
-                                            height: 5.0,
-                                            decoration: const BoxDecoration(
-                                              color: Color(0xFF10B981),
-                                              shape: BoxShape.circle,
-                                            ),
+                                  const SizedBox(height: 6.0),
+
+                                  // Row 3: Language Pill, Score, and Status Badge
+                                  Row(
+                                    children: <Widget>[
+                                      // Language Pill
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6.5,
+                                          vertical: 2.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? AppColors.darkSurfaceCard
+                                              : Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            6.0,
                                           ),
-                                          const SizedBox(width: 4.5),
-                                        ],
+                                          border: Border.all(
+                                            color: isDark
+                                                ? AppColors.darkBorder
+                                                : AppColors.lightBorder,
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: <Widget>[
+                                            LanguageIcon(
+                                              language: sub.language,
+                                              size: 12.0,
+                                            ),
+                                            const SizedBox(width: 4.5),
+                                            Text(
+                                              sub.language.toUpperCase(),
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: textPrimary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      // Score if available
+                                      if (sub.score != null) ...<Widget>[
+                                        const SizedBox(width: 8.0),
                                         Text(
-                                          _selectedDay!.count == 0
-                                              ? 'No submissions'
-                                              : '${_selectedDay!.count} challenge${_selectedDay!.count == 1 ? '' : 's'} solved',
-                                          style: GoogleFonts.plusJakartaSans(
+                                          '${sub.score}%',
+                                          style: GoogleFonts.jetBrainsMono(
                                             fontSize: 11.0,
-                                            fontWeight: FontWeight.w600,
-                                            color: _selectedDay!.count > 0
+                                            fontWeight: FontWeight.w700,
+                                            color: sub.score! >= 90
                                                 ? const Color(0xFF10B981)
-                                                : textSecondary,
+                                                : const Color(0xFFF59E0B),
                                           ),
                                         ),
                                       ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                children: <Widget>[
-                                  if (_selectedDay!.count > 0) ...<Widget>[
-                                    GestureDetector(
-                                      onTap: () {
-                                        HapticFeedback.lightImpact();
-                                        context.push('/activity');
-                                      },
-                                      behavior: HitTestBehavior.opaque,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: <Widget>[
-                                          Text(
-                                            'View all',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 11.0,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.primary,
-                                            ),
+
+                                      const Spacer(),
+
+                                      // Status Badge
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7.0,
+                                          vertical: 2.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isPassed
+                                              ? const Color(
+                                                  0xFF10B981,
+                                                ).withValues(alpha: 0.12)
+                                              : const Color(
+                                                  0xFFF59E0B,
+                                                ).withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(
+                                            6.0,
                                           ),
-                                          const SizedBox(width: 2.0),
-                                          const Icon(
-                                            Icons.arrow_forward_rounded,
-                                            size: 12.0,
-                                            color: AppColors.primary,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8.0),
-                                  ],
-                                  GestureDetector(
-                                    onTap: () {
-                                      HapticFeedback.selectionClick();
-                                      setState(() => _selectedDay = null);
-                                    },
-                                    behavior: HitTestBehavior.opaque,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4.0),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? AppColors.darkBorder.withValues(alpha: 0.5)
-                                            : AppColors.lightBorder.withValues(alpha: 0.6),
-                                        borderRadius: BorderRadius.circular(6.0),
-                                      ),
-                                      child: Icon(
-                                        Icons.close_rounded,
-                                        size: 13.0,
-                                        color: textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Submissions List or Empty Indicator
-                        if (selectedDaySubmissions.isNotEmpty)
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: selectedDaySubmissions.length,
-                            separatorBuilder: (context, index) => Divider(
-                              height: 1.0,
-                              thickness: 1.0,
-                              color: isDark
-                                  ? AppColors.darkBorder.withValues(alpha: 0.4)
-                                  : AppColors.lightBorder.withValues(alpha: 0.6),
-                            ),
-                            itemBuilder: (context, index) {
-                              final DashboardSubmission sub = selectedDaySubmissions[index];
-                              final bool isPassed = sub.status == 'Passed';
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    // Row 1: Title
-                                    Text(
-                                      sub.title,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: textPrimary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 3.0),
-
-                                    // Row 2: Module Name
-                                    Text(
-                                      sub.module,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11.0,
-                                        color: textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 6.0),
-
-                                    // Row 3: Language Pill, Score, and Status Badge
-                                    Row(
-                                      children: <Widget>[
-                                        // Language Pill
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 2.5),
-                                          decoration: BoxDecoration(
-                                            color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                                            borderRadius: BorderRadius.circular(6.0),
-                                            border: Border.all(
-                                              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                                              width: 0.8,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: <Widget>[
-                                              LanguageIcon(language: sub.language, size: 12.0),
-                                              const SizedBox(width: 4.5),
-                                              Text(
-                                                sub.language.toUpperCase(),
-                                                style: GoogleFonts.jetBrainsMono(
-                                                  fontSize: 9.5,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: textPrimary,
-                                                ),
-                                              ),
-                                            ],
+                                          border: Border.all(
+                                            color: isPassed
+                                                ? const Color(
+                                                    0xFF10B981,
+                                                  ).withValues(alpha: 0.25)
+                                                : const Color(
+                                                    0xFFF59E0B,
+                                                  ).withValues(alpha: 0.25),
+                                            width: 0.8,
                                           ),
                                         ),
-
-                                        // Score if available
-                                        if (sub.score != null) ...<Widget>[
-                                          const SizedBox(width: 8.0),
-                                          Text(
-                                            '${sub.score}%',
-                                            style: GoogleFonts.jetBrainsMono(
-                                              fontSize: 11.0,
-                                              fontWeight: FontWeight.w700,
-                                              color: sub.score! >= 90
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: <Widget>[
+                                            Icon(
+                                              isPassed
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons.access_time_rounded,
+                                              size: 11.5,
+                                              color: isPassed
                                                   ? const Color(0xFF10B981)
                                                   : const Color(0xFFF59E0B),
                                             ),
-                                          ),
-                                        ],
-
-                                        const Spacer(),
-
-                                        // Status Badge
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
-                                          decoration: BoxDecoration(
-                                            color: isPassed
-                                                ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                                                : const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(6.0),
-                                            border: Border.all(
-                                              color: isPassed
-                                                  ? const Color(0xFF10B981).withValues(alpha: 0.25)
-                                                  : const Color(0xFFF59E0B).withValues(alpha: 0.25),
-                                              width: 0.8,
+                                            const SizedBox(width: 3.5),
+                                            Text(
+                                              sub.status,
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isPassed
+                                                        ? const Color(
+                                                            0xFF10B981,
+                                                          )
+                                                        : const Color(
+                                                            0xFFF59E0B,
+                                                          ),
+                                                  ),
                                             ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: <Widget>[
-                                              Icon(
-                                                isPassed
-                                                    ? Icons.check_circle_rounded
-                                                    : Icons.access_time_rounded,
-                                                size: 11.5,
-                                                color: isPassed
-                                                    ? const Color(0xFF10B981)
-                                                    : const Color(0xFFF59E0B),
-                                              ),
-                                              const SizedBox(width: 3.5),
-                                              Text(
-                                                sub.status,
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 10.5,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: isPassed
-                                                      ? const Color(0xFF10B981)
-                                                      : const Color(0xFFF59E0B),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          )
-                        else
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 14.0),
-                            child: Center(
-                              child: Text(
-                                'No recorded practice activity on this date.',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  color: textSecondary,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  )
-                else
-                  // ── Legend & Action Footer ──
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: <Widget>[
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.push('/activity');
-                        },
-                        behavior: HitTestBehavior.opaque,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              'Full Activity History',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 4.0),
-                            const Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 13.0,
-                              color: AppColors.primary,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        children: <Widget>[
-                          Text(
-                            'Less',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.0,
-                              color: textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 4.0),
-                          ...List<Widget>.generate(4, (int lvl) {
-                            return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                              width: 9.0,
-                              height: 9.0,
-                              decoration: BoxDecoration(
-                                color: _getCellColor(lvl, isDark),
-                                borderRadius: BorderRadius.circular(2.5),
-                                border: Border.all(
-                                  color: lvl > 0
-                                      ? AppColors.primary.withValues(alpha: 0.3)
-                                      : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                                  width: 0.6,
-                                ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             );
-                          }),
-                          const SizedBox(width: 4.0),
-                          Text(
-                            'More',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.0,
-                              color: textSecondary,
+                          },
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16.0,
+                            horizontal: 14.0,
+                          ),
+                          child: Center(
+                            child: Text(
+                              'No recorded practice activity on this date.',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                color: textSecondary,
+                              ),
                             ),
+                          ),
+                        ),
+                    ],
+                  ),
+                )
+              else
+                // ── Legend & Action Footer ──
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push('/activity');
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'Full Activity History',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 4.0),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 13.0,
+                            color: AppColors.primary,
                           ),
                         ],
                       ),
-                    ],
-                  ),
-              ],
-            ),
+                    ),
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          'Less',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 4.0),
+                        ...List<Widget>.generate(4, (int lvl) {
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                            width: 9.0,
+                            height: 9.0,
+                            decoration: BoxDecoration(
+                              color: _getCellColor(lvl, isDark),
+                              borderRadius: BorderRadius.circular(2.5),
+                              border: Border.all(
+                                color: lvl > 0
+                                    ? AppColors.primary.withValues(alpha: 0.3)
+                                    : (isDark
+                                          ? AppColors.darkBorder
+                                          : AppColors.lightBorder),
+                                width: 0.6,
+                              ),
+                            ),
+                          );
+                        }),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          'More',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

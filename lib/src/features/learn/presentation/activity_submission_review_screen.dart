@@ -5,11 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../common_widgets/filter_tab_bar.dart';
 import '../../../constants/app_colors.dart';
 import '../data/pathway_repository.dart';
 import '../data/supabase_pathway_repository.dart';
 import '../domain/activity_submission_review_model.dart';
 import '../domain/dashboard_submission.dart';
+import 'widgets/code_highlighter.dart';
+import 'widgets/practice_code_editor.dart' show highlightedSpans;
 
 class ActivitySubmissionReviewScreen extends StatefulWidget {
   const ActivitySubmissionReviewScreen({
@@ -267,23 +270,8 @@ class _ActivitySubmissionReviewScreenState
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Container(
-                    width: 48.0,
-                    height: 48.0,
-                    decoration: BoxDecoration(
-                      color: surface,
-                      borderRadius: BorderRadius.circular(12.0),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Icon(
-                      Icons.code_rounded,
-                      size: 24.0,
-                      color: textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 16.0),
                   Text(
-                    'Submission Not Found',
+                    'Submission not found',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16.0,
                       fontWeight: FontWeight.w700,
@@ -295,26 +283,22 @@ class _ActivitySubmissionReviewScreenState
                     'The requested activity submission could not be retrieved.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
+                      fontSize: 13.0,
                       color: textSecondary,
                     ),
                   ),
                   const SizedBox(height: 20.0),
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     onPressed: _handleBack,
-                    icon: const Icon(Icons.arrow_back_rounded, size: 16.0),
-                    label: const Text('Back to Activity Log'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: textPrimary,
+                      minimumSize: const Size(160.0, 48.0),
                       side: BorderSide(color: borderColor),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 10.0,
+                        borderRadius: BorderRadius.circular(12.0),
                       ),
                     ),
+                    child: const Text('Back to Activity'),
                   ),
                 ],
               ),
@@ -341,7 +325,7 @@ class _ActivitySubmissionReviewScreenState
         body: SafeArea(
           bottom: true,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
             physics: const BouncingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,6 +415,35 @@ class _ActivitySubmissionReviewScreenState
     );
   }
 
+  // ── Shared bits ────────────────────────────────────────────────────────────
+  Widget _sectionHeader(
+    String title,
+    Color borderColor,
+    Color textPrimary, {
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15.0,
+              fontWeight: FontWeight.w600,
+              color: textPrimary,
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+
   // ── AI review pending ──────────────────────────────────────────────────────
   Widget _buildAiPendingSection({
     required Color surface,
@@ -443,11 +456,9 @@ class _ActivitySubmissionReviewScreenState
       liveRegion: true,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
         decoration: BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(14.0),
-          border: Border.all(color: borderColor),
+          border: Border.symmetric(horizontal: BorderSide(color: borderColor)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -457,60 +468,45 @@ class _ActivitySubmissionReviewScreenState
                 if (gaveUp)
                   Icon(
                     Icons.hourglass_empty_rounded,
-                    size: 20.0,
+                    size: 18.0,
                     color: textSecondary,
                   )
                 else
                   const SizedBox(
-                    width: 18.0,
-                    height: 18.0,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: AppColors.primary,
-                    ),
+                    width: 16.0,
+                    height: 16.0,
+                    child: CircularProgressIndicator(strokeWidth: 2.0),
                   ),
-                const SizedBox(width: 12.0),
+                const SizedBox(width: 10.0),
                 Expanded(
                   child: Text(
                     gaveUp
                         ? "The AI review isn't ready yet"
                         : 'Generating your AI code review',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 15.0,
+                      fontWeight: FontWeight.w600,
                       color: textPrimary,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8.0),
+            const SizedBox(height: 6.0),
             Text(
               gaveUp
                   ? 'It is taking longer than usual. Your submission is saved. Check again in a moment.'
                   : 'This usually takes under a minute. Your submission is saved, and the review will appear here when it is ready.',
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
+                fontSize: 13.0,
                 height: 1.5,
                 color: textSecondary,
               ),
             ),
-            if (!gaveUp) ...<Widget>[
-              const SizedBox(height: 14.0),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4.0),
-                child: LinearProgressIndicator(
-                  minHeight: 4.0,
-                  color: AppColors.primary,
-                  backgroundColor: borderColor,
-                ),
-              ),
-            ] else ...<Widget>[
-              const SizedBox(height: 14.0),
-              OutlinedButton.icon(
+            if (gaveUp) ...<Widget>[
+              const SizedBox(height: 8.0),
+              OutlinedButton(
                 onPressed: _retryAiReview,
-                icon: const Icon(Icons.refresh_rounded, size: 18.0),
-                label: const Text('Check again'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: textPrimary,
                   minimumSize: const Size(48.0, 48.0),
@@ -519,6 +515,7 @@ class _ActivitySubmissionReviewScreenState
                     borderRadius: BorderRadius.circular(12.0),
                   ),
                 ),
+                child: const Text('Check again'),
               ),
             ],
           ],
@@ -539,34 +536,39 @@ class _ActivitySubmissionReviewScreenState
       scrolledUnderElevation: 0,
       centerTitle: false,
       leading: IconButton(
-        icon: Icon(Icons.arrow_back_rounded, color: textPrimary, size: 20.0),
+        icon: Icon(Icons.arrow_back_rounded, color: textPrimary, size: 22.0),
+        constraints: const BoxConstraints(minWidth: 48.0, minHeight: 48.0),
         onPressed: _handleBack,
-        tooltip: 'Back to Activity',
+        tooltip: 'Back',
       ),
       title: Text(
-        'Submission Review',
+        'Submission review',
         style: GoogleFonts.plusJakartaSans(
-          fontSize: 15.0,
+          fontSize: 16.0,
           fontWeight: FontWeight.w700,
           color: textPrimary,
         ),
       ),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1.0),
-        child: Container(
-          color: borderColor.withValues(alpha: 0.6),
-          height: 1.0,
-        ),
+        child: Container(color: borderColor, height: 1.0),
       ),
     );
   }
 
-  // ── 1. Quiet Editorial Header (Hollow, unboxed, natural typography) ─────────
+  // ── Header ─────────────────────────────────────────────────────────────────
   Widget _buildHeaderSection({
     required ActivitySubmissionReviewModel review,
     required Color textPrimary,
     required Color textSecondary,
   }) {
+    final String language = review.language.isNotEmpty
+        ? '${review.language[0].toUpperCase()}${review.language.substring(1)}'
+        : 'Code';
+    final String tests = review.testsPassedCount != null
+        ? '${review.testsPassedCount}/${review.totalTestsCount ?? review.testsPassedCount} tests passed'
+        : (review.isPassed ? 'All tests passed' : 'Tests failed');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -576,96 +578,39 @@ class _ActivitySubmissionReviewScreenState
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              fontWeight: FontWeight.w600,
+              fontSize: 13.0,
               color: textSecondary,
             ),
           ),
           const SizedBox(height: 4.0),
         ],
-
-        // Challenge Title
         Text(
           review.title,
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 20.0,
-            fontWeight: FontWeight.w800,
+            fontSize: 22.0,
+            fontWeight: FontWeight.w700,
             color: textPrimary,
             letterSpacing: -0.3,
             height: 1.25,
           ),
         ),
         const SizedBox(height: 8.0),
-
-        // Quiet Inline Metadata Row (Unbracketed, quiet dots)
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 6.0,
-          runSpacing: 4.0,
+        Row(
           children: <Widget>[
-            // Status Indicator Dot + Text
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Container(
-                  width: 6.0,
-                  height: 6.0,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: review.isPassed
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFFEF4444),
-                  ),
-                ),
-                const SizedBox(width: 5.0),
-                Text(
-                  review.isPassed ? 'Verified Passed' : 'Submission Failed',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: review.isPassed
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFFEF4444),
-                  ),
-                ),
-              ],
+            Icon(
+              review.isPassed ? Icons.check_rounded : Icons.close_rounded,
+              size: 16.0,
+              color: review.isPassed ? AppColors.primary : AppColors.error,
             ),
-            Text('·', style: TextStyle(color: textSecondary.withValues(alpha: 0.6), fontSize: 12.0)),
-            Text(
-              review.language.isNotEmpty
-                  ? '${review.language[0].toUpperCase()}${review.language.substring(1)}'
-                  : 'Code',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                color: textSecondary,
-              ),
-            ),
-            if (review.moduleTitle.isNotEmpty) ...<Widget>[
-              Text('·', style: TextStyle(color: textSecondary.withValues(alpha: 0.6), fontSize: 12.0)),
-              Text(
-                review.moduleTitle,
+            const SizedBox(width: 4.0),
+            Expanded(
+              child: Text(
+                '${review.isPassed ? 'Passed' : 'Failed'} · $language · $tests · ${review.timeAgoFormatted}',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.5,
+                  fontSize: 13.0,
                   color: textSecondary,
+                  height: 1.4,
                 ),
-              ),
-            ],
-            Text('·', style: TextStyle(color: textSecondary.withValues(alpha: 0.6), fontSize: 12.0)),
-            Text(
-              review.testsPassedCount != null
-                  ? '${review.testsPassedCount}/${review.totalTestsCount ?? review.testsPassedCount} Tests Passed'
-                  : 'All Tests Passed',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                color: textSecondary,
-              ),
-            ),
-            Text('·', style: TextStyle(color: textSecondary.withValues(alpha: 0.6), fontSize: 12.0)),
-            Text(
-              review.timeAgoFormatted,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                color: textSecondary,
               ),
             ),
           ],
@@ -674,7 +619,7 @@ class _ActivitySubmissionReviewScreenState
     );
   }
 
-  // ── 2. Clean Telemetry Strip (border-y border-border/40, NO CARDS) ─────────
+  // ── Telemetry ──────────────────────────────────────────────────────────────
   Widget _buildTelemetryStrip({
     required ActivitySubmissionReviewModel review,
     required bool isDark,
@@ -682,175 +627,82 @@ class _ActivitySubmissionReviewScreenState
     required Color textPrimary,
     required Color textSecondary,
   }) {
+    Widget stat(String label, Widget value) => Expanded(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12.0),
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              color: textSecondary,
+            ),
+          ),
+          const SizedBox(height: 3.0),
+          value,
+        ],
+      ),
+      ),
+    );
+
+    TextStyle mono() => GoogleFonts.jetBrainsMono(
+      fontSize: 14.0,
+      fontWeight: FontWeight.w600,
+      color: textPrimary,
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 14.0),
       decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: borderColor.withValues(alpha: 0.6), width: 1.0),
-          bottom: BorderSide(color: borderColor.withValues(alpha: 0.6), width: 1.0),
-        ),
+        border: Border.symmetric(horizontal: BorderSide(color: borderColor)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Score
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'SCORE',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: textSecondary,
+          stat(
+            'Score',
+            Text.rich(
+              TextSpan(
+                children: <InlineSpan>[
+                  TextSpan(
+                    text: '${review.overallScore}',
+                    style: mono().copyWith(fontSize: 20.0),
                   ),
-                ),
-                const SizedBox(height: 3.0),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: <Widget>[
-                    Text(
-                      '${review.overallScore}',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 20.0,
-                        fontWeight: FontWeight.w800,
-                        color: textPrimary,
-                      ),
+                  TextSpan(
+                    text: ' / 100',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 12.0,
+                      color: textSecondary,
                     ),
-                    Text(
-                      ' / 100',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
-
-          // Status
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'STATUS',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 5.0),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Container(
-                      width: 6.0,
-                      height: 6.0,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: review.isPassed
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFEF4444),
-                      ),
-                    ),
-                    const SizedBox(width: 5.0),
-                    Flexible(
-                      child: Text(
-                        review.isPassed ? 'Passed' : review.verdict,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: review.isPassed
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFEF4444),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          stat(
+            'Result',
+            Text(
+              review.isPassed ? 'Passed' : review.verdict,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14.0,
+                fontWeight: FontWeight.w600,
+                color: textPrimary,
+              ),
             ),
           ),
-
-          // Runtime Complexity
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'RUNTIME',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4.0),
-                Text(
-                  review.targetTime,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Memory Complexity
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'MEMORY',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4.0),
-                Text(
-                  review.targetSpace,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          stat('Target time', Text(review.targetTime, style: mono())),
+          stat('Target space', Text(review.targetSpace, style: mono())),
         ],
       ),
     );
   }
 
-  // ── 3. Automated Code Feedback (Hollow Tabs & Diagnostics, NO CARDS) ───────
+  // ── AI feedback ────────────────────────────────────────────────────────────
   Widget _buildAcfDiagnosticsSection({
     required AcfEvaluationModel acf,
     required bool isDark,
@@ -860,228 +712,81 @@ class _ActivitySubmissionReviewScreenState
     required Color textSecondary,
   }) {
     final List<AcfCriterionModel> criteria = acf.allCriteria;
-    final AcfCriterionModel selectedCriterion = criteria.firstWhere(
+    final AcfCriterionModel selected = criteria.firstWhere(
       (AcfCriterionModel c) => c.id == _selectedCriterionId,
       orElse: () => criteria.first,
+    );
+
+    Widget list(String title, List<String> items, IconData icon) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const SizedBox(height: 16.0),
+        Text(
+          title,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.0,
+            fontWeight: FontWeight.w600,
+            color: textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6.0),
+        for (final String item in items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(top: 2.0),
+                  child: Icon(icon, size: 16.0, color: textSecondary),
+                ),
+                const SizedBox(width: 8.0),
+                Expanded(
+                  child: Text(
+                    item,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.0,
+                      height: 1.45,
+                      color: textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Section Header with Hairline Bottom Border
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Text(
-              'Automated Code Feedback',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: textPrimary,
-              ),
-            ),
-            Text(
-              '4 Evaluation Dimensions',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 10.5,
-                color: textSecondary,
-              ),
-            ),
+        _sectionHeader('AI code review', borderColor, textPrimary),
+        FilterTabBar(
+          tabs: <FilterTabItem>[
+            for (final AcfCriterionModel c in criteria)
+              FilterTabItem(id: c.id, label: c.label, count: c.score),
           ],
+          selectedId: selected.id,
+          onTabSelected: (String id) => setState(() => _selectedCriterionId = id),
         ),
         const SizedBox(height: 8.0),
-        Container(
-          width: double.infinity,
-          height: 1.0,
-          color: borderColor.withValues(alpha: 0.5),
-        ),
-        const SizedBox(height: 12.0),
-
-        // 4 Criteria Tabs (Hollow 2x2 Grid)
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8.0,
-          crossAxisSpacing: 8.0,
-          childAspectRatio: 2.8,
-          children: criteria.map((AcfCriterionModel c) {
-            final bool isSelected = _selectedCriterionId == c.id;
-
-            return InkWell(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() {
-                  _selectedCriterionId = c.id;
-                });
-              },
-              borderRadius: BorderRadius.circular(8.0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10.0,
-                  vertical: 6.0,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? (isDark ? const Color(0xFF27272A) : const Color(0xFFF1F5F9))
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(
-                    color: isSelected
-                        ? borderColor
-                        : borderColor.withValues(alpha: 0.4),
-                    width: 1.0,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Text(
-                      c.label,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        fontWeight: isSelected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: isSelected ? textPrimary : textSecondary,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6.0,
-                        vertical: 1.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? (isDark ? AppColors.darkBackground : Colors.white)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(4.0),
-                        border: Border.all(
-                          color: isSelected
-                              ? borderColor.withValues(alpha: 0.6)
-                              : Colors.transparent,
-                        ),
-                      ),
-                      child: Text(
-                        '${c.score}',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.0,
-                          fontWeight: FontWeight.w700,
-                          color: isSelected ? AppColors.primary : textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 14.0),
-
-        // Selected Criterion Reasoning Paragraph (Hollow typography)
         Text(
-          selectedCriterion.cotReasoning,
+          selected.cotReasoning,
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 12.5,
-            height: 1.5,
-            color: textPrimary.withValues(alpha: 0.88),
+            fontSize: 14.0,
+            height: 1.55,
+            color: textPrimary,
           ),
         ),
-        const SizedBox(height: 14.0),
-
-        // Strengths & Opportunities Lists (Clean editorial rows, NO heavy colored card boxes)
-        if (selectedCriterion.strengths.isNotEmpty) ...<Widget>[
-          Text(
-            'STRENGTHS',
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 10.0,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          ...selectedCriterion.strengths.map((String str) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text(
-                    '✓',
-                    style: TextStyle(
-                      color: Color(0xFF10B981),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12.0,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  Expanded(
-                    child: Text(
-                      str,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        height: 1.4,
-                        color: textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 10.0),
-        ],
-
-        if (selectedCriterion.improvements.isNotEmpty) ...<Widget>[
-          Text(
-            'IMPROVEMENTS',
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 10.0,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          ...selectedCriterion.improvements.map((String imp) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text(
-                    '•',
-                    style: TextStyle(
-                      color: Color(0xFFF59E0B),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14.0,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  Expanded(
-                    child: Text(
-                      imp,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.0,
-                        height: 1.4,
-                        color: textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+        if (selected.strengths.isNotEmpty)
+          list('Strengths', selected.strengths, Icons.check_rounded),
+        if (selected.improvements.isNotEmpty)
+          list('To improve', selected.improvements, Icons.arrow_right_alt_rounded),
       ],
     );
   }
 
-  // ── 4. Verified Mentor Feedback (Conversation Thread, NO CARD) ────────────
+  // ── Mentor feedback ────────────────────────────────────────────────────────
   Widget _buildMentorFeedbackSection({
     required MentorFeedbackModel feedback,
     required bool isDark,
@@ -1096,7 +801,7 @@ class _ActivitySubmissionReviewScreenState
             FeedbackCommentModel(
               id: 'initial',
               text: feedback.feedbackText,
-              authorName: feedback.mentorName ?? 'Verified Mentor',
+              authorName: feedback.mentorName ?? 'Mentor',
               authorRole: 'mentor',
               authorAvatarUrl: feedback.mentorAvatarUrl,
               createdAt: feedback.createdAt,
@@ -1106,157 +811,52 @@ class _ActivitySubmissionReviewScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Row(
-              mainAxisSize: MainAxisSize.min,
+        _sectionHeader(
+          'Mentor feedback',
+          borderColor,
+          textPrimary,
+          trailing: feedback.gradeOverride != null
+              ? Text(
+                  'Grade ${feedback.gradeOverride}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w600,
+                    color: textPrimary,
+                  ),
+                )
+              : null,
+        ),
+        const SizedBox(height: 12.0),
+        for (int i = 0; i < comments.length; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i < comments.length - 1 ? 14.0 : 0.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  'Mentor Feedback',
+                  '${comments[i].authorName ?? (comments[i].authorRole != 'learner' ? 'Mentor' : 'You')} · ${comments[i].authorRole != 'learner' ? 'Mentor' : 'Learner'}',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 12.0,
+                    color: textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+                Text(
+                  comments[i].text,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.0,
+                    height: 1.5,
                     color: textPrimary,
                   ),
                 ),
-                if (comments.length > 1) ...<Widget>[
-                  const SizedBox(width: 8.0),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                    decoration: BoxDecoration(
-                      color: surface,
-                      borderRadius: BorderRadius.circular(10.0),
-                      border: Border.all(color: borderColor.withValues(alpha: 0.6)),
-                    ),
-                    child: Text(
-                      '${comments.length} notes',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10.0,
-                        fontWeight: FontWeight.w600,
-                        color: textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
-            if (feedback.gradeOverride != null)
-              Text(
-                'Grade ${feedback.gradeOverride}',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 11.0,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8.0),
-        Container(
-          width: double.infinity,
-          height: 1.0,
-          color: borderColor.withValues(alpha: 0.5),
-        ),
-        const SizedBox(height: 12.0),
-
-        // Conversation thread comments list
-        ...comments.asMap().entries.map((MapEntry<int, FeedbackCommentModel> entry) {
-          final int idx = entry.key;
-          final FeedbackCommentModel comment = entry.value;
-          final bool isMentor = comment.authorRole != 'learner';
-          final String name = comment.authorName ?? (isMentor ? 'Verified Mentor' : 'Learner');
-
-          return Padding(
-            padding: EdgeInsets.only(bottom: idx < comments.length - 1 ? 12.0 : 0.0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                CircleAvatar(
-                  radius: 13.0,
-                  backgroundColor: isMentor
-                      ? AppColors.primary.withValues(alpha: 0.15)
-                      : surface,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : (isMentor ? 'M' : 'L'),
-                    style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11.0,
-                      color: isMentor ? AppColors.primary : textSecondary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10.0),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Text(
-                            name,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.0,
-                              fontWeight: FontWeight.w700,
-                              color: textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 6.0),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
-                            decoration: BoxDecoration(
-                              color: isMentor
-                                  ? AppColors.primary.withValues(alpha: 0.12)
-                                  : surface,
-                              borderRadius: BorderRadius.circular(4.0),
-                              border: Border.all(
-                                color: isMentor
-                                    ? AppColors.primary.withValues(alpha: 0.3)
-                                    : borderColor.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Text(
-                              isMentor ? 'Mentor' : 'Learner',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: isMentor ? AppColors.primary : textSecondary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5.0),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10.0),
-                        decoration: BoxDecoration(
-                          color: surface.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(10.0),
-                          border: Border.all(color: borderColor.withValues(alpha: 0.5)),
-                        ),
-                        child: Text(
-                          comment.text,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.0,
-                            height: 1.45,
-                            color: textPrimary.withValues(alpha: 0.9),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
+          ),
       ],
     );
   }
 
-  // ── 5. Submitted Code Review ───────────────────────────────────────────────
+  // ── Submitted code ─────────────────────────────────────────────────────────
   Widget _buildCodeReviewSection({
     required ActivitySubmissionReviewModel review,
     required String currentCode,
@@ -1268,86 +868,54 @@ class _ActivitySubmissionReviewScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Header with Filename & Copy Code Action
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Text(
-                  'Submitted Code',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                  ),
-                ),
-                const SizedBox(width: 6.0),
-                Text(
-                  '(${_getCodeFilename("solution", review.language)})',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 11.0,
-                    color: textSecondary,
-                  ),
-                ),
-              ],
+        _sectionHeader(
+          'Submitted code',
+          borderColor,
+          textPrimary,
+          trailing: TextButton.icon(
+            onPressed: () => _handleCopyCode(currentCode),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48.0, 40.0),
+              foregroundColor: textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
             ),
-            InkWell(
-              onTap: () => _handleCopyCode(currentCode),
-              borderRadius: BorderRadius.circular(4.0),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      _codeCopied
-                          ? Icons.check_rounded
-                          : Icons.copy_rounded,
-                      size: 13.0,
-                      color: _codeCopied
-                          ? const Color(0xFF10B981)
-                          : textSecondary,
-                    ),
-                    const SizedBox(width: 4.0),
-                    Text(
-                      _codeCopied ? 'Copied' : 'Copy Code',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11.0,
-                        fontWeight: FontWeight.w500,
-                        color: _codeCopied
-                            ? const Color(0xFF10B981)
-                            : textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+            icon: Icon(
+              _codeCopied ? Icons.check_rounded : Icons.copy_rounded,
+              size: 16.0,
+            ),
+            label: Text(
+              _codeCopied ? 'Copied' : 'Copy',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13.0,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ],
+          ),
+        ),
+        const SizedBox(height: 4.0),
+        Text(
+          _getCodeFilename('solution', review.language),
+          style: GoogleFonts.jetBrainsMono(fontSize: 12.0, color: textSecondary),
         ),
         const SizedBox(height: 8.0),
         Container(
           width: double.infinity,
-          height: 1.0,
-          color: borderColor.withValues(alpha: 0.5),
-        ),
-        const SizedBox(height: 12.0),
-
-        // Dark Code Container with Line Numbers Gutter
-        Container(
-          width: double.infinity,
           decoration: BoxDecoration(
-            color: const Color(0xFF161618),
-            borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(color: borderColor.withValues(alpha: 0.6)),
+            color: isDark ? AppColors.darkSurfaceLowest : AppColors.lightSurface,
+            borderRadius: BorderRadius.circular(8.0),
+            border: Border.all(color: borderColor),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(12.0),
+            borderRadius: BorderRadius.circular(8.0),
             child: _buildCodeWithLineNumbers(
               currentCode.isNotEmpty
                   ? currentCode
                   : '// No code recorded for this submission.',
+              review.language,
+              isDark,
+              borderColor,
+              textPrimary,
+              textSecondary,
             ),
           ),
         ),
@@ -1355,67 +923,84 @@ class _ActivitySubmissionReviewScreenState
     );
   }
 
-  Widget _buildCodeWithLineNumbers(String code) {
-    final List<String> rawLines = code.split('\n');
-    final List<String> lines =
-        rawLines.isNotEmpty && rawLines.last == ''
-            ? rawLines.sublist(0, rawLines.length - 1)
-            : rawLines;
+  Widget _buildCodeWithLineNumbers(
+    String code,
+    String language,
+    bool isDark,
+    Color borderColor,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final String text = code.endsWith('\n')
+        ? code.substring(0, code.length - 1)
+        : code;
+    final List<CodeToken> tokens = tokenizeCode(text, language);
+    final TextStyle base = GoogleFonts.jetBrainsMono(
+      fontSize: 12.5,
+      height: 1.5,
+      color: textPrimary,
+    );
+
+    final List<Widget> rows = <Widget>[];
+    int offset = 0;
+    int number = 1;
+    for (final String line in text.split('\n')) {
+      final int start = offset;
+      final int end = offset + line.length;
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 32.0,
+                padding: const EdgeInsets.only(right: 8.0),
+                margin: const EdgeInsets.only(right: 8.0),
+                decoration: BoxDecoration(
+                  border: Border(right: BorderSide(color: borderColor)),
+                ),
+                child: Text(
+                  '$number',
+                  textAlign: TextAlign.right,
+                  style: base.copyWith(color: textSecondary),
+                ),
+              ),
+              Expanded(
+                child: SelectableText.rich(
+                  TextSpan(
+                    children: line.isEmpty
+                        ? <TextSpan>[const TextSpan(text: ' ')]
+                        : highlightedSpans(
+                            text: text,
+                            tokens: tokens,
+                            base: base,
+                            isDark: isDark,
+                            start: start,
+                            end: end,
+                          ),
+                    style: base,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      offset = end + 1;
+      number++;
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: List<Widget>.generate(lines.length, (int index) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 1.5),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Line Number Gutter
-                Container(
-                  width: 32.0,
-                  padding: const EdgeInsets.only(right: 8.0),
-                  margin: const EdgeInsets.only(right: 8.0),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      right: BorderSide(
-                        color: AppColors.darkBorder.withValues(alpha: 0.4),
-                        width: 1.0,
-                      ),
-                    ),
-                  ),
-                  child: Text(
-                    '${index + 1}',
-                    textAlign: TextAlign.right,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      height: 1.45,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ),
-                ),
-
-                // Code Content (Soft-wrapped to next line)
-                Expanded(
-                  child: SelectableText(
-                    lines[index].isNotEmpty ? lines[index] : ' ',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.5,
-                      height: 1.45,
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
+        children: rows,
       ),
     );
   }
 
-  // ── 6. Areas for Growth & Recommendations (Clean Ledger Rows, NO CARDS) ───
+  // ── Next steps ─────────────────────────────────────────────────────────────
   Widget _buildGrowthAndRecommendationsSection({
     required AcfEvaluationModel acf,
     required bool isDark,
@@ -1426,177 +1011,110 @@ class _ActivitySubmissionReviewScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Header
-        Text(
-          'Recommended Next Steps',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w700,
-            color: textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8.0),
-        Container(
-          width: double.infinity,
-          height: 1.0,
-          color: borderColor.withValues(alpha: 0.5),
-        ),
-
-        // Weak Topics (Ledger rows)
-        if (acf.weakTopics.isNotEmpty) ...<Widget>[
-          ...acf.weakTopics.map((WeakTopicModel wt) {
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 10.0),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: borderColor.withValues(alpha: 0.3),
-                    width: 1.0,
-                  ),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          _formatConceptTag(wt.conceptTag),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: textPrimary,
-                          ),
+        _sectionHeader('Recommended next steps', borderColor, textPrimary),
+        for (final WeakTopicModel wt in acf.weakTopics)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: borderColor)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        _formatConceptTag(wt.conceptTag),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14.0,
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6.0,
-                          vertical: 2.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF27272A)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(4.0),
-                          border: Border.all(
-                            color: borderColor.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Text(
-                          wt.dimension.substring(0, 1).toUpperCase() +
-                              wt.dimension.substring(1),
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w600,
-                            color: textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (wt.evidence.trim().isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 4.0),
+                    ),
                     Text(
-                      wt.evidence,
+                      wt.dimension.isEmpty
+                          ? ''
+                          : wt.dimension[0].toUpperCase() +
+                                wt.dimension.substring(1),
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
+                        fontSize: 12.0,
                         color: textSecondary,
-                        height: 1.4,
                       ),
                     ),
                   ],
-                ],
-              ),
-            );
-          }),
-        ],
-
-        // Module Recommendations (Clean Ledger rows with Practice link)
-        if (acf.recommendations.isNotEmpty) ...<Widget>[
-          ...acf.recommendations.map((ModuleRecommendationModel rec) {
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 11.0),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: borderColor.withValues(alpha: 0.3),
-                    width: 1.0,
-                  ),
                 ),
+                if (wt.evidence.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4.0),
+                  Text(
+                    wt.evidence,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.0,
+                      color: textSecondary,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        for (final ModuleRecommendationModel rec in acf.recommendations)
+          InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.push('/modules/${rec.moduleId}');
+            },
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 56.0),
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: borderColor)),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        InkWell(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            context.push('/modules/${rec.moduleId}');
-                          },
-                          child: Text(
-                            rec.moduleTitle,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: textPrimary,
-                            ),
+                        Text(
+                          rec.moduleTitle,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14.0,
+                            fontWeight: FontWeight.w600,
+                            color: textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 2.5),
+                        const SizedBox(height: 2.0),
                         Text(
                           rec.rationale,
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.0,
+                            fontSize: 13.0,
                             color: textSecondary,
-                            height: 1.35,
+                            height: 1.4,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12.0),
-                  InkWell(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      context.push('/modules/${rec.moduleId}');
-                    },
-                    borderRadius: BorderRadius.circular(4.0),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6.0,
-                        vertical: 4.0,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            'Practice',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.0,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 3.0),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 13.0,
-                            color: AppColors.primary,
-                          ),
-                        ],
-                      ),
+                  const SizedBox(width: 8.0),
+                  Text(
+                    'Practice',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.0,
+                      fontWeight: FontWeight.w600,
+                      color: textPrimary,
                     ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20.0,
+                    color: textSecondary,
                   ),
                 ],
               ),
-            );
-          }),
-        ],
+            ),
+          ),
       ],
     );
   }
@@ -1660,7 +1178,7 @@ class _ActivitySubmissionReviewScreenState
                   height: 38.0,
                   decoration: BoxDecoration(
                     color: boneColor,
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(4.0),
                   ),
                 ),
               ),
@@ -1684,7 +1202,7 @@ class _ActivitySubmissionReviewScreenState
                   height: 38.0,
                   decoration: BoxDecoration(
                     color: boneColor,
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(4.0),
                   ),
                 ),
               ),

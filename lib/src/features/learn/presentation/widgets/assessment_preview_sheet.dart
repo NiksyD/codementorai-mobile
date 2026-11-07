@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -93,8 +92,7 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bgColor =
-        isDark ? AppColors.darkSurfaceCard : Colors.white;
+    final Color bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final Color textPrimary =
         isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final Color textSecondary =
@@ -103,418 +101,307 @@ class _AssessmentPreviewSheetState extends State<AssessmentPreviewSheet> {
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final AssessmentModel asm = widget.assessment;
+    final bool canAfford = _balance >= asm.costCoins;
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28.0)),
-          border: Border.all(color: borderColor),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.15),
-              blurRadius: 32.0,
-              offset: const Offset(0, -6),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              // 1. Drag Handle
-              Center(
-                child: Container(
-                  width: 38.0,
-                  height: 4.5,
-                  margin: const EdgeInsets.only(top: 10.0, bottom: 12.0),
-                  decoration: BoxDecoration(
-                    color: borderColor,
-                    borderRadius: BorderRadius.circular(3.0),
-                  ),
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16.0)),
+        border: Border(top: BorderSide(color: borderColor)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Center(
+              child: Container(
+                width: 36.0,
+                height: 4.0,
+                margin: const EdgeInsets.only(top: 10.0, bottom: 4.0),
+                decoration: BoxDecoration(
+                  color: borderColor,
+                  borderRadius: BorderRadius.circular(2.0),
                 ),
               ),
-
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 16.0),
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      // Header Row: Avatar Stack + Close
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          LanguageAvatarStack(
-                            languages: asm.stack,
-                            size: 32.0,
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 16.0),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        LanguageAvatarStack(languages: asm.stack, size: 32.0),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded, size: 22.0),
+                          color: textSecondary,
+                          constraints: const BoxConstraints(
+                            minWidth: 48.0,
+                            minHeight: 48.0,
                           ),
-                          Row(
-                            children: <Widget>[
-                              IconButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                icon: const Icon(Icons.close_rounded, size: 20.0),
-                                color: textSecondary,
-                                style: IconButton.styleFrom(
-                                  backgroundColor: isDark
-                                      ? AppColors.darkBackground
-                                      : AppColors.lightBackground,
-                                  padding: const EdgeInsets.all(6.0),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              ),
-                            ],
+                        ),
+                      ],
+                    ),
+                    Text(
+                      asm.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20.0,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                        height: 1.25,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8.0),
+                    Text(
+                      asm.description,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.0,
+                        color: textSecondary,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16.0),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.symmetric(
+                          horizontal: BorderSide(color: borderColor),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12.0),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: _buildSpec(
+                              'Duration',
+                              '${asm.durationMins} min',
+                              textPrimary,
+                              textSecondary,
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildSpec(
+                              'Challenges',
+                              '${asm.challengeCount}',
+                              textPrimary,
+                              textSecondary,
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 14.0),
-
-                      // Title
+                    ),
+                    if (asm.challenges.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 20.0),
                       Text(
-                        asm.title,
+                        'Challenges',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 18.0,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 14.0,
+                          fontWeight: FontWeight.w600,
                           color: textPrimary,
-                          letterSpacing: -0.3,
                         ),
                       ),
-                      const SizedBox(height: 6.0),
-
-                      // Description
-                      Text(
-                        asm.description,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          color: textSecondary,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 16.0),
-
-                      // Parameter Card (Time, Challenges)
-                      Container(
-                        padding: const EdgeInsets.all(14.0),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.darkBackground
-                              : AppColors.lightBackground,
-                          borderRadius: BorderRadius.circular(16.0),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'EXAM SPECIFICATIONS',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 10.0,
-                                fontWeight: FontWeight.w700,
-                                color: textSecondary,
-                                letterSpacing: 0.8,
-                              ),
+                      const SizedBox(height: 4.0),
+                      for (int i = 0; i < asm.challenges.length; i++)
+                        Container(
+                          constraints: const BoxConstraints(minHeight: 48.0),
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: borderColor),
                             ),
-                            const SizedBox(height: 12.0),
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: _buildSpecTile(
-                                    icon: Icons.timer_outlined,
-                                    label: 'Duration',
-                                    value: '${asm.durationMins} mins',
-                                    isDark: isDark,
-                                    textPrimary: textPrimary,
-                                    textSecondary: textSecondary,
-                                  ),
-                                ),
-                                Container(
-                                  width: 1.0,
-                                  height: 36.0,
-                                  color: borderColor,
-                                ),
-                                Expanded(
-                                  child: _buildSpecTile(
-                                    icon: Icons.code_rounded,
-                                    label: 'Problems',
-                                    value: '${asm.challengeCount} Tasks',
-                                    isDark: isDark,
-                                    textPrimary: textPrimary,
-                                    textSecondary: textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16.0),
-
-                      // Included Challenges Outline (if present)
-                      if (asm.challenges.isNotEmpty) ...<Widget>[
-                        Text(
-                          'CURATED CHALLENGES',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: textSecondary,
-                            letterSpacing: 0.8,
                           ),
-                        ),
-                        const SizedBox(height: 8.0),
-                        ...asm.challenges.asMap().entries.map((entry) {
-                          final int idx = entry.key;
-                          final AssessmentChallengeModel ch = entry.value;
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8.0),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 10.0,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppColors.darkBackground
-                                  : AppColors.lightBackground,
-                              borderRadius: BorderRadius.circular(12.0),
-                              border: Border.all(color: borderColor),
-                            ),
-                            child: Row(
-                              children: <Widget>[
-                                Container(
-                                  width: 22.0,
-                                  height: 22.0,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.12),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Text(
-                                    '${idx + 1}',
-                                    style: GoogleFonts.jetBrainsMono(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10.0),
-                                Expanded(
-                                  child: Text(
-                                    ch.title,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: textPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 6.0),
-                                Text(
-                                  '${ch.testCases.length} Tests',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 10.5,
-                                    color: textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 8.0),
-                      ],
-
-                      // Mentor Info Footer
-                      Row(
-                        children: <Widget>[
-                          CircleAvatar(
-                            radius: 14.0,
-                            backgroundColor: isDark
-                                ? AppColors.darkBackground
-                                : AppColors.lightBackground,
-                            backgroundImage: asm.mentorAvatar != null
-                                ? NetworkImage(asm.mentorAvatar!)
-                                : null,
-                            child: asm.mentorAvatar == null
-                                ? Icon(
-                                    Icons.person_rounded,
-                                    size: 16.0,
-                                    color: textSecondary,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 8.0),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: <Widget>[
+                              SizedBox(
+                                width: 28.0,
+                                child: Text(
+                                  '${i + 1}',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 13.0,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  asm.challenges[i].title,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14.0,
+                                    fontWeight: FontWeight.w500,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8.0),
                               Text(
-                                'Curated by',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10.0,
+                                '${asm.challenges[i].testCases.length} tests',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 12.0,
                                   color: textSecondary,
                                 ),
                               ),
-                              Text(
-                                asm.mentorName,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12.0,
-                                  fontWeight: FontWeight.w600,
-                                  color: textPrimary,
-                                ),
-                              ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
                     ],
-                  ),
-                ),
-              ),
-
-              // Bottom Action Bar
-              Container(
-                padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 12.0),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  border: Border(top: BorderSide(color: borderColor)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (!_isUnlocked) ...<Widget>[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Text(
-                            'Your balance: $_balance coins',
+                    const SizedBox(height: 16.0),
+                    Row(
+                      children: <Widget>[
+                        CircleAvatar(
+                          radius: 14.0,
+                          backgroundColor: borderColor,
+                          backgroundImage: asm.mentorAvatar != null
+                              ? NetworkImage(asm.mentorAvatar!)
+                              : null,
+                          child: asm.mentorAvatar == null
+                              ? Icon(
+                                  Icons.person_rounded,
+                                  size: 16.0,
+                                  color: textSecondary,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 10.0),
+                        Expanded(
+                          child: Text(
+                            'Curated by ${asm.mentorName}',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 13.0,
                               color: textSecondary,
                             ),
                           ),
-                          Text(
-                            _balance >= asm.costCoins
-                                ? 'After unlock: ${_balance - asm.costCoins}'
-                                : 'Need ${asm.costCoins - _balance} more',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.0,
-                              fontWeight: FontWeight.w700,
-                              color: _balance >= asm.costCoins
-                                  ? textSecondary
-                                  : const Color(0xFFEF4444),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10.0),
-                    ],
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48.0,
-                      child: ElevatedButton(
-                        onPressed: _isUnlocking
-                            ? null
-                            : _isUnlocked
-                                ? () {
-                                    Navigator.of(context).pop();
-                                    widget.onStart();
-                                  }
-                                : (_balance >= asm.costCoins ? _handleUnlock : null),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor:
-                              isDark ? AppColors.onPrimaryDark : Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14.0),
-                          ),
                         ),
-                        child: _isUnlocking
-                            ? const SizedBox(
-                                width: 18.0,
-                                height: 18.0,
-                                child: CircularProgressIndicator(strokeWidth: 2.0),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: <Widget>[
-                                  Icon(
-                                    _isUnlocked
-                                        ? Icons.bolt_rounded
-                                        : Icons.lock_open_rounded,
-                                    size: 18.0,
-                                  ),
-                                  const SizedBox(width: 6.0),
-                                  Text(
-                                    _isUnlocked
-                                        ? 'Start Assessment'
-                                        : (_balance >= asm.costCoins
-                                            ? 'Unlock · ${asm.costCoins} Coins'
-                                            : 'Insufficient CodeCoins'),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 12.0),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: borderColor)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (!_isUnlocked) ...<Widget>[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Text(
+                          'Your balance',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                        Text(
+                          '$_balance coins',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 13.0,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4.0),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        canAfford
+                            ? 'After unlock: ${_balance - asm.costCoins}'
+                            : 'Need ${asm.costCoins - _balance} more',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12.0,
+                          color: canAfford ? textSecondary : AppColors.error,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10.0),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48.0,
+                    child: ElevatedButton(
+                      onPressed: _isUnlocking
+                          ? null
+                          : _isUnlocked
+                              ? () {
+                                  Navigator.of(context).pop();
+                                  widget.onStart();
+                                }
+                              : (canAfford ? _handleUnlock : null),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor:
+                            isDark ? AppColors.onPrimaryDark : Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                      ),
+                      child: _isUnlocking
+                          ? const SizedBox(
+                              width: 18.0,
+                              height: 18.0,
+                              child: CircularProgressIndicator(strokeWidth: 2.0),
+                            )
+                          : Text(
+                              _isUnlocked
+                                  ? 'Start Assessment'
+                                  : (canAfford
+                                      ? 'Unlock for ${asm.costCoins} coins'
+                                      : 'Not enough coins'),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14.0,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSpecTile({
-    required IconData icon,
-    required String label,
-    required String value,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 16.0, color: AppColors.primary),
-          const SizedBox(width: 8.0),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10.5,
-                    color: textSecondary,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12.0,
-                    fontWeight: FontWeight.w700,
-                    color: textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+  Widget _buildSpec(
+    String label,
+    String value,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.0,
+            color: textSecondary,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 2.0),
+        Text(
+          value,
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 15.0,
+            fontWeight: FontWeight.w600,
+            color: textPrimary,
+          ),
+        ),
+      ],
     );
   }
 }

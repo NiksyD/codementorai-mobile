@@ -68,13 +68,13 @@ class FakeDetailPathwayRepository implements PathwayRepository {
   Future<PracticeExerciseModel?> getPracticeExercise(String moduleId, String exerciseId, String userId) async => null;
 
   @override
-  Future<String?> submitPracticeExercise(String userId, String moduleId, String exerciseId, String code, String language) async => 'sub-practice-123';
+  Future<String?> submitPracticeExercise(String userId, String moduleId, String exerciseId, String code, String language, {bool passed = true}) async => 'sub-practice-123';
 
   @override
   Future<PracticeExerciseModel?> getChallengeExercise(String moduleId, String challengeId, String userId) async => null;
 
   @override
-  Future<String?> submitChallengeExercise(String userId, String moduleId, String challengeId, String code, String language) async => 'sub-challenge-123';
+  Future<String?> submitChallengeExercise(String userId, String moduleId, String challengeId, String code, String language, {bool passed = true}) async => 'sub-challenge-123';
 
   @override
   Future<List<SubmissionHistoryModel>> getExerciseSubmissions({required String userId, required String moduleId, required String exerciseId}) async => <SubmissionHistoryModel>[];
@@ -112,7 +112,7 @@ class FakeDetailPathwayRepository implements PathwayRepository {
 }
 
 void main() {
-  group('ModuleDetailScreen Widget Tests (Web 1:1 Redesign Parity)', () {
+  group('ModuleDetailScreen Widget Tests', () {
     final ModuleDetailModel sampleModule = ModuleDetailModel(
       id: 'python-core',
       title: 'Python Core Mastery',
@@ -214,22 +214,26 @@ void main() {
       // Split-Block Hero banner checks
       expect(find.text('Python Core Mastery'), findsWidgets);
       expect(find.text('By Sarah Jenkins'), findsOneWidget);
-      expect(find.text('MODULE'), findsOneWidget);
-      expect(find.text('Progress '), findsOneWidget);
+      expect(find.text('MODULE'), findsNothing); // no kicker label any more
+      expect(find.textContaining('% Complete'), findsOneWidget);
       expect(find.text('Continue Learning'), findsOneWidget);
 
       // Module Outline checks
       expect(find.text('Module Outline'), findsOneWidget);
       expect(find.text('Memory Allocation & Pointers'), findsWidgets);
-      expect(find.text('EXPAND ALL'), findsOneWidget);
-      expect(find.text('COLLAPSE ALL'), findsNothing);
+      expect(find.text('Expand all'), findsOneWidget);
+      expect(find.text('Collapse all'), findsNothing);
 
-      // Verify activities and metadata
+      // The outline starts collapsed; expanding shows each topic's activities.
+      expect(find.text('Reference Counting Internals'), findsNothing);
+      await tester.tap(find.text('Expand all'));
+      await tester.pumpAndSettle();
+      expect(find.text('Collapse all'), findsOneWidget);
       expect(find.text('Reference Counting Internals'), findsOneWidget);
       expect(find.text('Practice'), findsWidgets);
 
       // Learner Reviews section checks
-      expect(find.text('Learner Reviews'), findsOneWidget);
+      expect(find.textContaining('Learner Reviews', findRichText: true), findsOneWidget);
       expect(find.text('Write a Review'), findsOneWidget);
     });
 
@@ -282,13 +286,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Expand all topics to inspect benchmark challenges
-      await tester.tap(find.text('EXPAND ALL'));
+      await tester.tap(find.text('Expand all'));
       await tester.pumpAndSettle();
 
       expect(find.text('Benchmark Challenges'), findsOneWidget);
       expect(find.text('LRU Cache Benchmark'), findsOneWidget);
-      expect(find.text('Challenge'), findsOneWidget);
-      expect(find.text('· O(1)'), findsOneWidget);
+      // Type and time limit share one line: "Challenge  ·  O(1)".
+      expect(find.textContaining('Challenge', findRichText: true), findsWidgets);
+      expect(find.textContaining('O(1)', findRichText: true), findsOneWidget);
       expect(find.text('Solve'), findsOneWidget); // Guided practice is free
       expect(find.text('Locked'), findsOneWidget); // Challenge requires CodeCoins unlock
     });
@@ -303,9 +308,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Reviews metric overview
-      expect(find.text('OVERALL RATING'), findsOneWidget);
-      expect(find.text('/ 5.0'), findsOneWidget);
-      expect(find.text('RECOMMENDATION'), findsOneWidget);
+      expect(find.text('Overall rating'), findsOneWidget);
+      expect(find.textContaining('/ 5.0', findRichText: true), findsOneWidget);
+      expect(find.text('Recommend'), findsOneWidget);
       expect(find.text('Write a Review'), findsOneWidget);
 
       // Verify review items

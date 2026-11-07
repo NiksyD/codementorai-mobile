@@ -61,46 +61,53 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
   static const List<Map<String, String>> _assessmentFilters =
       <Map<String, String>>[
-    <String, String>{'id': 'all', 'label': 'All'},
-    <String, String>{'id': 'saved', 'label': 'Saved'},
-  ];
+        <String, String>{'id': 'all', 'label': 'All'},
+        <String, String>{'id': 'saved', 'label': 'Saved'},
+      ];
 
-  static const Map<String, List<String>> _searchAliases = <String, List<String>>{
-    'cpp': <String>['c++', 'cpp'],
-    'c++': <String>['c++', 'cpp'],
-    'csharp': <String>['c#', 'csharp'],
-    'c#': <String>['c#', 'csharp'],
-    'js': <String>['javascript', 'js'],
-    'javascript': <String>['javascript', 'js'],
-    'php': <String>['php'],
-    'py': <String>['python', 'py'],
-    'python': <String>['python', 'py'],
-    'react': <String>['react', 'js-react'],
-    'spring': <String>['spring', 'java-spring'],
-  };
+  static const Map<String, List<String>> _searchAliases =
+      <String, List<String>>{
+        'cpp': <String>['c++', 'cpp'],
+        'c++': <String>['c++', 'cpp'],
+        'csharp': <String>['c#', 'csharp'],
+        'c#': <String>['c#', 'csharp'],
+        'js': <String>['javascript', 'js'],
+        'javascript': <String>['javascript', 'js'],
+        'php': <String>['php'],
+        'py': <String>['python', 'py'],
+        'python': <String>['python', 'py'],
+        'react': <String>['react', 'js-react'],
+        'spring': <String>['spring', 'java-spring'],
+      };
 
   @override
   void initState() {
     super.initState();
     _selectedTab = widget.initialTab;
-    SupabasePathwayRepository.bookmarkedIdsNotifier
-        .addListener(_onBookmarksChanged);
-    SupabasePathwayRepository.catalogRefreshNotifier
-        .addListener(_onCatalogRefresh);
-    SupabaseAssessmentRepository.bookmarkedAssessmentIdsNotifier
-        .addListener(_onAssessmentBookmarksChanged);
+    SupabasePathwayRepository.bookmarkedIdsNotifier.addListener(
+      _onBookmarksChanged,
+    );
+    SupabasePathwayRepository.catalogRefreshNotifier.addListener(
+      _onCatalogRefresh,
+    );
+    SupabaseAssessmentRepository.bookmarkedAssessmentIdsNotifier.addListener(
+      _onAssessmentBookmarksChanged,
+    );
     _loadModules();
     _loadAssessments();
   }
 
   @override
   void dispose() {
-    SupabasePathwayRepository.bookmarkedIdsNotifier
-        .removeListener(_onBookmarksChanged);
-    SupabasePathwayRepository.catalogRefreshNotifier
-        .removeListener(_onCatalogRefresh);
-    SupabaseAssessmentRepository.bookmarkedAssessmentIdsNotifier
-        .removeListener(_onAssessmentBookmarksChanged);
+    SupabasePathwayRepository.bookmarkedIdsNotifier.removeListener(
+      _onBookmarksChanged,
+    );
+    SupabasePathwayRepository.catalogRefreshNotifier.removeListener(
+      _onCatalogRefresh,
+    );
+    SupabaseAssessmentRepository.bookmarkedAssessmentIdsNotifier.removeListener(
+      _onAssessmentBookmarksChanged,
+    );
     _searchController.dispose();
     _assessmentSearchController.dispose();
     super.dispose();
@@ -117,8 +124,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
     if (mounted) {
       setState(() {
         _modules = _modules
-            .map((PathwayModel p) =>
-                p.copyWith(isBookmarked: bookmarkedIds.contains(p.id)))
+            .map(
+              (PathwayModel p) =>
+                  p.copyWith(isBookmarked: bookmarkedIds.contains(p.id)),
+            )
             .toList();
       });
     }
@@ -130,18 +139,22 @@ class _ModulesScreenState extends State<ModulesScreen> {
     if (mounted) {
       setState(() {
         _assessments = _assessments
-            .map((AssessmentModel a) =>
-                a.copyWith(isInLibrary: bookmarkedIds.contains(a.id)))
+            .map(
+              (AssessmentModel a) =>
+                  a.copyWith(isInLibrary: bookmarkedIds.contains(a.id)),
+            )
             .toList();
       });
     }
   }
 
   Future<void> _loadAssessments() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    final String userId = user?.id ?? '';
-    final List<AssessmentModel> data =
-        await widget.assessmentRepository.getPublishedAssessments(userId);
+    String userId = '';
+    try {
+      userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+    } catch (_) {}
+    final List<AssessmentModel> data = await widget.assessmentRepository
+        .getPublishedAssessments(userId);
     if (mounted) {
       setState(() {
         _assessments = data;
@@ -152,17 +165,25 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
   List<AssessmentModel> get _filteredAssessments {
     return _assessments.where((AssessmentModel a) {
-      final bool matchesFilter = _selectedFilter == 'all' ||
+      final bool matchesFilter =
+          _selectedFilter == 'all' ||
           (_selectedFilter == 'saved' && a.isInLibrary);
 
-      final bool matchesSearch = _assessmentSearchQuery.isEmpty ||
-          a.title.toLowerCase().contains(_assessmentSearchQuery.toLowerCase()) ||
-          a.description.toLowerCase().contains(_assessmentSearchQuery.toLowerCase()) ||
+      final bool matchesSearch =
+          _assessmentSearchQuery.isEmpty ||
+          a.title.toLowerCase().contains(
+            _assessmentSearchQuery.toLowerCase(),
+          ) ||
+          a.description.toLowerCase().contains(
+            _assessmentSearchQuery.toLowerCase(),
+          ) ||
           a.stack.any(
             (String s) =>
                 s.toLowerCase().contains(_assessmentSearchQuery.toLowerCase()),
           ) ||
-          a.mentorName.toLowerCase().contains(_assessmentSearchQuery.toLowerCase());
+          a.mentorName.toLowerCase().contains(
+            _assessmentSearchQuery.toLowerCase(),
+          );
 
       return matchesFilter && matchesSearch;
     }).toList();
@@ -181,8 +202,8 @@ class _ModulesScreenState extends State<ModulesScreen> {
     try {
       userId = Supabase.instance.client.auth.currentUser?.id ?? '';
     } catch (_) {}
-    final List<PathwayModel> data =
-        await widget.pathwayRepository.getAllModules(userId);
+    final List<PathwayModel> data = await widget.pathwayRepository
+        .getAllModules(userId);
     if (mounted) {
       setState(() {
         _modules = data;
@@ -219,14 +240,17 @@ class _ModulesScreenState extends State<ModulesScreen> {
         final String title = p.title.toLowerCase();
         final String desc = p.description.toLowerCase();
         final String id = p.id.toLowerCase();
-        final List<String> stack = p.stack.map((String s) => s.toLowerCase()).toList();
+        final List<String> stack = p.stack
+            .map((String s) => s.toLowerCase())
+            .toList();
 
         return rawTokens.every((String token) {
           final List<String> terms = _searchAliases[token] ?? <String>[token];
 
           return terms.any((String term) {
             if (term == 'c') {
-              final bool isC = id == 'c' ||
+              final bool isC =
+                  id == 'c' ||
                   stack.contains('c') ||
                   RegExp(r'\bc\b', caseSensitive: false).hasMatch(p.title);
               if (isC) return true;
@@ -260,11 +284,15 @@ class _ModulesScreenState extends State<ModulesScreen> {
   int _getCategoryCount(String categoryId) {
     switch (categoryId) {
       case 'in-progress':
-        return _modules.where((PathwayModel p) => p.isEnrolled && p.completion < 100).length;
+        return _modules
+            .where((PathwayModel p) => p.isEnrolled && p.completion < 100)
+            .length;
       case 'bookmarked':
         return _modules.where((PathwayModel p) => p.isBookmarked).length;
       case 'completed':
-        return _modules.where((PathwayModel p) => p.isEnrolled && p.completion >= 100).length;
+        return _modules
+            .where((PathwayModel p) => p.isEnrolled && p.completion >= 100)
+            .length;
       case 'all':
       default:
         return _modules.length;
@@ -274,12 +302,15 @@ class _ModulesScreenState extends State<ModulesScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color backgroundColor =
-        isDark ? AppColors.darkBackground : AppColors.lightBackground;
-    final Color textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color backgroundColor = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final List<PathwayModel> displayModules = _processedModules;
 
@@ -340,10 +371,11 @@ class _ModulesScreenState extends State<ModulesScreen> {
                       // Context-aware Search Input
                       Container(
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkSurfaceCard : Colors.white,
                           borderRadius: BorderRadius.circular(12.0),
                           border: Border.all(
-                            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : AppColors.lightBorder,
                             width: 1.0,
                           ),
                         ),
@@ -381,7 +413,8 @@ class _ModulesScreenState extends State<ModulesScreen> {
                               size: 19.0,
                               color: textSecondary,
                             ),
-                            suffixIcon: (_selectedTab == ExploreTab.modules
+                            suffixIcon:
+                                (_selectedTab == ExploreTab.modules
                                     ? _searchQuery.isNotEmpty
                                     : _assessmentSearchQuery.isNotEmpty)
                                 ? IconButton(
@@ -419,7 +452,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
                       // Context-aware Filter Tabs with Dynamic Count Badges
                       if (_selectedTab == ExploreTab.modules)
                         FilterTabBar(
-                          height: 36.0,
                           tabs: _categories.map((Map<String, String> cat) {
                             final String catId = cat['id']!;
                             return FilterTabItem(
@@ -437,8 +469,9 @@ class _ModulesScreenState extends State<ModulesScreen> {
                         )
                       else
                         FilterTabBar(
-                          height: 36.0,
-                          tabs: _assessmentFilters.map((Map<String, String> cat) {
+                          tabs: _assessmentFilters.map((
+                            Map<String, String> cat,
+                          ) {
                             final String catId = cat['id']!;
                             return FilterTabItem(
                               id: catId,
@@ -461,12 +494,26 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           displayModules.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text(
-                            'Showing ${displayModules.length} module${displayModules.length == 1 ? '' : 's'}',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.0,
-                              fontWeight: FontWeight.w500,
-                              color: textSecondary,
+                          child: Text.rich(
+                            TextSpan(
+                              children: <InlineSpan>[
+                                TextSpan(
+                                  text: '${displayModules.length}',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 12.0,
+                                    fontWeight: FontWeight.w600,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text:
+                                      ' module${displayModules.length == 1 ? '' : 's'}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.0,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         )
@@ -475,12 +522,26 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           _filteredAssessments.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text(
-                            'Showing ${_filteredAssessments.length} assessment${_filteredAssessments.length == 1 ? '' : 's'}',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11.0,
-                              fontWeight: FontWeight.w500,
-                              color: textSecondary,
+                          child: Text.rich(
+                            TextSpan(
+                              children: <InlineSpan>[
+                                TextSpan(
+                                  text: '${_filteredAssessments.length}',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 12.0,
+                                    fontWeight: FontWeight.w600,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text:
+                                      ' assessment${_filteredAssessments.length == 1 ? '' : 's'}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.0,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -496,7 +557,12 @@ class _ModulesScreenState extends State<ModulesScreen> {
                 else if (displayModules.isEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 96.0),
+                      padding: const EdgeInsets.fromLTRB(
+                        20.0,
+                        12.0,
+                        20.0,
+                        96.0,
+                      ),
                       child: _buildEmptyState(
                         isDark: isDark,
                         textPrimary: textPrimary,
@@ -508,18 +574,18 @@ class _ModulesScreenState extends State<ModulesScreen> {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 96.0),
                     sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (BuildContext context, int index) {
-                          final PathwayModel module = displayModules[index];
-                          return _buildModuleCard(
-                            module: module,
-                            isDark: isDark,
-                            textPrimary: textPrimary,
-                            textSecondary: textSecondary,
-                          );
-                        },
-                        childCount: displayModules.length,
-                      ),
+                      delegate: SliverChildBuilderDelegate((
+                        BuildContext context,
+                        int index,
+                      ) {
+                        final PathwayModel module = displayModules[index];
+                        return _buildModuleCard(
+                          module: module,
+                          isDark: isDark,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                        );
+                      }, childCount: displayModules.length),
                     ),
                   ),
               ]
@@ -530,7 +596,12 @@ class _ModulesScreenState extends State<ModulesScreen> {
                 else if (_filteredAssessments.isEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 96.0),
+                      padding: const EdgeInsets.fromLTRB(
+                        20.0,
+                        12.0,
+                        20.0,
+                        96.0,
+                      ),
                       child: _buildAssessmentEmptyState(
                         isDark: isDark,
                         textPrimary: textPrimary,
@@ -542,20 +613,20 @@ class _ModulesScreenState extends State<ModulesScreen> {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 96.0),
                     sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (BuildContext context, int index) {
-                          final AssessmentModel assessment =
-                              _filteredAssessments[index];
-                          return _buildAssessmentCard(
-                            context,
-                            assessment: assessment,
-                            isDark: isDark,
-                            textPrimary: textPrimary,
-                            textSecondary: textSecondary,
-                          );
-                        },
-                        childCount: _filteredAssessments.length,
-                      ),
+                      delegate: SliverChildBuilderDelegate((
+                        BuildContext context,
+                        int index,
+                      ) {
+                        final AssessmentModel assessment =
+                            _filteredAssessments[index];
+                        return _buildAssessmentCard(
+                          context,
+                          assessment: assessment,
+                          isDark: isDark,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                        );
+                      }, childCount: _filteredAssessments.length),
                     ),
                   ),
               ],
@@ -582,8 +653,8 @@ class _ModulesScreenState extends State<ModulesScreen> {
     final String ctaLabel = !isEnrolled
         ? 'Start Learning'
         : isCompleted
-            ? 'Review'
-            : 'Continue Learning';
+        ? 'Review'
+        : 'Continue Learning';
 
     // Strict 0% Handling per AGENTS.md rule 2.3
     final double progressValue = module.completion <= 0
@@ -611,8 +682,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
       final bool nextState = !module.isBookmarked;
       setState(() {
         _modules = _modules
-            .map((PathwayModel p) =>
-                p.id == module.id ? p.copyWith(isBookmarked: nextState) : p)
+            .map(
+              (PathwayModel p) =>
+                  p.id == module.id ? p.copyWith(isBookmarked: nextState) : p,
+            )
             .toList();
       });
       final bool ok = await widget.pathwayRepository.toggleBookmark(
@@ -623,33 +696,53 @@ class _ModulesScreenState extends State<ModulesScreen> {
       if (!ok && mounted) {
         setState(() {
           _modules = _modules
-              .map((PathwayModel p) =>
-                  p.id == module.id ? p.copyWith(isBookmarked: !nextState) : p)
+              .map(
+                (PathwayModel p) => p.id == module.id
+                    ? p.copyWith(isBookmarked: !nextState)
+                    : p,
+              )
               .toList();
         });
         AppToast.showError(context, 'Failed to update bookmark');
       }
     }
 
+    final Widget bookmark = Semantics(
+      button: true,
+      label: module.isBookmarked ? 'Remove bookmark' : 'Save module',
+      child: InkWell(
+        onTap: handleToggleBookmark,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 48.0,
+          height: 48.0,
+          child: Icon(
+            module.isBookmarked
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded,
+            size: 22.0,
+            color: module.isBookmarked ? textPrimary : textSecondary,
+          ),
+        ),
+      ),
+    );
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-        borderRadius: BorderRadius.circular(16.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1.0,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            width: 1.0,
+          ),
         ),
       ),
       child: InkWell(
         onTap: handleCardAction,
-        borderRadius: BorderRadius.circular(16.0),
         child: Padding(
-          padding: const EdgeInsets.all(15.0),
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // ── Card Header (Stack, Done Badge, Bookmark Button) ──
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -659,307 +752,173 @@ class _ModulesScreenState extends State<ModulesScreen> {
                         ? module.stack
                         : <String>[module.language],
                     maxVisible: 3,
-                    size: 26.0,
+                    size: 24.0,
+                    borderColor: isDark
+                        ? AppColors.darkBackground
+                        : AppColors.lightBackground,
                   ),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      // "Done" Badge if Completed
                       if (isCompleted) ...<Widget>[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7.0,
-                            vertical: 2.0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6.0),
-                            border: Border.all(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                              width: 0.8,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                size: 12.0,
-                                color: Color(0xFF10B981),
-                              ),
-                              const SizedBox(width: 3.5),
-                              Text(
-                                'Done',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF10B981),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 6.0),
-                      ],
-
-                      // Bookmark Icon Button
-                      GestureDetector(
-                        onTap: handleToggleBookmark,
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          width: 28.0,
-                          height: 28.0,
-                          decoration: BoxDecoration(
-                            color: module.isBookmarked
-                                ? AppColors.primary.withValues(alpha: 0.12)
-                                : (isDark
-                                    ? AppColors.darkSurface
-                                    : AppColors.lightSurfaceCard),
-                            borderRadius: BorderRadius.circular(7.0),
-                            border: Border.all(
-                              color: module.isBookmarked
-                                  ? AppColors.primary.withValues(alpha: 0.35)
-                                  : (isDark
-                                      ? AppColors.darkBorder
-                                      : AppColors.lightBorder),
-                              width: 1.0,
-                            ),
-                          ),
-                          child: Icon(
-                            module.isBookmarked
-                                ? Icons.bookmark_rounded
-                                : Icons.bookmark_border_rounded,
-                            size: 15.0,
-                            color: module.isBookmarked
-                                ? AppColors.primary
-                                : textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10.0),
-
-              // Title & Description (Strict 2-line maximum)
-              Text(
-                module.title,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15.0,
-                  fontWeight: FontWeight.w700,
-                  color: textPrimary,
-                  letterSpacing: -0.2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 3.0),
-              Text(
-                module.description.isNotEmpty
-                    ? module.description
-                    : 'Master core programming concepts and hands-on challenges.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.0,
-                  color: textSecondary,
-                  height: 1.4,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 10.0),
-
-              // Mentor Info, Star Rating, & Topics count (Unified baseline)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  if (module.coachAvatar != null && module.coachAvatar!.isNotEmpty)
-                    ClipOval(
-                      child: Image.network(
-                        module.coachAvatar!,
-                        width: 15.0,
-                        height: 15.0,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Icon(
-                          Icons.person_outline_rounded,
-                          size: 13.5,
+                        Icon(
+                          Icons.check_rounded,
+                          size: 16.0,
                           color: textSecondary,
                         ),
-                      ),
-                    )
-                  else
-                    Icon(
-                      Icons.person_outline_rounded,
-                      size: 13.5,
-                      color: textSecondary,
-                    ),
-                  const SizedBox(width: 4.5),
-                  Flexible(
-                    child: Text(
-                      module.coachName ?? 'AI Mentor',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.0,
-                        fontWeight: FontWeight.w500,
-                        color: textPrimary.withValues(alpha: 0.8),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5.0),
-                    child: Text(
-                      '·',
-                      style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.star_rounded,
-                    size: 13.5,
-                    color: Color(0xFFF59E0B),
-                  ),
-                  const SizedBox(width: 2.0),
-                  Text(
-                    module.rating.toStringAsFixed(1),
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w600,
-                      color: textSecondary,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5.0),
-                    child: Text(
-                      '·',
-                      style: TextStyle(color: textSecondary.withValues(alpha: 0.4)),
-                    ),
-                  ),
-                  Text(
-                    '${module.totalModules} Topics',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.0,
-                      fontWeight: FontWeight.w500,
-                      color: textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 11.0),
-
-              // Hairline separator
-              Divider(
-                height: 1.0,
-                thickness: 1.0,
-                color: isDark
-                    ? AppColors.darkBorder.withValues(alpha: 0.4)
-                    : AppColors.lightBorder.withValues(alpha: 0.6),
-              ),
-              const SizedBox(height: 11.0),
-
-              // ── Card Footer: Compact Horizontal Action (Matching Senior Dev Recommendations) ──
-              if (isEnrolled) ...<Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    // Progress Track
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: <Widget>[
-                              Text(
-                                'Progress',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: textSecondary,
-                                ),
-                              ),
-                              Text(
-                                '${module.completion}%',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11.0,
-                                  fontWeight: FontWeight.w700,
-                                  color: isCompleted
-                                      ? const Color(0xFF10B981)
-                                      : textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4.0),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(999.0),
-                            child: SizedBox(
-                              height: 4.0,
-                              child: LinearProgressIndicator(
-                                value: progressValue,
-                                backgroundColor: isDark
-                                    ? AppColors.darkSurface
-                                    : AppColors.lightBorder,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  isCompleted
-                                      ? const Color(0xFF10B981)
-                                      : AppColors.primary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14.0),
-
-                    // Compact Action Button
-                    _buildCompactModuleActionButton(
-                      label: ctaLabel,
-                      isCompleted: isCompleted,
-                      isDark: isDark,
-                      textPrimary: textPrimary,
-                      onPressed: handleCardAction,
-                    ),
-                  ],
-                ),
-              ] else ...<Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Container(
-                          width: 5.0,
-                          height: 5.0,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.8),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5.0),
+                        const SizedBox(width: 4.0),
                         Text(
-                          'Interactive Track',
+                          'Completed',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.0,
+                            fontSize: 12.0,
                             fontWeight: FontWeight.w600,
                             color: textSecondary,
                           ),
                         ),
                       ],
-                    ),
-
-                    // Compact Action Button
-                    _buildCompactModuleActionButton(
-                      label: ctaLabel,
-                      isCompleted: isCompleted,
-                      isDark: isDark,
-                      textPrimary: textPrimary,
-                      onPressed: handleCardAction,
-                    ),
-                  ],
+                      Transform.translate(
+                        offset: const Offset(12.0, 0.0),
+                        child: bookmark,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Text(
+                module.title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 17.0,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                  letterSpacing: -0.2,
+                  height: 1.25,
                 ),
-              ],
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6.0),
+              Text(
+                module.description.isNotEmpty
+                    ? module.description
+                    : 'Master core programming concepts and hands-on challenges.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.0,
+                  color: textSecondary,
+                  height: 1.45,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10.0),
+              Row(
+                children: <Widget>[
+                  Flexible(
+                    child: Text(
+                      module.coachName ?? 'AI Mentor',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.w500,
+                        color: textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '  ·  ',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      color: textSecondary,
+                    ),
+                  ),
+                  Icon(Icons.star_rounded, size: 14.0, color: textSecondary),
+                  const SizedBox(width: 3.0),
+                  Text(
+                    module.rating.toStringAsFixed(1),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 12.0,
+                      color: textSecondary,
+                    ),
+                  ),
+                  Text(
+                    '  ·  ',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.0,
+                      color: textSecondary,
+                    ),
+                  ),
+                  Text.rich(
+                    TextSpan(
+                      children: <InlineSpan>[
+                        TextSpan(
+                          text: '${module.totalModules}',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 12.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                        TextSpan(
+                          text: module.totalModules == 1 ? ' topic' : ' topics',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.0,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14.0),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  if (isEnrolled) ...<Widget>[
+                    Expanded(
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(999.0),
+                              child: SizedBox(
+                                height: 4.0,
+                                child: LinearProgressIndicator(
+                                  value: progressValue,
+                                  backgroundColor: isDark
+                                      ? AppColors.darkSurfaceHighest
+                                      : AppColors.lightBorder,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                        AppColors.primary,
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10.0),
+                          Text(
+                            '${module.completion}%',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 12.0,
+                              fontWeight: FontWeight.w600,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16.0),
+                  ] else
+                    const Spacer(),
+                  _buildCompactModuleActionButton(
+                    label: ctaLabel,
+                    isCompleted: isCompleted,
+                    isDark: isDark,
+                    textPrimary: textPrimary,
+                    onPressed: handleCardAction,
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -975,48 +934,40 @@ class _ModulesScreenState extends State<ModulesScreen> {
     required VoidCallback onPressed,
   }) {
     return SizedBox(
-      height: 32.0,
-      child: ElevatedButton(
+      height: 44.0,
+      child: OutlinedButton(
         onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isCompleted
-              ? (isDark
-                  ? AppColors.darkSurface
-                  : AppColors.lightSurfaceCard)
-              : AppColors.primary,
-          foregroundColor: isCompleted
-              ? textPrimary
-              : (isDark ? AppColors.onPrimaryDark : Colors.white),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.0),
-            side: isCompleted
-                ? BorderSide(
-                    color: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.lightBorder,
-                    width: 1.0,
-                  )
-                : BorderSide.none,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: textPrimary,
+          side: BorderSide(
+            color: isDark ? AppColors.darkBorderVariant : AppColors.lightBorder,
+            width: 1.0,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          visualDensity: VisualDensity.compact,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.0),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14.0),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            if (!isCompleted) ...<Widget>[
+              const Icon(
+                Icons.play_arrow_rounded,
+                size: 16.0,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 4.0),
+            ],
             Text(
               label,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
+                fontSize: 13.0,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(width: 4.0),
-            const Icon(
-              Icons.arrow_forward_rounded,
-              size: 12.0,
-            ),
+            const Icon(Icons.arrow_forward_rounded, size: 14.0),
           ],
         ),
       ),
@@ -1034,20 +985,20 @@ class _ModulesScreenState extends State<ModulesScreen> {
     final String title = _searchQuery.trim().isNotEmpty
         ? 'No modules matching "$_searchQuery"'
         : _selectedCategory == 'bookmarked'
-            ? 'No saved modules yet'
-            : _selectedCategory == 'in-progress'
-                ? 'No modules in progress'
-                : _selectedCategory == 'completed'
-                    ? 'No completed modules yet'
-                    : 'No published modules available';
+        ? 'No saved modules yet'
+        : _selectedCategory == 'in-progress'
+        ? 'No modules in progress'
+        : _selectedCategory == 'completed'
+        ? 'No completed modules yet'
+        : 'No published modules available';
 
     final String subtitle = _searchQuery.trim().isNotEmpty
         ? 'Try searching for a different language, keyword, or topic.'
         : _selectedCategory == 'bookmarked'
-            ? 'Tap the bookmark icon on any module card to save it for quick access.'
-            : _selectedCategory == 'in-progress'
-                ? 'Start learning a module to track your progression here.'
-                : 'Modules published by mentors will appear here.';
+        ? 'Tap the bookmark icon on any module card to save it for quick access.'
+        : _selectedCategory == 'in-progress'
+        ? 'Start learning a module to track your progression here.'
+        : 'Modules published by mentors will appear here.';
 
     final bool hasFilterOrSearch =
         _selectedCategory != 'all' || _searchQuery.trim().isNotEmpty;
@@ -1055,15 +1006,16 @@ class _ModulesScreenState extends State<ModulesScreen> {
     final IconData emptyIcon = _selectedCategory == 'bookmarked'
         ? Icons.bookmark_border_rounded
         : _selectedCategory == 'completed'
-            ? Icons.check_circle_outline_rounded
-            : _selectedCategory == 'in-progress'
-                ? Icons.timelapse_rounded
-                : _searchQuery.trim().isNotEmpty
-                    ? Icons.filter_alt_off_rounded
-                    : Icons.layers_clear_outlined;
+        ? Icons.check_circle_outline_rounded
+        : _selectedCategory == 'in-progress'
+        ? Icons.timelapse_rounded
+        : _searchQuery.trim().isNotEmpty
+        ? Icons.filter_alt_off_rounded
+        : Icons.layers_clear_outlined;
 
-    final Color borderColor =
-        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
 
     return Center(
       child: Padding(
@@ -1081,11 +1033,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: borderColor),
               ),
-              child: Icon(
-                emptyIcon,
-                size: 26.0,
-                color: textSecondary,
-              ),
+              child: Icon(emptyIcon, size: 26.0, color: textSecondary),
             ),
             const SizedBox(height: 16.0),
             Text(
@@ -1151,68 +1099,44 @@ class _ModulesScreenState extends State<ModulesScreen> {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 32.0),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (BuildContext context, int index) {
-            return _buildSkeletonCard(isDark: isDark);
-          },
-          childCount: 4,
-        ),
+        delegate: SliverChildBuilderDelegate((BuildContext context, int index) {
+          return _buildSkeletonCard(isDark: isDark);
+        }, childCount: 4),
       ),
     );
   }
 
   Widget _buildSkeletonCard({required bool isDark}) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1.0,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            width: 1.0,
+          ),
         ),
       ),
-      child: ShimmerLoading(
+      child: const ShimmerLoading(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.all(18.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      SkeletonBox(width: 60.0, height: 28.0, borderRadius: 14.0),
-                      SkeletonBox(width: 32.0, height: 32.0, borderRadius: 8.0),
-                    ],
-                  ),
-                  SizedBox(height: 14.0),
-                  SkeletonBox(width: 180.0, height: 16.0, borderRadius: 4.0),
-                  SizedBox(height: 6.0),
-                  SkeletonBox(width: double.infinity, height: 12.0, borderRadius: 4.0),
-                  SizedBox(height: 4.0),
-                  SkeletonBox(width: 220.0, height: 12.0, borderRadius: 4.0),
-                  SizedBox(height: 12.0),
-                  SkeletonBox(width: 140.0, height: 13.0, borderRadius: 4.0),
-                ],
-              ),
+            SkeletonBox(width: 56.0, height: 24.0, borderRadius: 12.0),
+            SizedBox(height: 14.0),
+            SkeletonBox(width: 200.0, height: 18.0, borderRadius: 4.0),
+            SizedBox(height: 8.0),
+            SkeletonBox(
+              width: double.infinity,
+              height: 12.0,
+              borderRadius: 4.0,
             ),
-            Divider(
-              height: 1.0,
-              thickness: 1.0,
-              color: isDark
-                  ? AppColors.darkBorder.withValues(alpha: 0.5)
-                  : AppColors.lightBorder.withValues(alpha: 0.7),
-            ),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: SkeletonBox(
-                width: double.infinity,
-                height: 42.0,
-                borderRadius: 12.0,
-              ),
+            SizedBox(height: 6.0),
+            SkeletonBox(width: 220.0, height: 12.0, borderRadius: 4.0),
+            SizedBox(height: 16.0),
+            SkeletonBox(
+              width: double.infinity,
+              height: 44.0,
+              borderRadius: 10.0,
             ),
           ],
         ),
@@ -1221,7 +1145,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   // ===========================================================================
-  // PRIMARY SCOPE SWITCHER (Modules vs Assessments, matching Web & Mobile Standards)
+  // PRIMARY SCOPE SWITCHER: two text tabs with a hairline underneath
   // ===========================================================================
   Widget _buildScopeSwitcher({
     required bool isDark,
@@ -1229,14 +1153,12 @@ class _ModulesScreenState extends State<ModulesScreen> {
     required Color textSecondary,
   }) {
     return Container(
-      height: 42.0,
-      padding: const EdgeInsets.all(3.5),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(14.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1.0,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            width: 1.0,
+          ),
         ),
       ),
       child: Row(
@@ -1244,18 +1166,16 @@ class _ModulesScreenState extends State<ModulesScreen> {
           _buildScopeTabItem(
             tab: ExploreTab.modules,
             label: 'Modules',
-            icon: Icons.layers_rounded,
             count: _modules.length,
-            isDark: isDark,
+            textPrimary: textPrimary,
             textSecondary: textSecondary,
           ),
-          const SizedBox(width: 4.0),
+          const SizedBox(width: 24.0),
           _buildScopeTabItem(
             tab: ExploreTab.assessments,
             label: 'Assessments',
-            icon: Icons.emoji_events_rounded,
             count: _assessments.length,
-            isDark: isDark,
+            textPrimary: textPrimary,
             textSecondary: textSecondary,
           ),
         ],
@@ -1266,95 +1186,48 @@ class _ModulesScreenState extends State<ModulesScreen> {
   Widget _buildScopeTabItem({
     required ExploreTab tab,
     required String label,
-    required IconData icon,
     required int count,
-    required bool isDark,
+    required Color textPrimary,
     required Color textSecondary,
   }) {
     final bool isSelected = _selectedTab == tab;
-
-    final Color activePillBg = isDark
-        ? AppColors.primary.withValues(alpha: 0.18)
-        : AppColors.primary.withValues(alpha: 0.12);
-    final Color activePillBorder = isDark
-        ? AppColors.primary.withValues(alpha: 0.55)
-        : AppColors.primary.withValues(alpha: 0.40);
-    final Color activeTextColor =
-        isDark ? Colors.white : AppColors.primaryVariant;
-
-    return Expanded(
+    return Semantics(
+      button: true,
+      selected: isSelected,
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
           setState(() => _selectedTab = tab);
         },
-        borderRadius: BorderRadius.circular(10.0),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          alignment: Alignment.center,
+        child: Container(
+          height: 48.0,
+          padding: const EdgeInsets.symmetric(horizontal: 2.0),
           decoration: BoxDecoration(
-            color: isSelected ? activePillBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(10.0),
-            border: Border.all(
-              color: isSelected ? activePillBorder : Colors.transparent,
-              width: 1.0,
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? textPrimary : Colors.transparent,
+                width: 2.0,
+              ),
             ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(
-                icon,
-                size: 15.5,
-                color: isSelected ? AppColors.primary : textSecondary,
-              ),
-              const SizedBox(width: 6.0),
               Text(
                 label,
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
+                  fontSize: 14.0,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? activeTextColor : textSecondary,
+                  color: isSelected ? textPrimary : textSecondary,
                 ),
               ),
               if (count > 0) ...<Widget>[
                 const SizedBox(width: 6.0),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6.0,
-                    vertical: 1.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? (isDark
-                            ? AppColors.primary.withValues(alpha: 0.25)
-                            : AppColors.primary.withValues(alpha: 0.18))
-                        : (isDark
-                            ? AppColors.darkSurface
-                            : const Color(0xFFE2E8F0)),
-                    borderRadius: BorderRadius.circular(999.0),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary.withValues(alpha: 0.45)
-                          : (isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 10.0,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected
-                          ? (isDark
-                              ? AppColors.primary
-                              : AppColors.primaryVariant)
-                          : textSecondary,
-                    ),
+                Text(
+                  '$count',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12.0,
+                    color: textSecondary,
                   ),
                 ),
               ],
@@ -1380,14 +1253,15 @@ class _ModulesScreenState extends State<ModulesScreen> {
     final String subtitle = _assessmentSearchQuery.trim().isNotEmpty
         ? 'Try refining your search keyword or filters.'
         : _selectedFilter == 'saved'
-            ? 'Tap the bookmark icon on any assessment card to save it for quick access.'
-            : 'Check back soon for new competition benchmarks.';
+        ? 'Tap the bookmark icon on any assessment card to save it for quick access.'
+        : 'Check back soon for new competition benchmarks.';
 
     final bool hasFilterOrSearch =
         _selectedFilter != 'all' || _assessmentSearchQuery.trim().isNotEmpty;
 
-    final Color borderColor =
-        isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
 
     return Center(
       child: Padding(
@@ -1478,7 +1352,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
     required Color textPrimary,
     required Color textSecondary,
   }) {
-
     Future<void> handleCardTap() async {
       HapticFeedback.lightImpact();
       await AssessmentPreviewSheet.show(
@@ -1489,8 +1362,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
           if (!mounted) return;
           setState(() {
             _assessments = _assessments
-                .map((AssessmentModel a) =>
-                    a.id == assessment.id ? a.copyWith(isUnlocked: true) : a)
+                .map(
+                  (AssessmentModel a) =>
+                      a.id == assessment.id ? a.copyWith(isUnlocked: true) : a,
+                )
                 .toList();
           });
         },
@@ -1511,22 +1386,25 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
       setState(() {
         _assessments = _assessments
-            .map((AssessmentModel a) =>
-                a.id == assessment.id ? a.copyWith(isInLibrary: nextState) : a)
+            .map(
+              (AssessmentModel a) => a.id == assessment.id
+                  ? a.copyWith(isInLibrary: nextState)
+                  : a,
+            )
             .toList();
       });
 
-      final bool ok = await widget.assessmentRepository.toggleAssessmentBookmark(
-        user.id,
-        assessment.id,
-        nextState,
-      );
+      final bool ok = await widget.assessmentRepository
+          .toggleAssessmentBookmark(user.id, assessment.id, nextState);
 
       if (!ok && mounted) {
         setState(() {
           _assessments = _assessments
-              .map((AssessmentModel a) =>
-                  a.id == assessment.id ? a.copyWith(isInLibrary: !nextState) : a)
+              .map(
+                (AssessmentModel a) => a.id == assessment.id
+                    ? a.copyWith(isInLibrary: !nextState)
+                    : a,
+              )
               .toList();
         });
         if (context.mounted) {
@@ -1535,196 +1413,160 @@ class _ModulesScreenState extends State<ModulesScreen> {
       }
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14.0),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceCard : Colors.white,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1.0,
+    final Widget bookmark = Semantics(
+      button: true,
+      label: assessment.isInLibrary
+          ? 'Remove saved assessment'
+          : 'Save assessment',
+      child: InkWell(
+        onTap: handleToggleBookmark,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 48.0,
+          height: 48.0,
+          child: Icon(
+            assessment.isInLibrary
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded,
+            size: 22.0,
+            color: assessment.isInLibrary ? textPrimary : textSecondary,
+          ),
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: handleCardTap,
-          borderRadius: BorderRadius.circular(20.0),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Header: Stack + Unlock status + Bookmark
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    LanguageAvatarStack(
-                      languages: assessment.stack,
-                      size: 26.0,
-                    ),
-                    Row(
-                      children: <Widget>[
-                        Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
-                        decoration: BoxDecoration(
-                          color: (assessment.isUnlocked
-                                  ? const Color(0xFF3ECF8E)
-                                  : const Color(0xFFF59E0B))
-                              .withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6.0),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Icon(
-                              assessment.isUnlocked
-                                  ? Icons.lock_open_rounded
-                                  : Icons.monetization_on_rounded,
-                              size: 11.0,
-                              color: assessment.isUnlocked
-                                  ? const Color(0xFF3ECF8E)
-                                  : const Color(0xFFF59E0B),
-                            ),
-                            const SizedBox(width: 3.0),
-                            Text(
-                              assessment.isUnlocked ? 'Unlocked' : '${assessment.costCoins}',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 10.0,
-                                fontWeight: FontWeight.w700,
-                                color: assessment.isUnlocked
-                                    ? const Color(0xFF3ECF8E)
-                                    : const Color(0xFFF59E0B),
-                              ),
-                            ),
-                          ],
-                        ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+            width: 1.0,
+          ),
+        ),
+      ),
+      child: InkWell(
+        onTap: handleCardTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  LanguageAvatarStack(
+                    languages: assessment.stack,
+                    size: 24.0,
+                    borderColor: isDark
+                        ? AppColors.darkBackground
+                        : AppColors.lightBackground,
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        assessment.isUnlocked
+                            ? Icons.lock_open_outlined
+                            : Icons.monetization_on_outlined,
+                        size: 16.0,
+                        color: textSecondary,
                       ),
-                      const SizedBox(width: 6.0),
-                        // Bookmark
-                        GestureDetector(
-                          onTap: handleToggleBookmark,
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.all(3.0),
-                            child: Icon(
-                              assessment.isInLibrary
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_border_rounded,
-                              size: 19.0,
-                              color: assessment.isInLibrary
-                                  ? AppColors.primary
-                                  : textSecondary.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12.0),
-
-                // Title & Description
-                Text(
-                  assessment.title,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15.0,
-                    fontWeight: FontWeight.w800,
-                    color: textPrimary,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                const SizedBox(height: 4.0),
-                Text(
-                  assessment.description,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.0,
-                    color: textSecondary,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12.0),
-
-                // Specifications Micro-Pill Row
-                Row(
-                  children: <Widget>[
-                    _buildMicroSpec(
-                      icon: Icons.timer_outlined,
-                      label: '${assessment.durationMins}m',
-                      textSecondary: textSecondary,
-                    ),
-                    const SizedBox(width: 12.0),
-                    _buildMicroSpec(
-                      icon: Icons.code_rounded,
-                      label: '${assessment.challengeCount} Tasks',
-                      textSecondary: textSecondary,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14.0),
-
-                Divider(
-                  height: 1.0,
-                  color: (isDark ? AppColors.darkBorder : AppColors.lightBorder)
-                      .withValues(alpha: 0.5),
-                ),
-                const SizedBox(height: 12.0),
-
-                // Footer: Mentor info + Action Button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Expanded(
-                      child: Row(
-                        children: <Widget>[
-                          CircleAvatar(
-                            radius: 11.0,
-                            backgroundColor: isDark
-                                ? AppColors.darkBackground
-                                : AppColors.lightBackground,
-                            backgroundImage: assessment.mentorAvatar != null
-                                ? NetworkImage(assessment.mentorAvatar!)
-                                : null,
-                            child: assessment.mentorAvatar == null
-                                ? Icon(
-                                    Icons.person_rounded,
-                                    size: 13.0,
-                                    color: textSecondary,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 6.0),
-                          Expanded(
-                            child: Text(
-                              assessment.mentorName,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.0,
+                      const SizedBox(width: 4.0),
+                      Text(
+                        assessment.isUnlocked
+                            ? 'Unlocked'
+                            : '${assessment.costCoins}',
+                        style: assessment.isUnlocked
+                            ? GoogleFonts.plusJakartaSans(
+                                fontSize: 12.0,
+                                fontWeight: FontWeight.w600,
+                                color: textSecondary,
+                              )
+                            : GoogleFonts.jetBrainsMono(
+                                fontSize: 12.0,
                                 fontWeight: FontWeight.w600,
                                 color: textSecondary,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
                       ),
+                      Transform.translate(
+                        offset: const Offset(12.0, 0.0),
+                        child: bookmark,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Text(
+                assessment.title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 17.0,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                  letterSpacing: -0.2,
+                  height: 1.25,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6.0),
+              Text(
+                assessment.description,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.0,
+                  color: textSecondary,
+                  height: 1.45,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10.0),
+              Row(
+                children: <Widget>[
+                  _buildMicroSpec(
+                    icon: Icons.timer_outlined,
+                    label: '${assessment.durationMins}m',
+                    textSecondary: textSecondary,
+                  ),
+                  const SizedBox(width: 16.0),
+                  _buildMicroSpec(
+                    icon: Icons.code_rounded,
+                    label: '${assessment.challengeCount} Tasks',
+                    textSecondary: textSecondary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14.0),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      assessment.mentorName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.w500,
+                        color: textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    ElevatedButton(
+                  ),
+                  const SizedBox(width: 12.0),
+                  SizedBox(
+                    height: 44.0,
+                    child: OutlinedButton(
                       onPressed: handleCardTap,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor:
-                            isDark ? AppColors.onPrimaryDark : Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14.0,
-                          vertical: 7.0,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: textPrimary,
+                        side: BorderSide(
+                          color: isDark
+                              ? AppColors.darkBorderVariant
+                              : AppColors.lightBorder,
+                          width: 1.0,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10.0),
                         ),
-                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1732,22 +1574,19 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           Text(
                             'View',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 13.0,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(width: 4.0),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 13.0,
-                          ),
+                          const Icon(Icons.arrow_forward_rounded, size: 14.0),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -1762,12 +1601,12 @@ class _ModulesScreenState extends State<ModulesScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Icon(icon, size: 13.5, color: textSecondary.withValues(alpha: 0.7)),
+        Icon(icon, size: 14.0, color: textSecondary),
         const SizedBox(width: 4.0),
         Text(
           label,
           style: GoogleFonts.jetBrainsMono(
-            fontSize: 11.0,
+            fontSize: 12.0,
             color: textSecondary,
             fontWeight: FontWeight.w600,
           ),

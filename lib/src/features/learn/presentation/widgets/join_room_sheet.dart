@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -119,7 +118,7 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bgColor = isDark ? AppColors.darkSurfaceCard : Colors.white;
+    final Color bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final Color textPrimary =
         isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final Color textSecondary =
@@ -129,53 +128,48 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
 
     final EdgeInsets keyboardInsets = MediaQuery.of(context).viewInsets;
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-      child: Container(
-        padding: EdgeInsets.only(bottom: keyboardInsets.bottom),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28.0)),
-          border: Border.all(color: borderColor, width: 1.0),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 24.0),
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Drag handle
-                Center(
-                  child: Container(
-                    width: 36.0,
-                    height: 4.0,
-                    margin: const EdgeInsets.only(bottom: 16.0),
-                    decoration: BoxDecoration(
-                      color: textSecondary.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2.0),
-                    ),
+    return Container(
+      padding: EdgeInsets.only(bottom: keyboardInsets.bottom),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16.0)),
+        border: Border(top: BorderSide(color: borderColor)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 20.0),
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 36.0,
+                  height: 4.0,
+                  margin: const EdgeInsets.only(bottom: 12.0),
+                  decoration: BoxDecoration(
+                    color: borderColor,
+                    borderRadius: BorderRadius.circular(2.0),
                   ),
                 ),
-
-                if (_admissionPendingData != null)
-                  _buildAdmissionPendingView(
-                    isDark: isDark,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                    borderColor: borderColor,
-                  )
-                else
-                  _buildJoinInputView(
-                    isDark: isDark,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                    borderColor: borderColor,
-                  ),
-              ],
-            ),
+              ),
+              if (_admissionPendingData != null)
+                _buildAdmissionPendingView(
+                  isDark: isDark,
+                  textPrimary: textPrimary,
+                  textSecondary: textSecondary,
+                  borderColor: borderColor,
+                )
+              else
+                _buildJoinInputView(
+                  isDark: isDark,
+                  textPrimary: textPrimary,
+                  textSecondary: textSecondary,
+                  borderColor: borderColor,
+                ),
+            ],
           ),
         ),
       ),
@@ -195,39 +189,38 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
             Text(
-              'Join a Hub',
+              'Join a hub',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18.0,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: textPrimary,
-                letterSpacing: -0.3,
               ),
             ),
             IconButton(
+              tooltip: 'Close',
               onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close_rounded, size: 20.0),
+              icon: const Icon(Icons.close_rounded, size: 22.0),
+              constraints: const BoxConstraints(minWidth: 48.0, minHeight: 48.0),
               color: textSecondary,
             ),
           ],
         ),
-        const SizedBox(height: 4.0),
         Text(
-          'Enter the 6-character code provided by your mentor',
+          'Enter the 6-character code your mentor gave you.',
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 12.5,
+            fontSize: 14.0,
             color: textSecondary,
           ),
         ),
-        const SizedBox(height: 24.0),
+        const SizedBox(height: 20.0),
 
-        // 6-digit segmented inputs with unified backspace & focus handling
+        // Six boxes over one hidden text field that handles typing, paste and backspace.
         GestureDetector(
           onTap: () => _focusNode.requestFocus(),
           behavior: HitTestBehavior.opaque,
           child: Stack(
             alignment: Alignment.center,
             children: <Widget>[
-              // Invisible real TextField capturing keyboard input, IME, and backspacing natively
               Opacity(
                 opacity: 0.0,
                 child: SizedBox(
@@ -255,42 +248,32 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
                   ),
                 ),
               ),
-
-              // Segmented visual digit boxes
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List<Widget>.generate(_codeLength, (int i) {
                   final String code = _fullCode;
                   final String char = i < code.length ? code[i] : '';
-                  final bool hasVal = char.isNotEmpty;
                   final bool isCurrentFocus = _focusNode.hasFocus &&
                       (i == code.length ||
                           (i == _codeLength - 1 && code.length == _codeLength));
 
                   return Container(
                     width: 46.0,
-                    height: 54.0,
+                    height: 56.0,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.darkSurface
-                          : AppColors.lightSurface,
-                      borderRadius: BorderRadius.circular(14.0),
+                      borderRadius: BorderRadius.circular(8.0),
                       border: Border.all(
-                        color: isCurrentFocus
-                            ? AppColors.primary
-                            : (hasVal
-                                ? AppColors.primary.withValues(alpha: 0.5)
-                                : borderColor),
-                        width: isCurrentFocus ? 1.8 : 1.0,
+                        color: isCurrentFocus ? textPrimary : borderColor,
+                        width: isCurrentFocus ? 2.0 : 1.0,
                       ),
                     ),
                     child: Text(
                       char,
                       style: GoogleFonts.jetBrainsMono(
                         fontSize: 20.0,
-                        fontWeight: FontWeight.w800,
-                        color: hasVal ? AppColors.primary : textPrimary,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
                       ),
                     ),
                   );
@@ -302,24 +285,26 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
 
         if (_errorMessage != null) ...<Widget>[
           const SizedBox(height: 12.0),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10.0),
-              border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
-            ),
+          Semantics(
+            liveRegion: true,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Icon(Icons.error_outline_rounded, size: 15.0, color: Colors.redAccent),
-                const SizedBox(width: 8.0),
+                const Padding(
+                  padding: EdgeInsets.only(top: 1.0),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 16.0,
+                    color: AppColors.error,
+                  ),
+                ),
+                const SizedBox(width: 6.0),
                 Expanded(
                   child: Text(
                     _errorMessage!,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      color: Colors.redAccent,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 13.0,
+                      color: AppColors.error,
                     ),
                   ),
                 ),
@@ -328,7 +313,7 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
           ),
         ],
 
-        const SizedBox(height: 24.0),
+        const SizedBox(height: 20.0),
 
         SizedBox(
           width: double.infinity,
@@ -342,20 +327,17 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
               foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14.0),
+                borderRadius: BorderRadius.circular(12.0),
               ),
             ),
             child: _isLoading
                 ? const SizedBox(
                     width: 20.0,
                     height: 20.0,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
-                      color: Colors.white,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2.0),
                   )
                 : Text(
-                    'Submit Code',
+                    'Join hub',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14.0,
                       fontWeight: FontWeight.w700,
@@ -373,188 +355,116 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
     required Color textSecondary,
     required Color borderColor,
   }) {
-    final String roomName = _admissionPendingData!['name'] as String? ?? 'Room';
+    final String roomName = _admissionPendingData!['name'] as String? ?? 'Hub';
     final String section = _admissionPendingData!['section'] as String? ?? 'General';
     final String mentor = _admissionPendingData!['mentorName'] as String? ?? 'Mentor';
 
-    return Column(
+    Widget step(IconData icon, String title, String body, bool done) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Title
-        Text(
-          roomName,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18.0,
-            fontWeight: FontWeight.w800,
-            color: textPrimary,
-          ),
-          textAlign: TextAlign.center,
+        Icon(
+          icon,
+          size: 20.0,
+          color: done ? AppColors.primary : textSecondary,
         ),
-        const SizedBox(height: 4.0),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                borderRadius: BorderRadius.circular(6.0),
-                border: Border.all(color: borderColor),
-              ),
-              child: Text(
-                section,
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: textSecondary,
+        const SizedBox(width: 12.0),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
                 ),
               ),
-            ),
-            const SizedBox(width: 8.0),
-            Text(
-              'Mentor: $mentor',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                color: textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20.0),
-
-        // Stepper Status (Matching Web 1:1)
-        Container(
-          padding: const EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-            borderRadius: BorderRadius.circular(16.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Container(
-                    width: 26.0,
-                    height: 26.0,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    ),
-                    child: const Icon(
-                      Icons.check_rounded,
-                      size: 15.0,
-                      color: Color(0xFF10B981),
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Admission Request Sent',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
-                      ),
-                      Text(
-                        'Join code verified successfully',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Container(
-                margin: const EdgeInsets.only(left: 12.0),
-                width: 1.5,
-                height: 16.0,
-                color: borderColor,
-              ),
-              Row(
-                children: <Widget>[
-                  Container(
-                    width: 26.0,
-                    height: 26.0,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                    ),
-                    child: const Center(
-                      child: SizedBox(
-                        width: 10.0,
-                        height: 10.0,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFFF59E0B),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Waiting for Mentor Approval',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFF59E0B),
-                        ),
-                      ),
-                      Text(
-                        'You will get instant access once approved',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              const SizedBox(height: 2.0),
+              Text(
+                body,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.0,
+                  color: textSecondary,
+                  height: 1.4,
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16.0),
+      ],
+    );
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
         Text(
-          'Feel free to close this window. You can check your dashboard anytime for admission status updates.',
-          textAlign: TextAlign.center,
+          roomName,
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.0,
+            fontSize: 18.0,
+            fontWeight: FontWeight.w700,
+            color: textPrimary,
+          ),
+        ),
+        const SizedBox(height: 2.0),
+        Text(
+          'Section $section · $mentor',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.0,
+            color: textSecondary,
+          ),
+        ),
+        const SizedBox(height: 16.0),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          decoration: BoxDecoration(
+            border: Border.symmetric(horizontal: BorderSide(color: borderColor)),
+          ),
+          child: Column(
+            children: <Widget>[
+              step(
+                Icons.check_circle_outline_rounded,
+                'Request sent',
+                'Your code was verified.',
+                true,
+              ),
+              const SizedBox(height: 16.0),
+              step(
+                Icons.hourglass_empty_rounded,
+                'Waiting for your mentor',
+                'You get access as soon as they approve you.',
+                false,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12.0),
+        Text(
+          'You can close this window. The status shows on your Hubs screen.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.0,
             height: 1.45,
             color: textSecondary,
           ),
         ),
-        const SizedBox(height: 20.0),
-
+        const SizedBox(height: 16.0),
         SizedBox(
           width: double.infinity,
           height: 48.0,
-          child: ElevatedButton(
+          child: OutlinedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            style: OutlinedButton.styleFrom(
               foregroundColor: textPrimary,
-              elevation: 0,
+              side: BorderSide(color: borderColor),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14.0),
-                side: BorderSide(color: borderColor),
+                borderRadius: BorderRadius.circular(12.0),
               ),
             ),
             child: Text(
               'Done',
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
+                fontSize: 14.0,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

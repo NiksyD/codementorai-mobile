@@ -63,7 +63,7 @@ void main() {
       const TestCaseModel(input: 'B\n2', expectedOutput: 'Good'),
     ];
 
-    testWidgets('Renders test cases and ChoiceChip with showCheckmark false', (
+    testWidgets('Renders test cases as plain text tabs with input and expected output', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -77,18 +77,14 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Console & Tests'), findsOneWidget);
+      expect(find.text('Console and tests'), findsOneWidget);
       expect(find.text('Testcase'), findsOneWidget);
-      expect(find.text('Case 1'), findsOneWidget);
-      expect(find.text('Case 2'), findsOneWidget);
-      expect(find.text('Input:'), findsOneWidget);
-      expect(find.text('Expected Output:'), findsOneWidget);
-
-      // Verify ChoiceChip has showCheckmark == false
-      final ChoiceChip chip = tester.widget<ChoiceChip>(
-        find.ancestor(of: find.text('Case 1'), matching: find.byType(ChoiceChip)),
-      );
-      expect(chip.showCheckmark, isFalse);
+      // Cases are text tabs ("Case 1", "Case 2"), not chips.
+      expect(find.textContaining('Case 1', findRichText: true), findsOneWidget);
+      expect(find.textContaining('Case 2', findRichText: true), findsOneWidget);
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.text('Input'), findsOneWidget);
+      expect(find.text('Expected output'), findsOneWidget);
     });
 
     testWidgets('Renders execution failure with per-case output and status dots', (
@@ -131,9 +127,16 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Console & Tests'), findsOneWidget);
-      expect(find.text('Wrong Answer (0/2 passed)'), findsOneWidget);
-      expect(find.text('Actual Output (stdout):'), findsOneWidget);
+      expect(find.text('Console and tests'), findsOneWidget);
+      expect(
+        find.textContaining('Wrong answer', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('0 of 2 passed', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.text('Actual output (does not match)'), findsOneWidget);
       expect(find.text('Invalid'), findsOneWidget);
     });
 
@@ -178,11 +181,18 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Console & Tests'), findsOneWidget);
-      expect(find.text('Accepted (2/2 passed)'), findsOneWidget);
-      expect(find.text('Submit Solution →'), findsOneWidget);
+      expect(find.text('Console and tests'), findsOneWidget);
+      expect(
+        find.textContaining('Accepted', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('2 of 2 passed', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.text('Submit solution'), findsOneWidget);
 
-      await tester.tap(find.text('Submit Solution →'));
+      await tester.tap(find.text('Submit solution'));
       await tester.pump();
 
       expect(submitted, isTrue);
@@ -279,8 +289,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verified full-width row header and attempt details
-      expect(find.text('TOTAL ATTEMPTS'), findsOneWidget);
-      expect(find.text('Attempt #1'), findsOneWidget);
+      expect(find.text('Total attempts'), findsOneWidget);
+      expect(
+        find.textContaining('Attempt', findRichText: true),
+        findsOneWidget,
+      );
       expect(find.text('Passed'), findsOneWidget);
       expect(find.text('100%'), findsOneWidget);
 
@@ -288,14 +301,17 @@ void main() {
       expect(find.textContaining('Grade'), findsNothing);
 
       // Tap row to expand accordion
-      await tester.tap(find.text('Attempt #1'));
+      await tester.tap(find.textContaining('Attempt', findRichText: true));
       await tester.pumpAndSettle();
 
       // Expanded accordion displays language, Copy and Restore buttons, and code
-      expect(find.text('JAVASCRIPT'), findsOneWidget);
+      expect(find.text('JavaScript'), findsOneWidget);
       expect(find.text('Copy'), findsOneWidget);
       expect(find.text('Restore'), findsOneWidget);
-      expect(find.text('function solve() { return true; }'), findsOneWidget);
+      expect(
+        find.textContaining('function solve()', findRichText: true),
+        findsOneWidget,
+      );
     });
   });
 }

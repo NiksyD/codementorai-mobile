@@ -63,237 +63,318 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color sheetBg = isDark ? AppColors.darkBackground : Colors.white;
-    final Color cardBg = isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard;
-    final Color borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final Color textPrimary = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color textSecondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final Color sheetBg = isDark
+        ? AppColors.darkSurface
+        : AppColors.lightSurface;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final bool hasRun = widget.result != null;
     final bool isSuccess = widget.result?.isSuccess ?? false;
+
+    final List<(String, String, String?)> tabs = <(String, String, String?)>[
+      (
+        'testcases',
+        'Testcase',
+        widget.testCases.isNotEmpty ? '${widget.testCases.length}' : null,
+      ),
+      ('results', 'Test result', null),
+      ('log', 'Console', null),
+    ];
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.72,
       decoration: BoxDecoration(
         color: sheetBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24.0)),
-        border: Border.all(color: borderColor),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16.0)),
+        border: Border(top: BorderSide(color: borderColor)),
       ),
-      child: Column(
-        children: <Widget>[
-          // Drag handle
-          Container(
-            width: 36.0,
-            height: 4.0,
-            margin: const EdgeInsets.only(top: 10.0, bottom: 6.0),
-            decoration: BoxDecoration(
-              color: textSecondary.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2.0),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: <Widget>[
+            Container(
+              width: 36.0,
+              height: 4.0,
+              margin: const EdgeInsets.only(top: 10.0, bottom: 4.0),
+              decoration: BoxDecoration(
+                color: borderColor,
+                borderRadius: BorderRadius.circular(2.0),
+              ),
             ),
-          ),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.code_rounded,
-                      color: textSecondary,
-                      size: 20.0,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20.0, 0.0, 4.0, 0.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    'Console and tests',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                      letterSpacing: -0.2,
                     ),
-                    const SizedBox(width: 8.0),
-                    Text(
-                      'Console & Tests',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15.0,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: const Icon(Icons.close_rounded, size: 22.0),
+                    color: textSecondary,
+                    constraints: const BoxConstraints(
+                      minWidth: 48.0,
+                      minHeight: 48.0,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: borderColor)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Row(
+                children: <Widget>[
+                  for (int i = 0; i < tabs.length; i++) ...<Widget>[
+                    if (i > 0) const SizedBox(width: 22.0),
+                    Semantics(
+                      button: true,
+                      selected: _activeTab == tabs[i].$1,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _activeTab = tabs[i].$1);
+                        },
+                        child: Container(
+                          height: 48.0,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: _activeTab == tabs[i].$1
+                                    ? textPrimary
+                                    : Colors.transparent,
+                                width: 2.0,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              if (tabs[i].$1 == 'results' &&
+                                  hasRun) ...<Widget>[
+                                Icon(
+                                  isSuccess
+                                      ? Icons.check_rounded
+                                      : Icons.close_rounded,
+                                  size: 16.0,
+                                  color: isSuccess
+                                      ? textSecondary
+                                      : AppColors.error,
+                                ),
+                                const SizedBox(width: 3.0),
+                              ],
+                              Text(
+                                tabs[i].$2,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14.0,
+                                  fontWeight: _activeTab == tabs[i].$1
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: _activeTab == tabs[i].$1
+                                      ? textPrimary
+                                      : textSecondary,
+                                ),
+                              ),
+                              if (tabs[i].$3 != null) ...<Widget>[
+                                const SizedBox(width: 5.0),
+                                Text(
+                                  tabs[i].$3!,
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 12.0,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  color: textSecondary,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-
-          // 3 sub-tabs matching My Activity Screen segment switcher: Testcase | Test Result | Console
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 18.0),
-            padding: const EdgeInsets.all(3.0),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurfaceCard : AppColors.lightSurfaceCard,
-              borderRadius: BorderRadius.circular(12.0),
-              border: Border.all(color: borderColor),
-            ),
-            child: Row(
-              children: <Widget>[
-                // Tab 1: Testcase
-                Expanded(
-                  child: _buildConsoleTabButton(
-                    tabId: 'testcases',
-                    icon: Icons.checklist_rounded,
-                    label: 'Testcase',
-                    count: widget.testCases.isNotEmpty ? widget.testCases.length : null,
-                    isDark: isDark,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 3.0),
-
-                // Tab 2: Test Result
-                Expanded(
-                  child: _buildConsoleTabButton(
-                    tabId: 'results',
-                    icon: Icons.fact_check_rounded,
-                    label: 'Test Result',
-                    statusDotColor: hasRun
-                        ? (isSuccess ? const Color(0xFF10B981) : AppColors.error)
-                        : null,
-                    isDark: isDark,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 3.0),
-
-                // Tab 3: Console
-                Expanded(
-                  child: _buildConsoleTabButton(
-                    tabId: 'log',
-                    icon: Icons.terminal_rounded,
-                    label: 'Console',
-                    isDark: isDark,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 12.0),
-
-          // Content body
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8.0),
-              child: _activeTab == 'testcases'
-                  ? _buildTestcasesTab(cardBg, borderColor, textPrimary, textSecondary, isDark)
-                  : (_activeTab == 'results'
-                      ? _buildResultsTab(cardBg, borderColor, textPrimary, textSecondary, isDark, hasRun, isSuccess)
-                      : _buildTerminalTab(cardBg, borderColor, textPrimary, textSecondary, hasRun, isSuccess)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConsoleTabButton({
-    required String tabId,
-    required IconData icon,
-    required String label,
-    int? count,
-    Color? statusDotColor,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    final bool isSelected = _activeTab == tabId;
-    final Color selectedBg = isDark ? AppColors.darkSurface : Colors.white;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _activeTab = tabId);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-        decoration: BoxDecoration(
-          color: isSelected ? selectedBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(9.0),
-          boxShadow: isSelected
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-                    blurRadius: 4.0,
-                    offset: const Offset(0, 1),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(
-              icon,
-              size: 14.0,
-              color: isSelected ? AppColors.primary : textSecondary,
-            ),
-            const SizedBox(width: 4.5),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.5,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  color: isSelected ? textPrimary : textSecondary,
-                ),
+                ],
               ),
             ),
-            if (count != null) ...<Widget>[
-              const SizedBox(width: 4.0),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary.withValues(alpha: 0.12)
-                      : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
-                  borderRadius: BorderRadius.circular(999.0),
-                ),
-                child: Text(
-                  '$count',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? AppColors.primary : textSecondary,
-                  ),
-                ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20.0, 14.0, 20.0, 16.0),
+                child: _activeTab == 'testcases'
+                    ? _buildTestcasesTab(
+                        borderColor,
+                        textPrimary,
+                        textSecondary,
+                        isDark,
+                      )
+                    : (_activeTab == 'results'
+                          ? _buildResultsTab(
+                              borderColor,
+                              textPrimary,
+                              textSecondary,
+                              isDark,
+                              hasRun,
+                              isSuccess,
+                            )
+                          : _buildTerminalTab(
+                              borderColor,
+                              textPrimary,
+                              textSecondary,
+                              isDark,
+                              hasRun,
+                              isSuccess,
+                            )),
               ),
-            ],
-            if (statusDotColor != null) ...<Widget>[
-              const SizedBox(width: 5.0),
-              Container(
-                width: 6.5,
-                height: 6.5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: statusDotColor,
-                ),
-              ),
-            ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  /// ── TAB 1: Testcase inputs & expected output browsing ─────────────────────
+  /// A label over a code box. The box is the only tinted thing.
+  Widget _codeBlock({
+    required String label,
+    required String text,
+    required Color borderColor,
+    required Color textPrimary,
+    required Color textSecondary,
+    required bool isDark,
+    Color? textColor,
+    Color? boxBorder,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.0,
+            color: textSecondary,
+          ),
+        ),
+        const SizedBox(height: 4.0),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10.0),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkSurfaceLowest
+                : AppColors.lightSurfaceCard,
+            borderRadius: BorderRadius.circular(8.0),
+            border: Border.all(color: boxBorder ?? borderColor),
+          ),
+          child: SelectableText(
+            text,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 12.5,
+              height: 1.45,
+              color: textColor ?? textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _caseTabs({
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+    List<bool?>? passed,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List<Widget>.generate(widget.testCases.length, (int idx) {
+            final bool isSelected = _selectedCaseIdx == idx;
+            final bool? ok = passed != null && idx < passed.length
+                ? passed[idx]
+                : null;
+            return InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedCaseIdx = idx);
+              },
+              child: Container(
+                height: 44.0,
+                margin: const EdgeInsets.only(right: 18.0),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isSelected ? textPrimary : Colors.transparent,
+                      width: 2.0,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (ok != null) ...<Widget>[
+                      Icon(
+                        ok ? Icons.check_rounded : Icons.close_rounded,
+                        size: 15.0,
+                        color: ok ? textSecondary : AppColors.error,
+                      ),
+                      const SizedBox(width: 4.0),
+                    ],
+                    Text.rich(
+                      TextSpan(
+                        children: <InlineSpan>[
+                          TextSpan(
+                            text: 'Case ',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.0,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: isSelected ? textPrimary : textSecondary,
+                            ),
+                          ),
+                          TextSpan(
+                            text: '${idx + 1}',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 13.0,
+                              color: isSelected ? textPrimary : textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  /// Testcase inputs and expected output.
   Widget _buildTestcasesTab(
-    Color cardBg,
     Color borderColor,
     Color textPrimary,
     Color textSecondary,
@@ -303,7 +384,13 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24.0),
-          child: Text('No test cases defined', style: TextStyle(color: textSecondary)),
+          child: Text(
+            'No test cases defined',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.0,
+              color: textSecondary,
+            ),
+          ),
         ),
       );
     }
@@ -314,176 +401,75 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Case selector pills (clean neutral selector, matching Web)
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List<Widget>.generate(widget.testCases.length, (int idx) {
-              final bool isSelected = _selectedCaseIdx == idx;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ChoiceChip(
-                  showCheckmark: false,
-                  label: Text('Case ${idx + 1}'),
-                  selected: isSelected,
-                  onSelected: (bool val) {
-                    if (val) setState(() => _selectedCaseIdx = idx);
-                  },
-                  labelStyle: GoogleFonts.jetBrainsMono(
-                    fontSize: 11.5,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected
-                        ? (isDark ? AppColors.primary : AppColors.primaryVariant)
-                        : textSecondary,
-                  ),
-                  selectedColor: isDark
-                      ? AppColors.primary.withValues(alpha: 0.15)
-                      : AppColors.primary.withValues(alpha: 0.12),
-                  backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20.0),
-                    side: BorderSide(
-                      color: isSelected
-                          ? AppColors.primary.withValues(alpha: 0.6)
-                          : borderColor,
-                      width: 1.0,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
+        _caseTabs(
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          borderColor: borderColor,
         ),
-
         const SizedBox(height: 14.0),
-
-        // Input Box
-        Text(
-          'Input:',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: textSecondary,
-          ),
+        _codeBlock(
+          label: 'Input',
+          text: tc.input.isEmpty ? '(empty input)' : tc.input,
+          borderColor: borderColor,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          isDark: isDark,
         ),
-        const SizedBox(height: 4.0),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(8.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: SelectableText(
-            tc.input.isEmpty ? '(empty input)' : tc.input,
-            style: GoogleFonts.jetBrainsMono(fontSize: 12.0, color: textPrimary),
-          ),
+        const SizedBox(height: 14.0),
+        _codeBlock(
+          label: 'Expected output',
+          text: tc.expectedOutput,
+          borderColor: borderColor,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          isDark: isDark,
         ),
-
-        const SizedBox(height: 12.0),
-
-        // Expected Output Box
-        Text(
-          'Expected Output:',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: textSecondary,
-          ),
-        ),
-        const SizedBox(height: 4.0),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(8.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: SelectableText(
-            tc.expectedOutput,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 12.0,
-              color: const Color(0xFF10B981),
-              fontWeight: FontWeight.w600,
+        const SizedBox(height: 18.0),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                'Run tests to check your code against every case.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.0,
+                  color: textSecondary,
+                  height: 1.4,
+                ),
+              ),
             ),
-          ),
-        ),
-
-        const SizedBox(height: 16.0),
-
-        // Idle run prompt
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 32.0,
-                height: 32.0,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: const Icon(
-                  Icons.play_circle_outline_rounded,
-                  size: 18.0,
-                  color: AppColors.primary,
-                ),
-              ),
+            if (widget.onRunCode != null) ...<Widget>[
               const SizedBox(width: 12.0),
-              Expanded(
-                child: Text(
-                  'Tap "Run Tests" to evaluate your code against all test cases.',
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  widget.onRunCode!();
+                },
+                icon: const Icon(Icons.play_arrow_rounded, size: 18.0),
+                label: Text(
+                  'Run Tests',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.0,
-                    height: 1.35,
-                    fontWeight: FontWeight.w500,
-                    color: textSecondary,
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: textPrimary,
+                  minimumSize: const Size(48.0, 44.0),
+                  side: BorderSide(color: borderColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
                   ),
                 ),
               ),
-              if (widget.onRunCode != null) ...<Widget>[
-                const SizedBox(width: 12.0),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    widget.onRunCode!();
-                  },
-                  icon: const Icon(Icons.play_arrow_rounded, size: 15.0),
-                  label: const Text('Run Tests'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-                    minimumSize: const Size(0, 36.0),
-                    textStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.0,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                ),
-              ],
             ],
-          ),
+          ],
         ),
       ],
     );
   }
 
-  /// ── TAB 2: Execution Results Comparison (1:1 with Web BrowserIde) ─────────
+  /// What happened on the last run, case by case.
   Widget _buildResultsTab(
-    Color cardBg,
     Color borderColor,
     Color textPrimary,
     Color textSecondary,
@@ -492,35 +478,53 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
     bool isSuccess,
   ) {
     if (!hasRun) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 40.0),
-          child: Column(
-            children: <Widget>[
-              Icon(Icons.science_outlined, size: 36.0, color: textSecondary.withValues(alpha: 0.5)),
-              const SizedBox(height: 10.0),
-              Text(
-                'Run your code to view test execution results.',
-                style: GoogleFonts.plusJakartaSans(fontSize: 13.0, color: textSecondary),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32.0),
+        child: Column(
+          children: <Widget>[
+            Text(
+              'No results yet',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15.0,
+                fontWeight: FontWeight.w600,
+                color: textPrimary,
               ),
-              if (widget.onRunCode != null) ...<Widget>[
-                const SizedBox(height: 14.0),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    widget.onRunCode!();
-                  },
-                  icon: const Icon(Icons.play_arrow_rounded, size: 18.0),
-                  label: const Text('Run Code', style: TextStyle(fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            ),
+            const SizedBox(height: 4.0),
+            Text(
+              'Run your code to see how it does on each test case.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13.0,
+                color: textSecondary,
+              ),
+            ),
+            if (widget.onRunCode != null) ...<Widget>[
+              const SizedBox(height: 14.0),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  widget.onRunCode!();
+                },
+                icon: const Icon(Icons.play_arrow_rounded, size: 18.0),
+                label: Text(
+                  'Run Code',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: textPrimary,
+                  minimumSize: const Size(48.0, 44.0),
+                  side: BorderSide(color: borderColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       );
     }
@@ -529,308 +533,204 @@ class _PracticeConsoleSheetState extends State<PracticeConsoleSheet> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24.0),
-          child: Text('No test cases defined', style: TextStyle(color: textSecondary)),
+          child: Text(
+            'No test cases defined',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.0,
+              color: textSecondary,
+            ),
+          ),
         ),
       );
     }
 
     final int safeIdx = _selectedCaseIdx.clamp(0, widget.testCases.length - 1);
     final TestCaseModel tc = widget.testCases[safeIdx];
-
-    final TestCaseResultModel? activeCr = widget.result!.caseResults.length > safeIdx
+    final TestCaseResultModel? activeCr =
+        widget.result!.caseResults.length > safeIdx
         ? widget.result!.caseResults[safeIdx]
         : null;
-
     final bool currentCasePassed = activeCr != null
         ? activeCr.passed
         : isSuccess;
-
     final String actualOutputText = activeCr != null
         ? activeCr.actual
-        : (widget.result!.stdout.isNotEmpty ? widget.result!.stdout.join('\n') : (isSuccess ? tc.expectedOutput : 'No stdout recorded'));
+        : (widget.result!.stdout.isNotEmpty
+              ? widget.result!.stdout.join('\n')
+              : (isSuccess ? tc.expectedOutput : 'No stdout recorded'));
+
+    final String verdict = isSuccess
+        ? 'Accepted'
+        : (widget.result!.isCompileError
+              ? 'Compilation error'
+              : 'Wrong answer');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // ── 1. Execution Verdict Status Banner ──────────────────────────────
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-          decoration: BoxDecoration(
-            color: isSuccess
-                ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                : AppColors.error.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10.0),
-            border: Border.all(
-              color: isSuccess
-                  ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                  : AppColors.error.withValues(alpha: 0.3),
+        Row(
+          children: <Widget>[
+            Icon(
+              isSuccess ? Icons.check_rounded : Icons.close_rounded,
+              size: 20.0,
+              color: isSuccess ? textPrimary : AppColors.error,
             ),
-          ),
-          child: Row(
-            children: <Widget>[
-              Icon(
-                isSuccess ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                size: 18.0,
-                color: isSuccess ? const Color(0xFF10B981) : AppColors.error,
+            const SizedBox(width: 6.0),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: <InlineSpan>[
+                    TextSpan(
+                      text: verdict,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15.0,
+                        fontWeight: FontWeight.w700,
+                        color: isSuccess ? textPrimary : AppColors.error,
+                      ),
+                    ),
+                    TextSpan(
+                      text:
+                          '   ${widget.result!.passedTestCases} of ${widget.result!.totalTestCases} passed',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 12.0,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8.0),
+            ),
+            if (widget.result!.runtime != null)
+              Text(
+                '${widget.result!.runtime}',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 12.0,
+                  color: textSecondary,
+                ),
+              ),
+          ],
+        ),
+        if (isSuccess && widget.onSubmitSolution != null) ...<Widget>[
+          const SizedBox(height: 12.0),
+          Row(
+            children: <Widget>[
               Expanded(
                 child: Text(
-                  isSuccess
-                      ? 'Accepted (${widget.result!.passedTestCases}/${widget.result!.totalTestCases} passed)'
-                      : (widget.result!.isCompileError
-                          ? 'Compilation Error'
-                          : 'Wrong Answer (${widget.result!.passedTestCases}/${widget.result!.totalTestCases} passed)'),
+                  'All tests passed. Submit your solution to complete this exercise.',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: isSuccess ? const Color(0xFF10B981) : AppColors.error,
+                    fontSize: 13.0,
+                    color: textSecondary,
+                    height: 1.4,
                   ),
                 ),
               ),
-              if (widget.result!.runtime != null)
-                Text(
-                  'Runtime: ${widget.result!.runtime}',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: isSuccess ? const Color(0xFF10B981) : AppColors.error,
+              const SizedBox(width: 12.0),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  widget.onSubmitSolution!();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: isDark
+                      ? AppColors.onPrimaryDark
+                      : Colors.white,
+                  elevation: 0,
+                  minimumSize: const Size(48.0, 44.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
                   ),
                 ),
+                child: Text(
+                  'Submit solution',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ),
-        ),
-
-        // ── 2. "Submit Solution →" Prompt Banner ────────────────────────────
-        if (isSuccess && widget.onSubmitSolution != null) ...<Widget>[
-          const SizedBox(height: 10.0),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10.0),
-              border: Border.all(
-                color: const Color(0xFF10B981).withValues(alpha: 0.25),
-              ),
-            ),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    'All tests passed! Submit solution to complete this exercise.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF10B981),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8.0),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    widget.onSubmitSolution!();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                  child: const Text(
-                    'Submit Solution →',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
-
         const SizedBox(height: 12.0),
-
-        // ── 3. Case Selector Pills with Status Indicators ───────────────────
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List<Widget>.generate(widget.testCases.length, (int idx) {
-              final bool isSelected = _selectedCaseIdx == idx;
-              final TestCaseResultModel? cr = widget.result!.caseResults.length > idx
-                  ? widget.result!.caseResults[idx]
-                  : null;
-              final bool thisPassed = cr?.passed ?? isSuccess;
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ChoiceChip(
-                  showCheckmark: false,
-                  avatar: Container(
-                    width: 8.0,
-                    height: 8.0,
-                    margin: const EdgeInsets.only(left: 4.0),
-                    decoration: BoxDecoration(
-                      color: thisPassed ? const Color(0xFF10B981) : AppColors.error,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  label: Text('Case ${idx + 1}'),
-                  selected: isSelected,
-                  onSelected: (bool val) {
-                    if (val) setState(() => _selectedCaseIdx = idx);
-                  },
-                  labelStyle: GoogleFonts.jetBrainsMono(
-                    fontSize: 11.5,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected
-                        ? (isDark ? AppColors.primary : AppColors.primaryVariant)
-                        : textSecondary,
-                  ),
-                  selectedColor: isDark
-                      ? AppColors.primary.withValues(alpha: 0.15)
-                      : AppColors.primary.withValues(alpha: 0.12),
-                  backgroundColor: isDark ? AppColors.darkSurfaceCard : Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20.0),
-                    side: BorderSide(
-                      color: isSelected
-                          ? AppColors.primary.withValues(alpha: 0.6)
-                          : borderColor,
-                      width: 1.0,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
+        _caseTabs(
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          borderColor: borderColor,
+          passed: List<bool?>.generate(widget.testCases.length, (int idx) {
+            final TestCaseResultModel? cr =
+                widget.result!.caseResults.length > idx
+                ? widget.result!.caseResults[idx]
+                : null;
+            return cr?.passed ?? isSuccess;
+          }),
         ),
-
         const SizedBox(height: 14.0),
-
-        // ── 4. Input Box ───────────────────────────────────────────────────
-        Text(
-          'Input:',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: textSecondary,
-          ),
+        _codeBlock(
+          label: 'Input',
+          text: tc.input.isEmpty ? '(empty input)' : tc.input,
+          borderColor: borderColor,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          isDark: isDark,
         ),
-        const SizedBox(height: 4.0),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(8.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: SelectableText(
-            tc.input.isEmpty ? '(empty input)' : tc.input,
-            style: GoogleFonts.jetBrainsMono(fontSize: 12.0, color: textPrimary),
-          ),
+        const SizedBox(height: 14.0),
+        _codeBlock(
+          label: currentCasePassed
+              ? 'Actual output'
+              : 'Actual output (does not match)',
+          text: actualOutputText,
+          borderColor: borderColor,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          isDark: isDark,
+          textColor: currentCasePassed ? textPrimary : AppColors.error,
+          boxBorder: currentCasePassed ? borderColor : AppColors.error,
         ),
-
-        const SizedBox(height: 12.0),
-
-        // ── 5. Actual Output Box ───────────────────────────────────────────
-        Text(
-          'Actual Output (stdout):',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: textSecondary,
-          ),
-        ),
-        const SizedBox(height: 4.0),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: currentCasePassed
-                ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                : AppColors.error.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8.0),
-            border: Border.all(
-              color: currentCasePassed
-                  ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                  : AppColors.error.withValues(alpha: 0.3),
-            ),
-          ),
-          child: SelectableText(
-            actualOutputText,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 12.0,
-              color: currentCasePassed ? const Color(0xFF10B981) : AppColors.error,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12.0),
-
-        // ── 6. Expected Output Box ─────────────────────────────────────────
-        Text(
-          'Expected Output:',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: textSecondary,
-          ),
-        ),
-        const SizedBox(height: 4.0),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(8.0),
-            border: Border.all(color: borderColor),
-          ),
-          child: SelectableText(
-            tc.expectedOutput,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 12.0,
-              color: const Color(0xFF10B981),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+        const SizedBox(height: 14.0),
+        _codeBlock(
+          label: 'Expected output',
+          text: tc.expectedOutput,
+          borderColor: borderColor,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          isDark: isDark,
         ),
       ],
     );
   }
 
   Widget _buildTerminalTab(
-    Color cardBg,
     Color borderColor,
     Color textPrimary,
     Color textSecondary,
+    bool isDark,
     bool hasRun,
     bool isSuccess,
   ) {
     final String content = hasRun && widget.result != null
         ? widget.result!.rawLog
-        : 'Terminal idle. Run your code to inspect compiler logs and output.';
+        : 'Console is idle. Run your code to see compiler logs and output.';
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14.0),
+      padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? AppColors.darkSurface
-            : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12.0),
+        color: isDark
+            ? AppColors.darkSurfaceLowest
+            : AppColors.lightSurfaceCard,
+        borderRadius: BorderRadius.circular(8.0),
         border: Border.all(color: borderColor),
       ),
       child: SelectableText(
         content,
         style: GoogleFonts.jetBrainsMono(
-          fontSize: 12.0,
+          fontSize: 12.5,
           height: 1.5,
-          color: hasRun
-              ? (isSuccess ? const Color(0xFF10B981) : const Color(0xFFF87171))
-              : textSecondary,
+          color: hasRun && !isSuccess
+              ? AppColors.error
+              : (hasRun ? textPrimary : textSecondary),
         ),
       ),
     );

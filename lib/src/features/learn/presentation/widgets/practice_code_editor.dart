@@ -2,8 +2,77 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../constants/app_colors.dart';
+import 'code_highlighter.dart';
 
-/// Specialized controller providing syntax highlighting (Monaco/VS Code parity)
+/// Colors a slice of [text] ([start] to [end]) using [tokens] from
+/// [tokenizeCode]. Shared by the editor and the read-only code views so code
+/// looks the same everywhere.
+List<TextSpan> highlightedSpans({
+  required String text,
+  required List<CodeToken> tokens,
+  required TextStyle base,
+  required bool isDark,
+  int start = 0,
+  int? end,
+}) {
+  final int stop = end ?? text.length;
+  final Color commentColor = isDark
+      ? const Color(0xFF6E7681)
+      : const Color(0xFF94A3B8);
+  final Color stringColor = isDark
+      ? const Color(0xFFE5C07B)
+      : const Color(0xFFB45309);
+  final Color numberColor = isDark
+      ? const Color(0xFFF97316)
+      : const Color(0xFFEA580C);
+  final Color keywordColor = isDark
+      ? AppColors.primary
+      : AppColors.primaryVariant;
+  final Color typeColor = isDark
+      ? const Color(0xFFFFA657)
+      : const Color(0xFFD97706);
+  final Color metaColor = isDark
+      ? const Color(0xFF94A3B8)
+      : const Color(0xFF64748B);
+
+  TextStyle styleFor(CodeTokenKind kind) {
+    switch (kind) {
+      case CodeTokenKind.comment:
+        return base.copyWith(color: commentColor, fontStyle: FontStyle.italic);
+      case CodeTokenKind.string:
+        return base.copyWith(color: stringColor);
+      case CodeTokenKind.number:
+      case CodeTokenKind.literal:
+        return base.copyWith(color: numberColor);
+      case CodeTokenKind.keyword:
+        return base.copyWith(color: keywordColor, fontWeight: FontWeight.w700);
+      case CodeTokenKind.type:
+        return base.copyWith(color: typeColor, fontWeight: FontWeight.w600);
+      case CodeTokenKind.function:
+        return base.copyWith(fontWeight: FontWeight.w700);
+      case CodeTokenKind.meta:
+        return base.copyWith(color: metaColor);
+      case CodeTokenKind.plain:
+        return base;
+    }
+  }
+
+  final List<TextSpan> spans = <TextSpan>[];
+  int last = start;
+  for (final CodeToken t in tokens) {
+    if (t.end <= start) continue;
+    if (t.start >= stop) break;
+    final int a = t.start < start ? start : t.start;
+    final int b = t.end > stop ? stop : t.end;
+    if (a > last) spans.add(TextSpan(text: text.substring(last, a)));
+    spans.add(TextSpan(text: text.substring(a, b), style: styleFor(t.kind)));
+    last = b;
+  }
+  if (last < stop) spans.add(TextSpan(text: text.substring(last, stop)));
+  return spans;
+}
+
+/// Text controller that colors code as you type (see [tokenizeCode]).
 class SyntaxHighlightingTextEditingController extends TextEditingController {
   SyntaxHighlightingTextEditingController({
     super.text,
@@ -14,97 +83,35 @@ class SyntaxHighlightingTextEditingController extends TextEditingController {
   String language;
   bool isDark;
 
-  static final RegExp _tokenRegex = RegExp(
-    r'(//[^\n]*|/\*[\s\S]*?\*/|#[^\n]*)' // Group 1: Comments
-    r'|("(?:\\.|[^"\\])*"|' r"'(?:\\.|[^'\\])*')" // Group 2: Strings
-    r'|\b(\d+(?:\.\d+)?)\b' // Group 3: Numbers
-    r'|\b(public|private|protected|class|interface|enum|extends|implements|static|final|abstract|void|return|if|else|switch|case|default|for|while|do|break|continue|new|try|catch|finally|throw|throws|import|package|def|lambda|from|as|async|await|yield|function|const|let|var|typeof|instanceof|struct|typedef)\b' // Group 4: Keywords
-    r'|\b(int|boolean|bool|char|float|double|long|short|byte|String|Integer|Boolean|Character|Double|Float|Long|List|Map|Set|ArrayList|HashMap|System|Math|Arrays|Scanner|Console|Object|true|false|True|False|None|null|nil|this|super)\b', // Group 5: Types / Built-ins
-  );
-
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
     TextStyle? style,
     required bool withComposing,
   }) {
-    final TextStyle baseStyle = style ??
+    final TextStyle baseStyle =
+        style ??
         GoogleFonts.jetBrainsMono(
           fontSize: 13.0,
           height: 22.0 / 13.0,
-          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+          color: isDark
+              ? AppColors.darkTextPrimary
+              : AppColors.lightTextPrimary,
         );
 
     final String text = value.text;
-    if (text.isEmpty) {
-      return TextSpan(text: '', style: baseStyle);
-    }
+    final List<CodeToken> tokens = tokenizeCode(text, language);
+    if (tokens.isEmpty) return TextSpan(text: text, style: baseStyle);
 
-    // Design Token Color Palette (Charcoal, Zinc & Emerald mint - no blue)
-    final Color commentColor = isDark ? const Color(0xFF6E7681) : const Color(0xFF94A3B8);
-    final Color stringColor = isDark ? const Color(0xFFE5C07B) : const Color(0xFFB45309);
-    final Color numberColor = isDark ? const Color(0xFFF97316) : const Color(0xFFEA580C);
-    final Color keywordColor = isDark ? AppColors.primary : AppColors.primaryVariant;
-    final Color typeColor = isDark ? const Color(0xFFFFA657) : const Color(0xFFD97706);
-
-    final List<TextSpan> spans = <TextSpan>[];
-    int lastEnd = 0;
-
-    for (final Match match in _tokenRegex.allMatches(text)) {
-      if (match.start > lastEnd) {
-        spans.add(TextSpan(
-          text: text.substring(lastEnd, match.start),
-          style: baseStyle,
-        ));
-      }
-
-      TextStyle tokenStyle = baseStyle;
-      if (match.group(1) != null) {
-        // Comment
-        tokenStyle = baseStyle.copyWith(
-          color: commentColor,
-          fontStyle: FontStyle.italic,
-        );
-      } else if (match.group(2) != null) {
-        // String
-        tokenStyle = baseStyle.copyWith(
-          color: stringColor,
-        );
-      } else if (match.group(3) != null) {
-        // Number
-        tokenStyle = baseStyle.copyWith(
-          color: numberColor,
-        );
-      } else if (match.group(4) != null) {
-        // Keyword
-        tokenStyle = baseStyle.copyWith(
-          color: keywordColor,
-          fontWeight: FontWeight.w700,
-        );
-      } else if (match.group(5) != null) {
-        // Type / Built-in
-        tokenStyle = baseStyle.copyWith(
-          color: typeColor,
-          fontWeight: FontWeight.w600,
-        );
-      }
-
-      spans.add(TextSpan(
-        text: match.group(0),
-        style: tokenStyle,
-      ));
-
-      lastEnd = match.end;
-    }
-
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(lastEnd),
-        style: baseStyle,
-      ));
-    }
-
-    return TextSpan(children: spans, style: baseStyle);
+    return TextSpan(
+      children: highlightedSpans(
+        text: text,
+        tokens: tokens,
+        base: baseStyle,
+        isDark: isDark,
+      ),
+      style: baseStyle,
+    );
   }
 }
 
@@ -186,8 +193,9 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
     final TextEditingController controller = widget.controller;
     final TextSelection selection = controller.selection;
 
-    final int start =
-        selection.start >= 0 ? selection.start : controller.text.length;
+    final int start = selection.start >= 0
+        ? selection.start
+        : controller.text.length;
     final int end = selection.end >= 0 ? selection.end : controller.text.length;
 
     // 1. Tab insertion (2 spaces)
@@ -257,37 +265,42 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
     _focusNode.requestFocus();
   }
 
-  List<double> _calculateLineHeights(double availableWidth, TextStyle style) {
-    if (availableWidth <= 0) {
-      return List<double>.filled(_lineCount, 22.0);
-    }
-    final List<String> lines = widget.controller.text.split('\n');
-    final List<double> heights = <double>[];
-    for (final String line in lines) {
-      if (line.isEmpty) {
-        heights.add(22.0);
-        continue;
-      }
+  /// Width the longest line needs. Lines never wrap, so every line is exactly one row tall and the
+  /// line numbers always sit beside their own line.
+  double _longestLineWidth(TextStyle style) {
+    double widest = 0.0;
+    for (final String line in widget.controller.text.split('\n')) {
+      if (line.isEmpty) continue;
       final TextPainter tp = TextPainter(
         text: TextSpan(text: line, style: style),
         textDirection: TextDirection.ltr,
-      )..layout(maxWidth: availableWidth);
-      heights.add(tp.height > 22.0 ? tp.height : 22.0);
+        maxLines: 1,
+      )..layout();
+      if (tp.width > widest) widest = tp.width;
     }
-    return heights;
+    return widest;
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color editorBg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
-    final Color gutterBg = editorBg; // Seamless unified canvas, no contrasting card block
-    final Color gutterText = isDark ? const Color(0xFF6E7681) : const Color(0xFF94A3B8);
+    final Color editorBg = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
+    final Color gutterBg =
+        editorBg; // Seamless unified canvas, no contrasting card block
+    final Color gutterText = isDark
+        ? const Color(0xFF6E7681)
+        : const Color(0xFF94A3B8);
     final Color gutterDivider = isDark
         ? AppColors.darkBorder.withValues(alpha: 0.35)
         : AppColors.lightBorder.withValues(alpha: 0.6);
-    final Color textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final Color toolbarBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final Color textColor = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color toolbarBg = isDark
+        ? AppColors.darkSurface
+        : AppColors.lightSurface;
 
     final TextStyle codeStyle = GoogleFonts.jetBrainsMono(
       fontSize: 13.0,
@@ -315,78 +328,80 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
                 const double gutterWidth = 38.0;
                 const double horizontalPadding = 10.0;
                 final double availableCodeWidth =
-                    constraints.maxWidth - gutterWidth - (horizontalPadding * 2);
-                final List<String> lines = widget.controller.text.split('\n');
-                final List<double> lineHeights = _calculateLineHeights(
-                  availableCodeWidth,
-                  codeStyle,
-                );
+                    constraints.maxWidth -
+                    gutterWidth -
+                    (horizontalPadding * 2);
+                final int lineCount = widget.controller.text.split('\n').length;
+                final double codeWidth =
+                    _longestLineWidth(codeStyle) + 32.0 > availableCodeWidth
+                    ? _longestLineWidth(codeStyle) + 32.0
+                    : availableCodeWidth;
 
                 return SingleChildScrollView(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      // Line numbers column
+                      // Line numbers: one row per line
                       Container(
                         width: gutterWidth,
                         padding: const EdgeInsets.only(top: 14.0, right: 8.0),
                         decoration: BoxDecoration(
                           color: gutterBg,
                           border: Border(
-                            right: BorderSide(
-                              color: gutterDivider,
-                              width: 1.0,
-                            ),
+                            right: BorderSide(color: gutterDivider, width: 1.0),
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: List<Widget>.generate(lines.length, (int index) {
-                            final double h =
-                                index < lineHeights.length ? lineHeights[index] : 22.0;
-                            return Container(
-                              height: h,
-                              alignment: Alignment.topRight,
-                              child: Container(
-                                height: 22.0,
-                                alignment: Alignment.centerRight,
-                                child: Text(
-                                  '${index + 1}',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 12.0,
-                                    color: gutterText,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
+                        // Same font, size and line height as the code, so every number sits beside its line.
+                        child: Text(
+                          List<String>.generate(
+                            lineCount,
+                            (int i) => '${i + 1}',
+                          ).join('\n'),
+                          textAlign: TextAlign.right,
+                          style: codeStyle.copyWith(
+                            color: gutterText,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
 
-                      // Code input area with automatic soft line wrapping
+                      // Code: scrolls sideways instead of wrapping
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
-                          child: TextField(
-                            controller: widget.controller,
-                            focusNode: _focusNode,
-                            maxLines: null,
-                            keyboardType: TextInputType.multiline,
-                            cursorColor: AppColors.primary,
-                            cursorWidth: 2.0,
-                            inputFormatters: const <TextInputFormatter>[
-                              AutoIndentTextInputFormatter(),
-                            ],
-                            style: codeStyle,
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.only(top: 14.0, bottom: 20.0),
-                              isDense: true,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: codeWidth + (horizontalPadding * 2),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: horizontalPadding,
+                              ),
+                              child: TextField(
+                                controller: widget.controller,
+                                focusNode: _focusNode,
+                                maxLines: null,
+                                keyboardType: TextInputType.multiline,
+                                cursorColor: AppColors.primary,
+                                cursorWidth: 2.0,
+                                inputFormatters: const <TextInputFormatter>[
+                                  AutoIndentTextInputFormatter(),
+                                ],
+                                style: codeStyle,
+                                decoration: const InputDecoration(
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  contentPadding: EdgeInsets.only(
+                                    top: 14.0,
+                                    bottom: 20.0,
+                                  ),
+                                  isDense: true,
+                                ),
+                                onChanged: widget.onChanged,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                              ),
                             ),
-                            onChanged: widget.onChanged,
-                            autocorrect: false,
-                            enableSuggestions: false,
                           ),
                         ),
                       ),
@@ -400,18 +415,17 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
 
         // Quick-insert keyboard accessory toolbar (Hollow, uncarded design)
         Container(
-          height: 40.0,
+          height: 48.0,
           decoration: BoxDecoration(
             color: toolbarBg,
-            border: Border(
-              top: BorderSide(color: gutterDivider, width: 1.0),
-            ),
+            border: Border(top: BorderSide(color: gutterDivider, width: 1.0)),
           ),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.5),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
             itemCount: _accessoryKeys.length,
-            separatorBuilder: (BuildContext context, int i) => const SizedBox(width: 5.0),
+            separatorBuilder: (BuildContext context, int i) =>
+                const SizedBox(width: 5.0),
             itemBuilder: (BuildContext context, int i) {
               final String key = _accessoryKeys[i];
               final bool isTab = key == 'tab';
@@ -419,19 +433,15 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
                 onTap: () => _insertSymbol(key),
                 borderRadius: BorderRadius.circular(6.0),
                 child: Container(
+                  constraints: const BoxConstraints(minWidth: 40.0),
                   padding: const EdgeInsets.symmetric(horizontal: 10.0),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: isTab
-                        ? AppColors.primary.withValues(alpha: 0.12)
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.05)
-                            : Colors.black.withValues(alpha: 0.04)),
-                    borderRadius: BorderRadius.circular(6.0),
+                    borderRadius: BorderRadius.circular(8.0),
                     border: Border.all(
-                      color: isTab
-                          ? AppColors.primary.withValues(alpha: 0.3)
-                          : gutterDivider,
+                      color: isDark
+                          ? AppColors.darkBorderVariant
+                          : AppColors.lightBorder,
                       width: 1.0,
                     ),
                   ),
@@ -440,9 +450,7 @@ class _PracticeCodeEditorState extends State<PracticeCodeEditor> {
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 12.0,
                       fontWeight: isTab ? FontWeight.w700 : FontWeight.w600,
-                      color: isTab
-                          ? AppColors.primary
-                          : textColor,
+                      color: textColor,
                     ),
                   ),
                 ),
@@ -475,10 +483,12 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
   ) {
     // A programmatic text swap (for example switching problems) can leave the
     // previous value with an invalid selection. Never index with it.
-    final bool oldSelectionValid = oldValue.selection.isValid &&
+    final bool oldSelectionValid =
+        oldValue.selection.isValid &&
         oldValue.selection.baseOffset >= 0 &&
         oldValue.selection.baseOffset <= oldValue.text.length;
-    final bool newSelectionValid = newValue.selection.isValid &&
+    final bool newSelectionValid =
+        newValue.selection.isValid &&
         newValue.selection.baseOffset >= 0 &&
         newValue.selection.baseOffset <= newValue.text.length;
     if (!newSelectionValid) return newValue;
@@ -495,29 +505,37 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
         final int prevLineEnd = insertPos - 1;
         final int prevLineStart =
             newValue.text.lastIndexOf('\n', prevLineEnd - 1) + 1;
-        final String prevLine =
-            newValue.text.substring(prevLineStart, prevLineEnd);
+        final String prevLine = newValue.text.substring(
+          prevLineStart,
+          prevLineEnd,
+        );
 
         final Match? leadingMatch = RegExp(r'^[ \t]*').firstMatch(prevLine);
-        String currentIndent =
-            leadingMatch != null ? leadingMatch.group(0)! : '';
+        String currentIndent = leadingMatch != null
+            ? leadingMatch.group(0)!
+            : '';
 
         final String trimmedPrev = prevLine.trim();
-        final bool shouldIncreaseIndent = trimmedPrev.endsWith('{') ||
+        final bool shouldIncreaseIndent =
+            trimmedPrev.endsWith('{') ||
             trimmedPrev.endsWith('(') ||
             trimmedPrev.endsWith('[') ||
             trimmedPrev.endsWith(':');
 
         // Check if user pressed Enter right between brackets like {|}
-        final bool isBetweenBraces = trimmedPrev.endsWith('{') &&
+        final bool isBetweenBraces =
+            trimmedPrev.endsWith('{') &&
             insertPos < newValue.text.length &&
             newValue.text[insertPos] == '}';
 
         if (isBetweenBraces) {
           final String innerIndent = currentIndent + indent;
           final String additionalText = '$innerIndent\n$currentIndent';
-          final String updatedText =
-              newValue.text.replaceRange(insertPos, insertPos, additionalText);
+          final String updatedText = newValue.text.replaceRange(
+            insertPos,
+            insertPos,
+            additionalText,
+          );
           return TextEditingValue(
             text: updatedText,
             selection: TextSelection.collapsed(
@@ -531,8 +549,11 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
         }
 
         if (currentIndent.isNotEmpty) {
-          final String updatedText =
-              newValue.text.replaceRange(insertPos, insertPos, currentIndent);
+          final String updatedText = newValue.text.replaceRange(
+            insertPos,
+            insertPos,
+            currentIndent,
+          );
           return TextEditingValue(
             text: updatedText,
             selection: TextSelection.collapsed(
@@ -559,8 +580,11 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
       // C. Auto-closing pair insertion on typing opening symbol
       if (_pairMap.containsKey(insertedChar)) {
         final String closing = _pairMap[insertedChar]!;
-        final String updatedText =
-            newValue.text.replaceRange(insertPos, insertPos, closing);
+        final String updatedText = newValue.text.replaceRange(
+          insertPos,
+          insertPos,
+          closing,
+        );
         return TextEditingValue(
           text: updatedText,
           selection: TextSelection.collapsed(offset: insertPos),
@@ -582,8 +606,11 @@ class AutoIndentTextInputFormatter extends TextInputFormatter {
         if (oldValue.text[deletedCharPos + 1] == expectedClosing) {
           final int newPos = newValue.selection.baseOffset;
           if (newPos < 0 || newPos >= newValue.text.length) return newValue;
-          final String updatedText =
-              newValue.text.replaceRange(newPos, newPos + 1, '');
+          final String updatedText = newValue.text.replaceRange(
+            newPos,
+            newPos + 1,
+            '',
+          );
           return TextEditingValue(
             text: updatedText,
             selection: TextSelection.collapsed(offset: newPos),

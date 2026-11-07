@@ -10,11 +10,16 @@ abstract class PathwayRepository {
   Future<LearnDashboardData> getLearnDashboardData(String userId);
   Future<List<PathwayModel>> getAllModules(String userId);
   Future<bool> enrollModule(String userId, String moduleId);
+
   /// Unlocks a module's coding challenges with CodeCoins. The price is set by
   /// the database. Returns an error message, or null on success.
   Future<String?> unlockModuleWithCoins(String userId, String moduleId);
   Future<bool> isModulePurchased(String userId, String moduleId);
-  Future<bool> toggleBookmark(String userId, String moduleId, bool isBookmarked);
+  Future<bool> toggleBookmark(
+    String userId,
+    String moduleId,
+    bool isBookmarked,
+  );
   ModuleDetailModel? getCachedModuleDetails(String moduleId);
   Future<ModuleDetailModel?> getModuleDetails(String moduleId, String userId);
   Future<PracticeExerciseModel?> getPracticeExercise(
@@ -27,8 +32,9 @@ abstract class PathwayRepository {
     String moduleId,
     String exerciseId,
     String code,
-    String language,
-  );
+    String language, {
+    bool passed = true,
+  });
   Future<PracticeExerciseModel?> getChallengeExercise(
     String moduleId,
     String challengeId,
@@ -39,8 +45,9 @@ abstract class PathwayRepository {
     String moduleId,
     String challengeId,
     String code,
-    String language,
-  );
+    String language, {
+    bool passed = true,
+  });
   Future<List<SubmissionHistoryModel>> getExerciseSubmissions({
     required String userId,
     required String moduleId,
@@ -74,14 +81,14 @@ abstract class PathwayRepository {
   });
   Future<bool> acceptRoomInvitation(String roomId) async => false;
   Future<bool> declineRoomInvitation(String roomId) async => false;
+
   /// [triggerGeneration] asks the web API to generate the AI review when none
   /// exists yet. Polling passes false so it only reads what is already saved.
   Future<ActivitySubmissionReviewModel?> getSubmissionReview(
     String submissionId, {
     DashboardSubmission? cachedSubmission,
     bool triggerGeneration = true,
-  }) async =>
-      cachedSubmission != null
-          ? ActivitySubmissionReviewModel.fromCachedSubmission(cachedSubmission)
-          : null;
+  }) async => cachedSubmission != null
+      ? ActivitySubmissionReviewModel.fromCachedSubmission(cachedSubmission)
+      : null;
 }

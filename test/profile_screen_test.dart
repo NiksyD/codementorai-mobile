@@ -29,7 +29,7 @@ class FakeProfileRepository implements ProfileRepository {
 }
 
 void main() {
-  group('ProfileScreen Widget Tests (WCAG & Shadcn Parity)', () {
+  group('ProfileScreen Widget Tests', () {
     const ProfileModel sampleProfile = ProfileModel(
       userId: 'user-123',
       email: 'alex.developer@codementorai.dev',
@@ -56,10 +56,10 @@ void main() {
       // Top Header
       expect(find.text('Profile & Settings'), findsOneWidget);
 
-      // Section Kickers
-      expect(find.text('ACCOUNT DETAILS'), findsOneWidget);
-      expect(find.text('PREFERENCES'), findsOneWidget);
-      expect(find.text('SECURITY & LEGAL'), findsOneWidget);
+      // Section headings (sentence case, not all-caps kickers)
+      expect(find.text('Account details'), findsOneWidget);
+      expect(find.text('Preferences'), findsOneWidget);
+      expect(find.text('Security and legal'), findsOneWidget);
 
       // Account items
       expect(find.text('Display Name'), findsOneWidget);
@@ -71,7 +71,7 @@ void main() {
 
       // Preferences items
       expect(find.text('Appearance'), findsOneWidget);
-      expect(find.text('Light Theme'), findsOneWidget);
+      expect(find.text('Light theme'), findsOneWidget);
 
       // Tap email address shows informative toast
       await tester.tap(find.text('Email Address'));
@@ -82,8 +82,8 @@ void main() {
       );
 
       // Sign Out
-      expect(find.text('Sign Out'), findsOneWidget);
-      expect(find.text('CodeMentor AI v1.0.0 (Build 42)'), findsOneWidget);
+      expect(find.text('Sign out'), findsOneWidget);
+      expect(find.text('CodeMentor AI version 1.0.0'), findsOneWidget);
     });
 
     testWidgets('Renders Dark Theme labels correctly in dark mode', (WidgetTester tester) async {
@@ -102,7 +102,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Profile & Settings'), findsOneWidget);
-      expect(find.text('Dark Theme'), findsOneWidget);
+      expect(find.text('Dark theme'), findsOneWidget);
     });
   });
 }

@@ -11,6 +11,8 @@ class ChallengeCompletionModal extends StatelessWidget {
     required this.targetSpace,
     required this.onBackToModule,
     this.onViewAiReview,
+    this.solved = true,
+    this.testSummary,
     this.onRateModule,
   });
 
@@ -19,6 +21,12 @@ class ChallengeCompletionModal extends StatelessWidget {
   final String targetSpace;
   final VoidCallback onBackToModule;
   final VoidCallback? onViewAiReview;
+
+  /// False when the attempt was submitted but some tests failed.
+  final bool solved;
+
+  /// For example "2 of 4 test cases passed", shown when not solved.
+  final String? testSummary;
   final VoidCallback? onRateModule;
 
   static Future<void> show(
@@ -28,6 +36,8 @@ class ChallengeCompletionModal extends StatelessWidget {
     required String targetSpace,
     required VoidCallback onBackToModule,
     VoidCallback? onViewAiReview,
+    bool solved = true,
+    String? testSummary,
     VoidCallback? onRateModule,
   }) {
     HapticFeedback.heavyImpact();
@@ -42,6 +52,8 @@ class ChallengeCompletionModal extends StatelessWidget {
         targetSpace: targetSpace,
         onBackToModule: onBackToModule,
         onViewAiReview: onViewAiReview,
+        solved: solved,
+        testSummary: testSummary,
         onRateModule: onRateModule,
       ),
     );
@@ -50,266 +62,252 @@ class ChallengeCompletionModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color sheetBg = isDark ? AppColors.darkBackground : Colors.white;
-    final Color cardBg = isDark ? AppColors.darkSurface : const Color(0xFFF8FAFC);
-    final Color borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
-    final Color textPrimary = isDark ? AppColors.darkTextPrimary : const Color(0xFF0F172A);
-    final Color textSecondary = isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B);
+    final Color sheetBg = isDark
+        ? AppColors.darkSurface
+        : AppColors.lightSurface;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
+    final Color textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final Color textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
-    return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.all(16.0),
-        padding: const EdgeInsets.all(24.0),
-        decoration: BoxDecoration(
-          color: sheetBg,
-          borderRadius: BorderRadius.circular(24.0),
-          border: Border.all(color: borderColor),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 24.0,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            // Trophy Badge
-            Container(
-              width: 64.0,
-              height: 64.0,
-              decoration: BoxDecoration(
-                color: const Color(0xFF3ECF8E).withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFF3ECF8E).withValues(alpha: 0.4),
-                  width: 2.0,
+    return Container(
+      decoration: BoxDecoration(
+        color: sheetBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16.0)),
+        border: Border(top: BorderSide(color: borderColor)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 12.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 36.0,
+                  height: 4.0,
+                  margin: const EdgeInsets.only(bottom: 16.0),
+                  decoration: BoxDecoration(
+                    color: borderColor,
+                    borderRadius: BorderRadius.circular(2.0),
+                  ),
                 ),
               ),
-              child: const Icon(
-                Icons.emoji_events_rounded,
-                color: Color(0xFF3ECF8E),
-                size: 36.0,
-              ),
-            ),
-            const SizedBox(height: 18.0),
-
-            Text(
-              'Challenge Solved!',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 20.0,
-                fontWeight: FontWeight.w800,
-                color: textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6.0),
-
-            Text(
-              challengeTitle,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF3ECF8E),
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8.0),
-
-            Text(
-              'Your algorithmic solution passed all test assertions and met the target Time & Space complexity SLA bounds.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.0,
-                height: 1.45,
-                color: textSecondary,
-              ),
-            ),
-            const SizedBox(height: 20.0),
-
-            // SLA Performance Bounds (Preserved for Challenges!)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(14.0),
-                border: Border.all(color: borderColor),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+              Row(
                 children: <Widget>[
-                  Column(
-                    children: <Widget>[
-                      Text(
-                        'Time SLA',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 3.0),
-                      Text(
-                        targetTime,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 13.0,
-                          fontWeight: FontWeight.w800,
-                          color: textPrimary,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    solved ? Icons.check_rounded : Icons.edit_note_rounded,
+                    size: 24.0,
+                    color: textPrimary,
                   ),
-                  Container(
-                    width: 1.0,
-                    height: 28.0,
-                    color: borderColor,
-                  ),
-                  Column(
-                    children: <Widget>[
-                      Text(
-                        'Space SLA',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 3.0),
-                      Text(
-                        targetSpace,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 13.0,
-                          fontWeight: FontWeight.w800,
-                          color: textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    width: 1.0,
-                    height: 28.0,
-                    color: borderColor,
-                  ),
-                  Column(
-                    children: <Widget>[
-                      Text(
-                        'Verdict',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 3.0),
-                      Text(
-                        'Optimal',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 13.0,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF3ECF8E),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 8.0),
+                  Text(
+                    solved ? 'Challenge solved' : 'Attempt submitted',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 20.0,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 22.0),
-
-            // Action buttons
-            if (onViewAiReview != null) ...<Widget>[
-              SizedBox(
-                width: double.infinity,
-                height: 48.0,
-                child: ElevatedButton.icon(
-                  onPressed: onViewAiReview,
-                  icon: const Icon(Icons.auto_awesome_rounded, size: 18.0),
-                  label: Text(
-                    'View AI Review',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.0),
-                    ),
-                    elevation: 0,
-                  ),
+              const SizedBox(height: 4.0),
+              Text(
+                challengeTitle,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w600,
+                  color: textSecondary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8.0),
+              Text(
+                solved
+                    ? 'All test cases passed. Your solution has been saved and your progress updated.'
+                    : '${testSummary ?? 'Some test cases did not pass.'}. This attempt is saved in History. Keep working on it and submit again whenever you are ready.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.0,
+                  height: 1.45,
+                  color: textSecondary,
                 ),
               ),
-              const SizedBox(height: 10.0),
-              SizedBox(
-                width: double.infinity,
-                height: 44.0,
-                child: TextButton(
-                  onPressed: onBackToModule,
-                  style: TextButton.styleFrom(
-                    foregroundColor: textSecondary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
+              const SizedBox(height: 16.0),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
+                decoration: BoxDecoration(
+                  border: Border.symmetric(
+                    horizontal: BorderSide(color: borderColor),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      'Target complexity',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.0,
+                        color: textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '$targetTime time · $targetSpace space',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 13.0,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20.0),
+              if (!solved) ...<Widget>[
+                SizedBox(
+                  height: 48.0,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: isDark
+                          ? AppColors.onPrimaryDark
+                          : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                    ),
+                    child: Text(
+                      'Keep editing',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                ),
+                if (onViewAiReview != null)
+                  TextButton(
+                    onPressed: onViewAiReview,
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48.0, 48.0),
+                    ),
+                    child: Text(
+                      'View code review',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w600,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ),
+                TextButton(
+                  onPressed: onBackToModule,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48.0, 48.0),
+                  ),
                   child: Text(
-                    'Back to Module',
+                    'Back to module',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14.0,
                       fontWeight: FontWeight.w600,
+                      color: textSecondary,
                     ),
                   ),
                 ),
-              ),
-            ] else ...<Widget>[
-              // Return button
-              SizedBox(
-                width: double.infinity,
-                height: 48.0,
-                child: ElevatedButton(
-                  onPressed: onBackToModule,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: isDark ? AppColors.onPrimaryDark : Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.0),
+              ] else if (onViewAiReview != null) ...<Widget>[
+                SizedBox(
+                  height: 48.0,
+                  child: ElevatedButton(
+                    onPressed: onViewAiReview,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: isDark
+                          ? AppColors.onPrimaryDark
+                          : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
                     ),
-                    elevation: 0,
+                    child: Text(
+                      'View code review',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+                TextButton(
+                  onPressed: onBackToModule,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48.0, 48.0),
                   ),
                   child: Text(
-                    'Back to Module',
+                    'Back to module',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w600,
+                      color: textSecondary,
                     ),
                   ),
                 ),
-              ),
-            ],
-
-            if (onRateModule != null) ...<Widget>[
-              const SizedBox(height: 10.0),
-              TextButton.icon(
-                onPressed: onRateModule,
-                icon: const Icon(
-                  Icons.star_outline_rounded,
-                  size: 16.0,
-                  color: Color(0xFFFBBF24),
-                ),
-                label: Text(
-                  'Rate & Review this Module',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13.0,
-                    fontWeight: FontWeight.w600,
-                    color: textSecondary,
+              ] else
+                SizedBox(
+                  height: 48.0,
+                  child: ElevatedButton(
+                    onPressed: onBackToModule,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: isDark
+                          ? AppColors.onPrimaryDark
+                          : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                    ),
+                    child: Text(
+                      'Back to module',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              if (solved && onRateModule != null)
+                TextButton.icon(
+                  onPressed: onRateModule,
+                  icon: Icon(
+                    Icons.star_outline_rounded,
+                    size: 18.0,
+                    color: textSecondary,
+                  ),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48.0, 48.0),
+                  ),
+                  label: Text(
+                    'Rate and review this module',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w600,
+                      color: textSecondary,
+                    ),
+                  ),
+                ),
             ],
-          ],
+          ),
         ),
       ),
     );
