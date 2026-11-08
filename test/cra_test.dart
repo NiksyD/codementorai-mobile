@@ -54,14 +54,14 @@ List<CraAttempt> scenario({bool topics = true}) {
 void main() {
   test('matches the web calculation on the same attempts', () {
     final CraAnalysis r = computeCra(scenario());
-    expect(r.accuracy, 67);
-    expect(r.efficiency, 71);
-    expect(r.problemBreadth, 67);
-    expect(r.consistency, 67);
-    expect(r.readinessIndex, 68);
+    expect(r.accuracy, 50);
+    expect(r.efficiency, 75);
+    expect(r.problemBreadth, 60);
+    expect(r.consistency, 93);
+    expect(r.readinessIndex, 69);
     expect(r.attemptCount, 4);
     expect(r.assessmentCount, 3);
-    expect(r.solvedCount, 4);
+    expect(r.solvedCount, 3);
     expect(r.attemptedCount, 6);
     expect(r.pendingCount, 1);
   });
@@ -69,7 +69,7 @@ void main() {
   test('without topic tags Problem Breadth is null and the index re-weights', () {
     final CraAnalysis r = computeCra(scenario(topics: false));
     expect(r.problemBreadth, isNull);
-    expect(r.readinessIndex, 68);
+    expect(r.readinessIndex, 72);
     expect(r.hasTopicData, isFalse);
   });
 
@@ -79,13 +79,13 @@ void main() {
       null,
       null,
       null,
-      68,
+      69,
     ]);
     expect(g[0].criteria['accuracy'], 33);
     expect(g[0].criteria['efficiency'], 80);
-    expect(g[0].criteria['problemBreadth'], 17);
-    expect(g[2].criteria['accuracy'], 75);
-    expect(g[3].criteria['consistency'], 67);
+    expect(g[0].criteria['problemBreadth'], 100);
+    expect(g[2].criteria['accuracy'], 50);
+    expect(g[3].criteria['consistency'], 93);
   });
 
   test('no per-problem data gives no numbers, never a guess', () {
@@ -136,11 +136,107 @@ void main() {
     expect(r.consistency, isNull);
   });
 
-  test('a rating below the mark counts as missed', () {
-    final CraAnalysis r = computeCra(<CraAttempt>[
-      a('a', 'x', '2026-01-01T00:00:00Z', <CraProblem>[p('1', true, true, 69, 90)]),
+  test('a rating below the 80 mark counts as missed; 80 counts as solved', () {
+    final CraAnalysis low = computeCra(<CraAttempt>[
+      a('a', 'x', '2026-01-01T00:00:00Z', <CraProblem>[p('1', true, true, 79, 90)]),
     ]);
-    expect(r.accuracy, 0);
-    expect(r.efficiency, isNull);
+    expect(low.accuracy, 0);
+    expect(low.efficiency, isNull);
+    final CraAnalysis ok = computeCra(<CraAttempt>[
+      a('a', 'x', '2026-01-01T00:00:00Z', <CraProblem>[p('1', true, true, 80, 90)]),
+    ]);
+    expect(ok.accuracy, 100);
+    expect(ok.efficiency, 90);
+  });
+
+  group('PDF worked examples (same cases as the web test)', () {
+    test('constants: mark 80, weights sum to exactly 1', () {
+      expect(craSolidRatingMark, 80);
+      expect(craWeights['accuracy'], 0.2557);
+      expect(craWeights['efficiency'], 0.259);
+      expect(craWeights['problemBreadth'], 0.2393);
+      expect(craWeights['consistency'], 0.246);
+      final double sum = craWeights.values.fold(0.0, (double x, double y) => x + y);
+      expect((sum * 10000).round(), 10000);
+    });
+
+    test('Efficiency: 85, 90, 80, 75 average 82.5; the 95 below the mark is excluded', () {
+      final CraAnalysis r = computeCra(<CraAttempt>[
+        a('a', 'x', '2026-01-01T00:00:00Z', <CraProblem>[
+          p('1', true, true, 90, 85),
+          p('2', true, true, 85, 90),
+          p('3', true, true, 80, 80),
+          p('4', true, true, 79, 95),
+          p('5', true, true, 95, 75),
+        ]),
+      ]);
+      expect(r.efficiency, 83);
+    });
+
+    test('Problem Breadth: 4 of 5 assessed topics demonstrated is 80', () {
+      final CraAnalysis r = computeCra(<CraAttempt>[
+        a('a', 'x', '2026-01-01T00:00:00Z', <CraProblem>[
+          p('1', true, true, 90, 80, <String>['arrays']),
+          p('2', true, true, 90, 80, <String>['recursion']),
+          p('3', true, true, 90, 80, <String>['trees']),
+          p('4', true, true, 90, 80, <String>['stacks']),
+          p('5', true, false, null, null, <String>['graphs']),
+        ]),
+      ]);
+      expect(r.problemBreadth, 80);
+      expect(r.topicsCovered.length, 4);
+      expect(r.topicsAssessed.length, 5);
+    });
+
+    test('Problem Breadth counts a repeat once, ignores other, leaves pending out', () {
+      final CraAnalysis r = computeCra(<CraAttempt>[
+        a('a', 'x', '2026-01-01T00:00:00Z', <CraProblem>[
+          p('1', true, true, 90, 80, <String>['arrays', 'recursion']),
+          p('2', true, true, 90, 80, <String>['arrays']),
+          p('3', true, false, null, null, <String>['other', 'trees']),
+          p('4', true, true, null, null, <String>['graphs']),
+        ]),
+      ]);
+      expect(r.topicsAssessed.toSet(), <String>{'arrays', 'recursion', 'trees'});
+      expect(r.topicsCovered.toSet(), <String>{'arrays', 'recursion'});
+      expect(r.problemBreadth, 67);
+    });
+
+    test('Problem Breadth is null when no problem carries a topic', () {
+      final CraAnalysis r = computeCra(<CraAttempt>[
+        a('a', 'x', '2026-01-01T00:00:00Z', <CraProblem>[
+          p('1', true, true, 90, 80),
+          p('2', true, true, 90, 80),
+        ]),
+      ]);
+      expect(r.problemBreadth, isNull);
+    });
+
+    test('Consistency: accuracies 70, 70, 30, 40, 90 give MAD 20 so 80', () {
+      final List<int> solved = <int>[7, 7, 3, 4, 9];
+      final CraAnalysis r = computeCra(<CraAttempt>[
+        for (int i = 0; i < solved.length; i++)
+          a('a$i', 'asm$i', '2026-01-${(i + 1).toString().padLeft(2, '0')}T00:00:00Z', <CraProblem>[
+            for (int k = 0; k < 10; k++)
+              p('$i-$k', true, k < solved[i], k < solved[i] ? 90 : null, k < solved[i] ? 80 : null),
+          ]),
+      ]);
+      expect(r.consistency, 80);
+      expect(r.consistencyMad, 20);
+      expect(r.consistencyAssessments, 5);
+    });
+
+    test('Consistency rewards steady results over a high average', () {
+      int run(List<int> solved) =>
+          computeCra(<CraAttempt>[
+            for (int i = 0; i < solved.length; i++)
+              a('a$i', 'asm$i', '2026-01-${(i + 1).toString().padLeft(2, '0')}T00:00:00Z', <CraProblem>[
+                for (int k = 0; k < 10; k++)
+                  p('$i-$k', true, k < solved[i], k < solved[i] ? 90 : null, k < solved[i] ? 80 : null),
+              ]),
+          ]).consistency!;
+      expect(run(<int>[5, 5, 5]), 100);
+      expect(run(<int>[10, 0, 10]), 56);
+    });
   });
 }

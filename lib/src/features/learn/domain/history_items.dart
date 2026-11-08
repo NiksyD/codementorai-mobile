@@ -9,7 +9,13 @@ sealed class HistoryItem {
   DateTime get date;
   String get title;
   String get language;
-  String get status; // 'Passed' | 'Needs Review' | 'Pending'
+  /// 'Passed' | 'Needs Review' | 'Pending' for submissions. An assessment
+  /// attempt has no pass mark, so it is 'Completed' (or 'Pending' for old runs
+  /// still waiting on a review).
+  String get status;
+
+  /// Score as a percentage, or null when it is not known.
+  int? get score;
 }
 
 class SubmissionHistoryItem extends HistoryItem {
@@ -27,6 +33,8 @@ class SubmissionHistoryItem extends HistoryItem {
   String get language => sub.language;
   @override
   String get status => DashboardSubmission.normalizeStatus(sub.status);
+  @override
+  int? get score => sub.score;
 }
 
 class AssessmentHistoryItem extends HistoryItem {
@@ -52,6 +60,7 @@ class AssessmentHistoryItem extends HistoryItem {
   final String status;
 
   /// Overall percentage of the attempt, or null when it is not known.
+  @override
   final int? score;
 
   /// The challenge submissions made in this attempt. Can be empty for old runs.
@@ -125,7 +134,7 @@ List<HistoryItem> buildHistoryItems(
         date: at,
         title: titleOf(children, 'Assessment'),
         language: children.isNotEmpty ? children.first.language : '',
-        status: att['is_passed'] == true ? 'Passed' : 'Needs Review',
+        status: 'Completed',
         score: rawScore is num ? rawScore.round() : null,
         challenges: children,
       ),
@@ -161,7 +170,7 @@ List<HistoryItem> buildHistoryItems(
         date: g.last.submittedAt,
         title: titleOf(g, 'Assessment'),
         language: g.first.language,
-        status: _statusOf(g),
+        status: _statusOf(g) == 'Pending' ? 'Pending' : 'Completed',
         score: ((passed / g.length) * 100).round(),
         challenges: g,
       ),

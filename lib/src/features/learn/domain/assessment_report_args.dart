@@ -62,5 +62,4 @@ class AssessmentReportArgs {
 
   int get passedCount =>
       results.where((AssessmentChallengeResult r) => r.passed).length;
-  bool get isPassed => score >= assessment.passingScore;
 }

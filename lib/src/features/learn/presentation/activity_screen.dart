@@ -197,9 +197,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   int get _completedAssessmentsCount =>
       _activeAssessments.where((AssessmentModel a) {
         final Map<String, dynamic>? att = _getAttemptForAssessment(a.id);
-        return att != null &&
-            att['score'] != null &&
-            (att['score'] as num) >= a.passingScore;
+        return att != null && att['score'] != null;
       }).length;
 
   int get _avgCompletion {
@@ -249,10 +247,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   List<AssessmentModel> get _filteredAssessments {
     return _activeAssessments.where((AssessmentModel a) {
       final Map<String, dynamic>? att = _getAttemptForAssessment(a.id);
-      final bool isPassed =
-          att != null &&
-          att['score'] != null &&
-          (att['score'] as num) >= a.passingScore;
+      final bool isPassed = att != null && att['score'] != null;
       final bool isInProgress = att != null && att['status'] == 'in_progress';
 
       if (_activeLearningFilter == 'completed' && !isPassed) return false;
@@ -282,31 +277,24 @@ class _ActivityScreenState extends State<ActivityScreen> {
   List<HistoryItem> get _historyItems =>
       buildHistoryItems(_submissions, _assessmentAttempts);
 
-  int get _passedCount =>
-      _historyItems.where((HistoryItem i) => i.status == 'Passed').length;
-
-  int get _needsReviewCount =>
-      _historyItems.where((HistoryItem i) => i.status == 'Needs Review').length;
-
   int get _pendingCount =>
       _historyItems.where((HistoryItem i) => i.status == 'Pending').length;
 
   int get _streak => DashboardSubmission.computeStreak(_submissions);
 
-  int get _passRate {
-    final int total = _historyItems.length;
-    if (total == 0) return 0;
-    return ((_passedCount / total) * 100).round();
+  /// Average score of the entries that have one, or null when none do. There
+  /// is no pass or fail on this tab: each row shows its score.
+  int? get _averageScore {
+    final List<int> scores = <int>[
+      for (final HistoryItem i in _historyItems)
+        if (i.score != null) i.score!,
+    ];
+    if (scores.isEmpty) return null;
+    return (scores.reduce((int a, int b) => a + b) / scores.length).round();
   }
 
   List<FilterTabItem> get _filterTabs => <FilterTabItem>[
     FilterTabItem(id: 'all', label: 'All', count: _historyItems.length),
-    FilterTabItem(id: 'passed', label: 'Passed', count: _passedCount),
-    FilterTabItem(
-      id: 'needs-review',
-      label: 'Needs Review',
-      count: _needsReviewCount,
-    ),
     if (_pendingCount > 0)
       FilterTabItem(id: 'pending', label: 'Pending', count: _pendingCount),
   ];
@@ -323,10 +311,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   List<HistoryItem> get _filteredHistory {
     return _historyItems.where((HistoryItem i) {
-      if (_statusFilter == 'passed' && i.status != 'Passed') return false;
-      if (_statusFilter == 'needs-review' && i.status != 'Needs Review') {
-        return false;
-      }
       if (_statusFilter == 'pending' && i.status != 'Pending') return false;
       if (_langFilter != 'all' &&
           i.language.toLowerCase() != _langFilter.toLowerCase()) {
@@ -362,27 +346,26 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   /// Plain text with an icon. The meaning is in the word and the icon, not the colour.
-  Widget _buildStatusBadge(String status, Color textSecondary) {
-    final String s = DashboardSubmission.normalizeStatus(status);
-    final IconData icon = s == 'Passed'
-        ? Icons.check_rounded
-        : s == 'Pending'
-        ? Icons.hourglass_empty_rounded
-        : Icons.access_time_rounded;
-
+  /// No pass or fail anywhere on this tab. Only a review still in progress is
+  /// marked; everything else just shows its score.
+  Widget _buildPendingBadge(String status, Color textSecondary) {
+    if (DashboardSubmission.normalizeStatus(status) != 'Pending') {
+      return const SizedBox.shrink();
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Icon(icon, size: 15.0, color: textSecondary),
+        Icon(Icons.hourglass_empty_rounded, size: 15.0, color: textSecondary),
         const SizedBox(width: 4.0),
         Text(
-          s,
+          'Pending',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12.0,
             fontWeight: FontWeight.w600,
             color: textSecondary,
           ),
         ),
+        const SizedBox(width: 8.0),
       ],
     );
   }
@@ -1089,8 +1072,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
     final Map<String, dynamic>? attempt = _getAttemptForAssessment(asst.id);
     final bool hasAttempt = attempt != null;
     final int? attemptScore = attempt?['score'] as int?;
-    final bool isPassed =
-        attemptScore != null && attemptScore >= asst.passingScore;
+    // No pass mark: a recorded score means the learner has taken it.
+    final bool isPassed = attemptScore != null;
 
     return Material(
       color: Colors.transparent,
@@ -1157,7 +1140,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                                     ),
                                     const SizedBox(width: 3.0),
                                     Text(
-                                      'Passed',
+                                      'Completed',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12.0,
                                         fontWeight: FontWeight.w600,
@@ -1289,20 +1272,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
             const SizedBox(width: 8.0),
             Expanded(
               child: _buildMetricBox(
-                label: 'Pass Rate',
-                value: '$_passRate%',
-                icon: Icons.check_circle_outline_rounded,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: _buildMetricBox(
-                label: 'Review',
-                value: '$_needsReviewCount',
-                icon: Icons.access_time_rounded,
+                label: 'Average score',
+                value: _averageScore == null ? '—' : '$_averageScore%',
+                icon: Icons.insights_outlined,
                 isDark: isDark,
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
@@ -1561,8 +1533,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
               // Row 1: Status Badge, Score, and Relative Timestamp
               Row(
                 children: <Widget>[
-                  _buildStatusBadge(sub.status, textSecondary),
-                  const SizedBox(width: 8.0),
+                  _buildPendingBadge(sub.status, textSecondary),
                   if (sub.score != null)
                     Text.rich(
                       TextSpan(
@@ -1743,8 +1714,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    _buildStatusBadge(item.status, textSecondary),
-                    const SizedBox(width: 8.0),
+                    _buildPendingBadge(item.status, textSecondary),
                     if (item.score != null)
                       Text.rich(
                         TextSpan(
@@ -1834,7 +1804,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 2.0),
-                                _buildStatusBadge(c.status, textSecondary),
+                                if (DashboardSubmission.normalizeStatus(
+                                      c.status,
+                                    ) ==
+                                    'Pending')
+                                  _buildPendingBadge(c.status, textSecondary),
                               ],
                             ),
                           ),

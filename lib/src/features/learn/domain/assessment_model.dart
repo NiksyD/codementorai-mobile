@@ -61,7 +61,6 @@ class AssessmentModel {
     required this.stack,
     required this.difficulty,
     required this.durationMins,
-    required this.passingScore,
     required this.maxAttempts,
     required this.status,
     required this.challengeCount,
@@ -80,7 +79,6 @@ class AssessmentModel {
   final List<String> stack;
   final String difficulty; // 'Easy', 'Medium', 'Hard'
   final int durationMins;
-  final int passingScore;
   final int maxAttempts;
   final String status;
   final int challengeCount;
@@ -102,7 +100,6 @@ class AssessmentModel {
     List<String>? stack,
     String? difficulty,
     int? durationMins,
-    int? passingScore,
     int? maxAttempts,
     String? status,
     int? challengeCount,
@@ -121,7 +118,6 @@ class AssessmentModel {
       stack: stack ?? this.stack,
       difficulty: difficulty ?? this.difficulty,
       durationMins: durationMins ?? this.durationMins,
-      passingScore: passingScore ?? this.passingScore,
       maxAttempts: maxAttempts ?? this.maxAttempts,
       status: status ?? this.status,
       challengeCount: challengeCount ?? this.challengeCount,
@@ -218,7 +214,6 @@ class AssessmentModel {
       stack: parsedStack,
       difficulty: normalizedDiff,
       durationMins: json['duration_mins'] as int? ?? 60,
-      passingScore: json['passing_score'] as int? ?? 70,
       maxAttempts: json['max_attempts'] as int? ?? 1,
       status: json['status']?.toString() ?? 'published',
       challengeCount: challengeCount > 0 ? challengeCount : challenges.length,

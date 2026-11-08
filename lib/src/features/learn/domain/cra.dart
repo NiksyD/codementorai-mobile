@@ -1,5 +1,3 @@
-import 'dart:math';
-
 /// Competition Readiness (CRA). A line-for-line port of the web's
 /// `lib/competency/cra.ts`, so both apps show the same figures for a learner.
 ///
@@ -11,27 +9,25 @@ import 'dart:math';
 ///    every figure until it does, nothing is guessed.
 ///
 /// A criterion without enough data is null and is shown as "—".
+library;
 
-/// Initial value, pending calibration.
-const int craSolidRatingMark = 70;
+/// A challenge is correctly solved only with all tests passing and AI
+/// correctness of at least 80% (CRC criteria PDF, section 7). An initial value
+/// pending expert validation. Mirror of SOLID_RATING_MARK in the web's cra.ts.
+const int craSolidRatingMark = 80;
 
-/// Different topics a learner must have solved problems in for full Problem Breadth.
-const int craBreadthTargetTopics = 6;
-
-/// An assessment is a success for Consistency when this share of it is solved.
-const double craConsistencySuccessShare = 0.5;
 const int craConsistencyMinAssessments = 3;
 const int craConsistencyWindow = 10;
 
 /// Stored but never counted toward Problem Breadth.
 const String craOtherTopic = 'other';
 
-/// Index weights from the mentor survey. They sum to 1.
+/// Index weights from the CRC criteria PDF. They sum to exactly 1.
 const Map<String, double> craWeights = <String, double>{
   'accuracy': 0.2557,
   'efficiency': 0.259,
   'problemBreadth': 0.2393,
-  'consistency': 0.2459,
+  'consistency': 0.246,
 };
 
 class CraProblem {
@@ -94,6 +90,10 @@ class CraAnalysis {
     this.attemptedCount = 0,
     this.pendingCount = 0,
     this.hasTopicData = false,
+    this.consistencyAssessments = 0,
+    this.consistencyMad,
+    this.topicsCovered = const <String>[],
+    this.topicsAssessed = const <String>[],
   });
 
   final bool hasData;
@@ -114,6 +114,16 @@ class CraAnalysis {
   final int attemptedCount;
   final int pendingCount;
   final bool hasTopicData;
+
+  /// Assessments that went into Consistency, and the mean absolute deviation
+  /// of their accuracy (null until Consistency can be measured).
+  final int consistencyAssessments;
+  final double? consistencyMad;
+
+  /// Topics demonstrated (tagged on a solved problem) and topics assessed
+  /// (tagged on any rated problem). Problem Breadth is covered / assessed.
+  final List<String> topicsCovered;
+  final List<String> topicsAssessed;
 
   int? valueOf(String criterion) => switch (criterion) {
     'accuracy' => accuracy,
@@ -158,13 +168,21 @@ CraAnalysis computeCra(List<CraAttempt> attempts) {
   int missed = 0;
   int pending = 0;
   final List<double> efficiencyRatings = <double>[];
-  final Set<String> topics = <String>{};
+  final Set<String> topics = <String>{}; // demonstrated
+  final Set<String> assessedTopics = <String>{}; // assessed
   bool anyTopicTags = false;
 
   for (final CraAttempt a in latest) {
     for (final CraProblem p in a.problems) {
       if (p.topics.isNotEmpty) anyTopicTags = true;
-      switch (classifyCraProblem(p)) {
+      final CraOutcome outcome = classifyCraProblem(p);
+      // A pending problem is left out of every figure, its topics included.
+      if (outcome != CraOutcome.pending) {
+        for (final String t in p.topics) {
+          if (t.isNotEmpty && t != craOtherTopic) assessedTopics.add(t);
+        }
+      }
+      switch (outcome) {
         case CraOutcome.pending:
           pending++;
         case CraOutcome.missed:
@@ -189,8 +207,9 @@ CraAnalysis computeCra(List<CraAttempt> attempts) {
               efficiencyRatings.length,
         )
       : null;
-  final int? problemBreadth = anyTopicTags
-      ? min(100, _round(topics.length / craBreadthTargetTopics * 100))
+  // Problem Breadth = topics demonstrated / topics assessed (CRC criteria PDF).
+  final int? problemBreadth = anyTopicTags && assessedTopics.isNotEmpty
+      ? _round(topics.length / assessedTopics.length * 100)
       : null;
 
   // Consistency: first attempt of each of the last N assessments.
@@ -198,8 +217,8 @@ CraAnalysis computeCra(List<CraAttempt> attempts) {
     ..sort(
       (CraAttempt a, CraAttempt b) => b.submittedAt.compareTo(a.submittedAt),
     );
-  int rated = 0;
-  int successes = 0;
+  // Accuracy of each assessment: solved / (solved + missed) x 100. Pending stays out.
+  final List<double> accuracies = <double>[];
   for (final CraAttempt a in firsts.take(craConsistencyWindow)) {
     int s = 0;
     int m = 0;
@@ -209,12 +228,18 @@ CraAnalysis computeCra(List<CraAttempt> attempts) {
       if (o == CraOutcome.missed) m++;
     }
     if (s + m == 0) continue;
-    rated++;
-    if (s / (s + m) >= craConsistencySuccessShare) successes++;
+    accuracies.add(s / (s + m) * 100);
   }
-  final int? consistency = rated >= craConsistencyMinAssessments
-      ? _round(successes / rated * 100)
-      : null;
+  final int rated = accuracies.length;
+  int? consistency;
+  double? consistencyMad;
+  if (rated >= craConsistencyMinAssessments) {
+    final double mean = accuracies.reduce((double x, double y) => x + y) / rated;
+    consistencyMad =
+        accuracies.fold<double>(0, (double t, double v) => t + (v - mean).abs()) /
+        rated;
+    consistency = _round(100 - consistencyMad).clamp(0, 100);
+  }
 
   // Index: only criteria with data, re-weighted to total 100%.
   final Map<String, int?> values = <String, int?>{
@@ -245,6 +270,10 @@ CraAnalysis computeCra(List<CraAttempt> attempts) {
     attemptedCount: attempted,
     pendingCount: pending,
     hasTopicData: anyTopicTags,
+    consistencyAssessments: rated,
+    consistencyMad: consistencyMad,
+    topicsCovered: topics.toList(),
+    topicsAssessed: assessedTopics.toList(),
   );
 }
 

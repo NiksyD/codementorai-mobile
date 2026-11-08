@@ -55,7 +55,6 @@ class RoomAssessmentSummary {
     this.stack = const <String>[],
     this.difficulty = 'Intermediate',
     this.durationMins = 60,
-    this.passingScore = 70,
     this.challengesCount = 0,
     this.displayOrder = 0,
     this.userStatus = 'not_started',
@@ -68,15 +67,13 @@ class RoomAssessmentSummary {
   final List<String> stack;
   final String difficulty;
   final int durationMins;
-  final int passingScore;
   final int challengesCount;
   final int displayOrder;
   final String userStatus;
   final int? userBestScore;
 
-  bool get isCompleted =>
-      userStatus == 'completed' ||
-      (userBestScore != null && userBestScore! >= passingScore);
+  /// There is no pass mark: a recorded score means the learner has taken it.
+  bool get isCompleted => userStatus == 'completed' || userBestScore != null;
   bool get isInProgress => userStatus == 'in_progress';
 
   factory RoomAssessmentSummary.fromJson(Map<String, dynamic> json) {
@@ -100,9 +97,6 @@ class RoomAssessmentSummary {
       durationMins: (json['durationMins'] as num?)?.toInt() ??
           (json['duration_mins'] as num?)?.toInt() ??
           60,
-      passingScore: (json['passingScore'] as num?)?.toInt() ??
-          (json['passing_score'] as num?)?.toInt() ??
-          70,
       challengesCount: (json['challengesCount'] as num?)?.toInt() ??
           (json['challengeCount'] as num?)?.toInt() ??
           0,

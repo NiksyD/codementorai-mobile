@@ -754,7 +754,7 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
             metrics: <_Metric>[
               _Metric(
                 'Correctness',
-                'Meets the spec and passes edge cases',
+                'Whether your code does what the problem asks, including unusual inputs and edge cases.',
                 acf.hasData ? acf.correctness : null,
                 series: <int>[
                   for (final GrowthPoint p in growth)
@@ -764,7 +764,7 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
               ),
               _Metric(
                 'Readability',
-                'Clear naming and consistent layout',
+                'How easy your code is to read: clear names, consistent layout and a sensible structure.',
                 acf.hasData ? acf.readability : null,
                 series: <int>[
                   for (final GrowthPoint p in growth)
@@ -774,7 +774,7 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
               ),
               _Metric(
                 'Maintainability',
-                'Modular code with low complexity',
+                'How easy your code would be to change later: small focused pieces, low complexity and little repetition.',
                 acf.hasData ? acf.maintainability : null,
                 series: <int>[
                   for (final GrowthPoint p in growth)
@@ -784,7 +784,7 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
               ),
               _Metric(
                 'Efficiency',
-                'Sensible runtime and memory use',
+                'How sensibly your code uses time and memory for the problem.',
                 acf.hasData ? acf.efficiency : null,
                 series: <int>[
                   for (final GrowthPoint p in growth)
@@ -848,28 +848,28 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
             metrics: <_Metric>[
               _Metric(
                 'Accuracy',
-                'Problems solved out of those attempted',
+                'How many of the problems you attempt you actually solve. A problem counts as solved when it passes every test and the AI review rates its correctness at 80% or higher.',
                 cra.accuracy,
                 series: seriesOf('accuracy'),
                 view: 'accuracy',
               ),
               _Metric(
                 'Efficiency',
-                'AI-rated, from the problems you solve',
+                'How well your solutions use time and memory, as rated by the AI review. Only problems you solved are rated.',
                 cra.efficiency,
                 series: seriesOf('efficiency'),
                 view: 'efficiency',
               ),
               _Metric(
                 'Problem Breadth',
-                'How varied the problems solved are',
+                'How many different programming concepts you have shown you can use, out of the concepts the problems you have taken cover. A concept counts once you solve a problem that needs it.',
                 cra.problemBreadth,
                 series: seriesOf('problemBreadth'),
                 view: 'problemBreadth',
               ),
               _Metric(
                 'Consistency',
-                'How steady results are from one assessment to the next',
+                'How steady your results are from one assessment to the next. Steady scores rate higher than big swings between good and bad runs. It tracks steadiness, not improvement.',
                 cra.consistency,
                 series: seriesOf('consistency'),
                 view: 'consistency',

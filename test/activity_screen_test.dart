@@ -247,46 +247,15 @@ void main() {
 
       // Filter tabs
       expect(find.text('All'), findsOneWidget);
-      expect(find.text('Passed'), findsWidgets);
-      expect(find.text('Needs Review'), findsWidgets);
+      // No pass or fail on this tab: rows show their score instead.
+      expect(find.text('Passed'), findsNothing);
+      expect(find.text('Needs Review'), findsNothing);
+      expect(find.text('Average score'), findsOneWidget);
 
       // Submission cards rendered
       expect(find.text('Two Sum in Python'), findsOneWidget);
       expect(find.text('Deadlock Detection in Java'), findsOneWidget);
       expect(find.text('Async Event Loop in JavaScript'), findsOneWidget);
-    });
-
-    testWidgets('Filters submissions by status tab', (
-      WidgetTester tester,
-    ) async {
-      final FakeActivityPathwayRepository repository =
-          FakeActivityPathwayRepository(testSubmissions);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ActivityScreen(
-            pathwayRepository: repository,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Tap "Needs Review" tab pill (first occurrence)
-      await tester.tap(find.text('Needs Review').first);
-      await tester.pumpAndSettle();
-
-      // Only Deadlock Detection should be visible
-      expect(find.text('Deadlock Detection in Java'), findsOneWidget);
-      expect(find.text('Two Sum in Python'), findsNothing);
-      expect(find.text('Async Event Loop in JavaScript'), findsNothing);
-
-      // Tap "Passed" tab pill (first occurrence)
-      await tester.tap(find.text('Passed').first);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Two Sum in Python'), findsOneWidget);
-      expect(find.text('Async Event Loop in JavaScript'), findsOneWidget);
-      expect(find.text('Deadlock Detection in Java'), findsNothing);
     });
 
     testWidgets('Searches submissions by text query', (

@@ -159,12 +159,6 @@ class _AssessmentReportScreenState extends State<AssessmentReportScreen> {
     final Color borderColor =
         isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    final bool isPassed = args.hasEvaluation && args.isPassed;
-    // Nothing was judged: show a neutral blank state instead of a 0% grade.
-    final Color accent = !args.hasEvaluation
-        ? textSecondary
-        : (isPassed ? AppColors.success : AppColors.warning);
-
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -182,8 +176,6 @@ class _AssessmentReportScreenState extends State<AssessmentReportScreen> {
                   children: <Widget>[
                     _SummaryCard(
                       args: args,
-                      accent: accent,
-                      isPassed: isPassed,
                       cardColor: cardColor,
                       borderColor: borderColor,
                       textPrimary: textPrimary,
@@ -282,8 +274,6 @@ class _AssessmentReportScreenState extends State<AssessmentReportScreen> {
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.args,
-    required this.accent,
-    required this.isPassed,
     required this.cardColor,
     required this.borderColor,
     required this.textPrimary,
@@ -294,8 +284,6 @@ class _SummaryCard extends StatelessWidget {
   });
 
   final AssessmentReportArgs args;
-  final Color accent;
-  final bool isPassed;
   final Color cardColor;
   final Color borderColor;
   final Color textPrimary;
@@ -334,13 +322,6 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String status = !args.hasEvaluation
-        ? 'Not evaluated'
-        : (isPassed ? 'Passed' : 'Needs review');
-    final IconData statusIcon = !args.hasEvaluation
-        ? Icons.remove_rounded
-        : (isPassed ? Icons.check_rounded : Icons.error_outline_rounded);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -361,21 +342,6 @@ class _SummaryCard extends StatelessWidget {
             letterSpacing: -1.0,
             height: 1.1,
           ),
-        ),
-        const SizedBox(height: 8.0),
-        Row(
-          children: <Widget>[
-            Icon(statusIcon, size: 18.0, color: accent),
-            const SizedBox(width: 6.0),
-            Text(
-              status,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 15.0,
-                fontWeight: FontWeight.w600,
-                color: accent,
-              ),
-            ),
-          ],
         ),
         const SizedBox(height: 4.0),
         Text(

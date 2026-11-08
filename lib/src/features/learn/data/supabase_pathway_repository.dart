@@ -2249,7 +2249,6 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
                 stack,
                 difficulty,
                 duration_mins,
-                passing_score,
                 status,
                 assessment_challenges (id)
               )

@@ -15,7 +15,6 @@ AssessmentReportArgs _args({
     stack: <String>['java'],
     difficulty: 'Medium',
     durationMins: 60,
-    passingScore: 70,
     maxAttempts: 3,
     status: 'published',
     challengeCount: 2,
@@ -82,9 +81,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('—'), findsOneWidget);
-    expect(find.text('Not evaluated'), findsOneWidget);
+    expect(find.text('No task was run, so there is no score yet.'), findsOneWidget);
     expect(find.text('0%'), findsNothing);
-    expect(find.text('Needs review'), findsNothing);
     // No AI review is awaited for work that was never judged.
     expect(find.text('Evaluating'), findsNothing);
   });
@@ -98,7 +96,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('0%'), findsOneWidget);
-    expect(find.text('Needs review'), findsOneWidget);
+    // There is no pass mark, so no pass or fail verdict is shown.
+    expect(find.text('Needs review'), findsNothing);
+    expect(find.text('Passed'), findsNothing);
+    expect(find.text('Tasks passed'), findsOneWidget);
     expect(find.text('—'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());

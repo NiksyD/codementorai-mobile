@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../../../core/network/api_client.dart';
 import '../domain/assessment_model.dart';
 import '../domain/submission_history_model.dart';
+import '../domain/topic_tags.dart';
 import 'assessment_repository.dart';
 
 class SupabaseAssessmentRepository implements AssessmentRepository {
@@ -30,7 +31,6 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
             stack,
             difficulty,
             duration_mins,
-            passing_score,
             max_attempts,
             status,
             price_coins,
@@ -94,7 +94,6 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
             stack,
             difficulty,
             duration_mins,
-            passing_score,
             max_attempts,
             status,
             mentor_id,
@@ -351,7 +350,8 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
       // what the readiness calculation reads. It needs the submission ids, so it
       // is written after the submissions.
       try {
-        final int passingScore = await _getPassingScore(assessmentId);
+        final Map<String, List<String>> topicsById =
+            await _getTopicTags(assessmentId);
         final DateTime submittedAt = DateTime.now().toUtc();
         final List<Map<String, dynamic>> problems = <Map<String, dynamic>>[
           for (final Map<String, dynamic> item in challengeSubmissions)
@@ -360,21 +360,24 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
               'language': item['language']?.toString() ?? 'javascript',
               'passed': item['passed'] == true,
               'submissionId': submissionIds[item['challenge_id']?.toString()],
+              // Saved as they were at submit time (Problem Breadth).
+              'topics': topicsById[item['challenge_id']?.toString()] ??
+                  const <String>[],
             },
         ];
+        final bool allProblemsPassed = problems.isNotEmpty &&
+            problems.every((Map<String, dynamic> p) => p['passed'] == true);
         await _supabase.from('user_assessment_attempts').insert(<String, dynamic>{
           'user_id': userId,
           'assessment_id': assessmentId,
           'status': 'completed',
           'score': score,
-          'passing_score': passingScore,
-          'is_passed': score >= passingScore,
+          // No pass mark. The flag only says every problem passed its tests.
+          'is_passed': allProblemsPassed,
           'duration_seconds': timeSpentSecs,
           'snapshot': <String, dynamic>{
             'assessmentId': assessmentId,
-            'passingScore': passingScore,
             'overallScore': score,
-            'isPassed': score >= passingScore,
             'passedCount': problems.where((Map<String, dynamic> p) => p['passed'] == true).length,
             'totalCount': problems.length,
             'submittedAt': submittedAt.toIso8601String(),
@@ -457,7 +460,9 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
                 'passedTests': c['passed'] == true,
                 'correctness': rating?['correctness'],
                 'efficiency': rating?['efficiency'],
-                'topics': c['topics'] is List ? c['topics'] : const <dynamic>[],
+                // Only tags from the current list count; older attempts saved
+                // before the list was fixed are ignored.
+                'topics': sanitizeTopicTags(c['topics']),
               };
             }(),
       ];
@@ -645,17 +650,22 @@ class SupabaseAssessmentRepository implements AssessmentRepository {
     }
   }
 
-  Future<int> _getPassingScore(String assessmentId) async {
+  /// Topic tag ids per challenge id. Empty when the assessment has no tags yet
+  /// or the topic_tags column has not been added (migration 037).
+  Future<Map<String, List<String>>> _getTopicTags(String assessmentId) async {
     try {
-      final Map<String, dynamic>? row = await _supabase
-          .from('assessments')
-          .select('passing_score')
-          .eq('id', assessmentId)
-          .maybeSingle();
-      final dynamic v = row?['passing_score'];
-      return v is num ? v.toInt() : 70;
-    } catch (_) {
-      return 70;
+      final List<dynamic> rows = await _supabase
+          .from('assessment_challenges')
+          .select('id, topic_tags')
+          .eq('assessment_id', assessmentId);
+      return <String, List<String>>{
+        for (final dynamic r in rows)
+          if (r is Map && r['id'] != null)
+            r['id'].toString(): sanitizeTopicTags(r['topic_tags']),
+      };
+    } catch (e) {
+      debugPrint('Topic tags unavailable: $e');
+      return <String, List<String>>{};
     }
   }
 
