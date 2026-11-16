@@ -223,7 +223,7 @@ void main() {
   ];
 
   group('ActivityScreen Widget Tests', () {
-    testWidgets('Renders header, metrics row, filter tabs, and submissions', (
+    testWidgets('Renders header, filter tabs, and submissions (no redundant metric cards)', (
       WidgetTester tester,
     ) async {
       final FakeActivityPathwayRepository repository =
@@ -250,7 +250,9 @@ void main() {
       // No pass or fail on this tab: rows show their score instead.
       expect(find.text('Passed'), findsNothing);
       expect(find.text('Needs Review'), findsNothing);
-      expect(find.text('Average score'), findsOneWidget);
+      // Metric cards removed to match web
+      expect(find.text('Average score'), findsNothing);
+      expect(find.text('Avg Progress'), findsNothing);
 
       // Submission cards rendered
       expect(find.text('Two Sum in Python'), findsOneWidget);
@@ -356,7 +358,8 @@ void main() {
 
         // Dedicated review screen is mounted
         expect(find.text('Submission review'), findsOneWidget);
-        expect(find.textContaining('All tests passed'), findsOneWidget);
+        expect(find.text('Two Sum in Python'), findsWidgets);
+        expect(find.textContaining('Python ·'), findsOneWidget);
         // This fake has no AI findings, so the screen says so instead of
         // inventing criteria. (Criteria are covered in the review screen's own test.)
         expect(find.text("The AI review isn't ready yet"), findsOneWidget);

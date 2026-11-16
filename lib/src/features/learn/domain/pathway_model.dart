@@ -16,6 +16,7 @@ class PathwayModel {
     this.coachAvatar,
     this.rating = 5.0,
     this.price = 0.0,
+    this.kind = 'standard',
   });
 
   final String id;
@@ -34,6 +35,9 @@ class PathwayModel {
   final String? coachAvatar;
   final double rating;
   final double price;
+  final String kind; // 'standard' or 'system_pretest'
+
+  bool get isBaseline => kind == 'system_pretest';
 
   PathwayModel copyWith({
     String? id,
@@ -52,6 +56,7 @@ class PathwayModel {
     String? coachAvatar,
     double? rating,
     double? price,
+    String? kind,
   }) {
     return PathwayModel(
       id: id ?? this.id,
@@ -70,6 +75,7 @@ class PathwayModel {
       coachAvatar: coachAvatar ?? this.coachAvatar,
       rating: rating ?? this.rating,
       price: price ?? this.price,
+      kind: kind ?? this.kind,
     );
   }
 
@@ -89,6 +95,10 @@ class PathwayModel {
     final String description = rawDescription.trim().isNotEmpty
         ? rawDescription.trim()
         : 'Self-paced coding practice exercises and challenges.';
+
+    final String rawKind = moduleData['mod_kind'] as String? ?? 'standard';
+    final String kind = rawKind == 'system_pretest' ? 'system_pretest' : 'standard';
+    final bool isBaseline = kind == 'system_pretest';
 
     List<String> stackList = <String>[];
     final dynamic rawStack = moduleData['mod_stack'];
@@ -123,15 +133,18 @@ class PathwayModel {
       completion: userProgress,
       totalModules: topics.isNotEmpty ? topics.length : 8,
       currentModule: currentTopicTitle,
-      isEnrolled: isEnrolled,
-      isPurchased: isPurchased,
+      isEnrolled: isEnrolled || isBaseline,
+      isPurchased: isPurchased || isBaseline,
       isBookmarked: isBookmarked,
       coachName: moduleData['coach_name'] as String?,
       coachAvatar: moduleData['coach_avatar'] as String?,
       rating: (moduleData['mod_rating'] as num?)?.toDouble() ?? 5.0,
-      price: ((moduleData['mod_price'] as num?)?.toDouble() ?? 0.0) > 0
-          ? ((moduleData['mod_price'] as num?)?.toDouble() ?? 0.0)
-          : 0.84,
+      price: isBaseline
+          ? 0.0
+          : (((moduleData['mod_price'] as num?)?.toDouble() ?? 0.0) > 0
+              ? ((moduleData['mod_price'] as num?)?.toDouble() ?? 0.0)
+              : 0.84),
+      kind: kind,
     );
   }
 }

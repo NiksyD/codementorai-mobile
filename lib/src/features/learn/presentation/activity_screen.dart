@@ -200,15 +200,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
         return att != null && att['score'] != null;
       }).length;
 
-  int get _avgCompletion {
-    if (_enrolledModules.isEmpty) return 0;
-    final int sum = _enrolledModules.fold<int>(
-      0,
-      (int acc, PathwayModel p) => acc + p.completion,
-    );
-    return (sum / _enrolledModules.length).round();
-  }
-
   List<FilterTabItem> get _activeLearningFilterTabs => <FilterTabItem>[
     FilterTabItem(id: 'all', label: 'All Progress', count: _totalActiveCount),
     FilterTabItem(
@@ -236,6 +227,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
         final String q = _activeLearningSearch.trim().toLowerCase();
         if (!p.title.toLowerCase().contains(q) &&
             !p.description.toLowerCase().contains(q) &&
+            !(p.coachName ?? '').toLowerCase().contains(q) &&
             !p.stack.any((String s) => s.toLowerCase().contains(q))) {
           return false;
         }
@@ -256,6 +248,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
         final String q = _activeLearningSearch.trim().toLowerCase();
         if (!a.title.toLowerCase().contains(q) &&
             !a.description.toLowerCase().contains(q) &&
+            !a.mentorName.toLowerCase().contains(q) &&
             !a.stack.any((String s) => s.toLowerCase().contains(q))) {
           return false;
         }
@@ -279,19 +272,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   int get _pendingCount =>
       _historyItems.where((HistoryItem i) => i.status == 'Pending').length;
-
-  int get _streak => DashboardSubmission.computeStreak(_submissions);
-
-  /// Average score of the entries that have one, or null when none do. There
-  /// is no pass or fail on this tab: each row shows its score.
-  int? get _averageScore {
-    final List<int> scores = <int>[
-      for (final HistoryItem i in _historyItems)
-        if (i.score != null) i.score!,
-    ];
-    if (scores.isEmpty) return null;
-    return (scores.reduce((int a, int b) => a + b) / scores.length).round();
-  }
 
   List<FilterTabItem> get _filterTabs => <FilterTabItem>[
     FilterTabItem(id: 'all', label: 'All', count: _historyItems.length),
@@ -577,45 +557,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Hollow Metrics Overview Row
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: _buildMetricBox(
-                label: 'Active',
-                value: '$_totalActiveCount',
-                icon: Icons.menu_book_rounded,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: _buildMetricBox(
-                label: 'Streak',
-                value: '${_streak}d',
-                icon: Icons.local_fire_department_rounded,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: _buildMetricBox(
-                label: 'Avg Progress',
-                value: '$_avgCompletion%',
-                icon: Icons.insights_rounded,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18.0),
-
         // Search Input & Progress Filter Dropdown
         Row(
           children: <Widget>[
@@ -964,6 +905,20 @@ class _ActivityScreenState extends State<ActivityScreen> {
                             ],
                           ],
                         ),
+                        if (module.coachName != null &&
+                            module.coachName!.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 4.0),
+                          Text(
+                            'by ${module.coachName}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.0,
+                              fontWeight: FontWeight.w500,
+                              color: textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                         if (module.description.isNotEmpty) ...<Widget>[
                           const SizedBox(height: 4.0),
                           Text(
@@ -1153,6 +1108,19 @@ class _ActivityScreenState extends State<ActivityScreen> {
                             ],
                           ],
                         ),
+                        if (asst.mentorName.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 4.0),
+                          Text(
+                            'by ${asst.mentorName}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.0,
+                              fontWeight: FontWeight.w500,
+                              color: textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                         if (asst.description.isNotEmpty) ...<Widget>[
                           const SizedBox(height: 4.0),
                           Text(
@@ -1256,34 +1224,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // Hollow Metrics Overview Row
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: _buildMetricBox(
-                label: 'Submissions',
-                value: '${_historyItems.length}',
-                icon: Icons.layers_outlined,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: _buildMetricBox(
-                label: 'Average score',
-                value: _averageScore == null ? '—' : '$_averageScore%',
-                icon: Icons.insights_outlined,
-                isDark: isDark,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18.0),
-
         // Filter Tabs (Standard 36.0 Height)
         FilterTabBar(
           tabs: _filterTabs,
@@ -1433,40 +1373,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
             borderColor: borderColor,
           ),
         ],
-      ],
-    );
-  }
-
-  /// A label over a number. No box, no colour; a figure is just a figure.
-  Widget _buildMetricBox({
-    required String label,
-    required String value,
-    required IconData icon,
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12.0,
-            color: textSecondary,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 4.0),
-        Text(
-          value,
-          style: GoogleFonts.jetBrainsMono(
-            fontSize: 20.0,
-            fontWeight: FontWeight.w600,
-            color: textPrimary,
-          ),
-        ),
       ],
     );
   }

@@ -308,7 +308,7 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
   Color get _text => widget.textPrimary;
   Color get _muted => widget.textSecondary;
 
-  Widget _switch(String label, int? score, bool selected, VoidCallback onTap) {
+  Widget _switch(String label, bool selected, VoidCallback onTap) {
     return Semantics(
       button: true,
       selected: selected,
@@ -322,27 +322,14 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
           child: Align(
             alignment: Alignment.centerLeft,
             widthFactor: 1.0,
-            child: Text.rich(
-              TextSpan(
-                children: <InlineSpan>[
-                  TextSpan(
-                    text: label,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14.0,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      color: selected ? _text : _muted,
-                      decoration: selected ? TextDecoration.underline : null,
-                      decorationColor: _text,
-                    ),
-                  ),
-                  TextSpan(
-                    text: score == null ? '  —' : '  $score%',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.0,
-                      color: selected ? _text : _muted,
-                    ),
-                  ),
-                ],
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14.0,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? _text : _muted,
+                decoration: selected ? TextDecoration.underline : null,
+                decorationColor: _text,
               ),
             ),
           ),
@@ -725,7 +712,6 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
           children: <Widget>[
             _switch(
               'Programming competency',
-              practiceScore,
               !_showReadiness,
               () {
                 setState(() => _showReadiness = false);
@@ -733,7 +719,6 @@ class _CompetencyProfileViewState extends State<CompetencyProfileView> {
             ),
             _switch(
               'Competition readiness',
-              readinessScore,
               _showReadiness,
               () {
                 setState(() => _showReadiness = true);

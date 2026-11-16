@@ -7,8 +7,8 @@ class ChallengeCompletionModal extends StatelessWidget {
   const ChallengeCompletionModal({
     super.key,
     required this.challengeTitle,
-    required this.targetTime,
-    required this.targetSpace,
+    this.targetTime = 'O(1)',
+    this.targetSpace = 'O(1)',
     required this.onBackToModule,
     this.onViewAiReview,
     this.solved = true,
@@ -32,8 +32,8 @@ class ChallengeCompletionModal extends StatelessWidget {
   static Future<void> show(
     BuildContext context, {
     required String challengeTitle,
-    required String targetTime,
-    required String targetSpace,
+    String targetTime = 'O(1)',
+    String targetSpace = 'O(1)',
     required VoidCallback onBackToModule,
     VoidCallback? onViewAiReview,
     bool solved = true,
@@ -139,34 +139,6 @@ class ChallengeCompletionModal extends StatelessWidget {
                   fontSize: 13.0,
                   height: 1.45,
                   color: textSecondary,
-                ),
-              ),
-              const SizedBox(height: 16.0),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
-                decoration: BoxDecoration(
-                  border: Border.symmetric(
-                    horizontal: BorderSide(color: borderColor),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Text(
-                      'Target complexity',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.0,
-                        color: textSecondary,
-                      ),
-                    ),
-                    Text(
-                      '$targetTime time · $targetSpace space',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 13.0,
-                        color: textPrimary,
-                      ),
-                    ),
-                  ],
                 ),
               ),
               const SizedBox(height: 20.0),

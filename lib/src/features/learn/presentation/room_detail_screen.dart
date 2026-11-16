@@ -319,7 +319,10 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         ClipRRect(
           borderRadius: BorderRadius.circular(2.0),
           child: LinearProgressIndicator(
-            value: room.progressPct / 100.0,
+            // Strictly empty at 0% (AGENTS.md 2.3)
+            value: room.progressPct <= 0
+                ? 0.0
+                : (room.progressPct / 100.0).clamp(0.0, 1.0),
             minHeight: 4.0,
             backgroundColor: borderColor,
             valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
@@ -362,7 +365,22 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }) {
     final int activities = module.activitiesCount > 0
         ? module.activitiesCount
-        : module.topicsCount * 3;
+        : (module.topicsCount > 0 ? module.topicsCount * 3 : 0);
+
+    final List<String> metaParts = <String>[];
+    if (module.topicsCount > 0) {
+      metaParts.add('${module.topicsCount} ${module.topicsCount == 1 ? "topic" : "topics"}');
+    }
+    if (activities > 0) {
+      metaParts.add('$activities ${activities == 1 ? "activity" : "activities"}');
+    }
+    if (module.challengesLocked && module.challengesCount > 0) {
+      metaParts.add('${module.challengesCount} locked');
+    }
+    final String metaText = metaParts.isNotEmpty
+        ? metaParts.join(' · ')
+        : '$activities activities';
+
     return InkWell(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -413,7 +431,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         const SizedBox(width: 10.0),
                       ],
                       Text(
-                        '${module.topicsCount} topics · $activities activities',
+                        metaText,
                         style: GoogleFonts.jetBrainsMono(
                           fontSize: 12.0,
                           color: textSecondary,

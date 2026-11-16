@@ -336,19 +336,9 @@ class _ActivitySubmissionReviewScreenState
                   textPrimary: textPrimary,
                   textSecondary: textSecondary,
                 ),
-                const SizedBox(height: 18.0),
-
-                // ── 2. CLEAN TELEMETRY STRIP (border-y border-border/40) ────
-                _buildTelemetryStrip(
-                  review: review,
-                  isDark: isDark,
-                  borderColor: borderColor,
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                ),
                 const SizedBox(height: 24.0),
 
-                // ── 3. AUTOMATED CODE FEEDBACK (HOLLOW TABS & DIAGNOSTICS) ───
+                // ── 2. AUTOMATED CODE FEEDBACK (HOLLOW TABS & DIAGNOSTICS) ───
                 if (acf != null) ...<Widget>[
                   _buildAcfDiagnosticsSection(
                     acf: acf,
@@ -565,140 +555,83 @@ class _ActivitySubmissionReviewScreenState
     final String language = review.language.isNotEmpty
         ? '${review.language[0].toUpperCase()}${review.language.substring(1)}'
         : 'Code';
-    final String tests = review.testsPassedCount != null
-        ? '${review.testsPassedCount}/${review.totalTestsCount ?? review.testsPassedCount} tests passed'
-        : (review.isPassed ? 'All tests passed' : 'Tests failed');
+    final List<String> metaParts = <String>[
+      language,
+      if (review.timeAgoFormatted.isNotEmpty) review.timeAgoFormatted,
+    ];
 
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (review.moduleTitle.trim().isNotEmpty) ...<Widget>[
-          Text(
-            review.moduleTitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13.0,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4.0),
-        ],
-        Text(
-          review.title,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 22.0,
-            fontWeight: FontWeight.w700,
-            color: textPrimary,
-            letterSpacing: -0.3,
-            height: 1.25,
-          ),
-        ),
-        const SizedBox(height: 8.0),
-        Row(
-          children: <Widget>[
-            Icon(
-              review.isPassed ? Icons.check_rounded : Icons.close_rounded,
-              size: 16.0,
-              color: review.isPassed ? AppColors.primary : AppColors.error,
-            ),
-            const SizedBox(width: 4.0),
-            Expanded(
-              child: Text(
-                '${review.isPassed ? 'Passed' : 'Failed'} · $language · $tests · ${review.timeAgoFormatted}',
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (review.moduleTitle.trim().isNotEmpty) ...<Widget>[
+                Text(
+                  review.moduleTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.0,
+                    color: textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+              ],
+              Text(
+                review.title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 22.0,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                  letterSpacing: -0.3,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 6.0),
+              Text(
+                metaParts.join(' · '),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13.0,
                   color: textSecondary,
                   height: 1.4,
                 ),
               ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ── Telemetry ──────────────────────────────────────────────────────────────
-  Widget _buildTelemetryStrip({
-    required ActivitySubmissionReviewModel review,
-    required bool isDark,
-    required Color borderColor,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    Widget stat(String label, Widget value) => Expanded(
-      child: Padding(
-        padding: const EdgeInsets.only(right: 12.0),
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.0,
-              color: textSecondary,
-            ),
+            ],
           ),
-          const SizedBox(height: 3.0),
-          value,
-        ],
-      ),
-      ),
-    );
-
-    TextStyle mono() => GoogleFonts.jetBrainsMono(
-      fontSize: 14.0,
-      fontWeight: FontWeight.w600,
-      color: textPrimary,
-    );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 14.0),
-      decoration: BoxDecoration(
-        border: Border.symmetric(horizontal: BorderSide(color: borderColor)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          stat(
-            'Score',
+        ),
+        const SizedBox(width: 16.0),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
             Text.rich(
               TextSpan(
                 children: <InlineSpan>[
                   TextSpan(
-                    text: '${review.overallScore}',
-                    style: mono().copyWith(fontSize: 20.0),
+                    text: review.acfEvaluation != null
+                        ? '${review.overallScore}'
+                        : '—',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 28.0,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
                   ),
                   TextSpan(
                     text: ' / 100',
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.0,
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w400,
                       color: textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          stat(
-            'Result',
-            Text(
-              review.isPassed ? 'Passed' : review.verdict,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14.0,
-                fontWeight: FontWeight.w600,
-                color: textPrimary,
-              ),
-            ),
-          ),
-          stat('Target time', Text(review.targetTime, style: mono())),
-          stat('Target space', Text(review.targetSpace, style: mono())),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 

@@ -7,6 +7,10 @@ class RoomModuleSummary {
     this.status = 'published',
     this.topicsCount = 0,
     this.activitiesCount = 0,
+    this.exercisesCount = 0,
+    this.challengesCount = 0,
+    this.challengesLocked = false,
+    this.isBaseline = false,
     this.displayOrder = 0,
   });
 
@@ -17,6 +21,10 @@ class RoomModuleSummary {
   final String status;
   final int topicsCount;
   final int activitiesCount;
+  final int exercisesCount;
+  final int challengesCount;
+  final bool challengesLocked;
+  final bool isBaseline;
   final int displayOrder;
 
   factory RoomModuleSummary.fromJson(Map<String, dynamic> json) {
@@ -42,6 +50,10 @@ class RoomModuleSummary {
       status: json['status'] as String? ?? json['mod_status'] as String? ?? 'published',
       topicsCount: (json['topicsCount'] as num?)?.toInt() ?? 0,
       activitiesCount: (json['activitiesCount'] as num?)?.toInt() ?? 0,
+      exercisesCount: (json['exercisesCount'] as num?)?.toInt() ?? 0,
+      challengesCount: (json['challengesCount'] as num?)?.toInt() ?? 0,
+      challengesLocked: json['challengesLocked'] as bool? ?? false,
+      isBaseline: json['isBaseline'] as bool? ?? false,
       displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,
     );
   }
@@ -158,12 +170,23 @@ class RoomModel {
       );
 
   int get totalActivities {
-    final int count = curriculumModules.fold<int>(
-      0,
-      (int acc, RoomModuleSummary m) =>
-          acc + (m.activitiesCount > 0 ? m.activitiesCount : m.topicsCount * 3),
-    );
-    return count > 0 ? count : (totalTopics > 0 ? totalTopics * 3 : 12);
+    if (curriculumModules.isNotEmpty) {
+      final int count = curriculumModules.fold<int>(
+        0,
+        (int acc, RoomModuleSummary m) {
+          if (m.activitiesCount > 0) return acc + m.activitiesCount;
+          if (m.topicsCount > 0 &&
+              m.exercisesCount == 0 &&
+              m.challengesCount == 0 &&
+              !m.challengesLocked) {
+            return acc + m.topicsCount * 3;
+          }
+          return acc;
+        },
+      );
+      if (count > 0) return count;
+    }
+    return totalTopics > 0 ? totalTopics * 3 : 12;
   }
 
   int get progressPct {

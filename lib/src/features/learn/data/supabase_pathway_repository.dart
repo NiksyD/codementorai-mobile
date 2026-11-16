@@ -821,14 +821,15 @@ class SupabasePathwayRepository implements PathwayRepository {
       final Map<String, dynamic> mod = modRows.first;
 
       // 2. Check enrollment & progress & bookmark & purchase status
-      bool isEnrolled = false;
+      final bool isBaseline = mod['mod_kind'] == 'system_pretest';
+      bool isEnrolled = isBaseline;
       int completion = 0;
       bool isBookmarked = bookmarkedIdsNotifier.value.contains(moduleId);
       final double rawPrice = (mod['mod_price'] as num?)?.toDouble() ?? 0.0;
-      final double effectivePrice = rawPrice > 0 ? rawPrice : 0.84;
+      final double effectivePrice = isBaseline ? 0.0 : (rawPrice > 0 ? rawPrice : 0.84);
       final bool isCreator = userId.isNotEmpty &&
           (mod['mentor_id'] == userId || mod['user_id'] == userId);
-      bool isPurchased = isCreator ? true : await isModulePurchased(userId, moduleId);
+      bool isPurchased = isBaseline || isCreator ? true : await isModulePurchased(userId, moduleId);
 
       final Set<String> solvedItemIds = <String>{};
       if (userId.isNotEmpty) {
@@ -2163,7 +2164,9 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
               mod_title,
               mod_description,
               mod_stack,
-              mod_status
+              mod_status,
+              mod_price,
+              mod_kind
             )
           ''')
           .inFilter('hub_id', allRoomIds)
@@ -2175,33 +2178,108 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
           .toSet()
           .toList();
 
+      // Check which modules have challenges unlocked (free module or purchased via CodeCoins)
+      final Set<String> challengeUnlocked = <String>{};
+      final Set<String> baselineModIds = <String>{};
+      final List<String> paidModIds = <String>[];
+
+      for (final Map<String, dynamic> r in rmRows) {
+        final dynamic rawMod = r['modules'];
+        final Map<String, dynamic>? modData = rawMod is List
+            ? (rawMod.isNotEmpty ? rawMod.first as Map<String, dynamic> : null)
+            : rawMod as Map<String, dynamic>?;
+        if (modData != null) {
+          final String mId = modData['mod_id'] as String? ?? '';
+          if (mId.isEmpty) continue;
+          final dynamic rawKind = modData['mod_kind'];
+          if (rawKind == 'system_pretest') {
+            baselineModIds.add(mId);
+          }
+          final num price = (modData['mod_price'] as num?) ?? 0;
+          if (price > 0) {
+            paidModIds.add(mId);
+          } else {
+            challengeUnlocked.add(mId);
+          }
+        }
+      }
+
+      if (paidModIds.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> purchases = await _supabase
+              .from('coin_transactions')
+              .select('reference_id')
+              .eq('user_id', userId)
+              .eq('tx_type', 'module_purchase')
+              .lt('amount_coins', 0)
+              .inFilter('reference_id', paidModIds.toSet().toList());
+
+          for (final Map<String, dynamic> p in purchases) {
+            final String? refId = p['reference_id'] as String?;
+            if (refId != null && refId.isNotEmpty) {
+              challengeUnlocked.add(refId);
+            }
+          }
+        } catch (_) {
+          // Non-blocking fallback
+        }
+      }
+
       // 5. Fetch topics & activities count per module (matching web 1:1)
       final Map<String, int> topicCountMap = <String, int>{};
-      final Map<String, int> activityCountMap = <String, int>{};
-      final Map<String, List<String>> moduleActIdsMap = <String, List<String>>{};
+      final Map<String, List<String>> modPracticeIds = <String, List<String>>{};
+      final Map<String, List<String>> modChallengeIds = <String, List<String>>{};
 
       if (attachedModIds.isNotEmpty) {
         try {
-          final List<Map<String, dynamic>> topicsData = await _supabase
-              .from('topics')
-              .select('track_id, topic_id, activities (act_id)')
-              .inFilter('track_id', attachedModIds);
+          final List<dynamic> results = await Future.wait(<Future<dynamic>>[
+            _supabase
+                .from('topics')
+                .select('track_id, topic_id, activities (act_id, act_category)')
+                .inFilter('track_id', attachedModIds),
+            _supabase
+                .from('activities')
+                .select('track_id, act_id')
+                .inFilter('track_id', attachedModIds)
+                .eq('act_category', 'challenge'),
+          ]);
+
+          final List<Map<String, dynamic>> topicsData =
+              (results[0] as List<dynamic>).cast<Map<String, dynamic>>();
+          final List<Map<String, dynamic>> challengesData =
+              (results[1] as List<dynamic>).cast<Map<String, dynamic>>();
 
           for (final Map<String, dynamic> t in topicsData) {
             final String trackId = t['track_id'] as String? ?? '';
+            if (trackId.isEmpty) continue;
             topicCountMap[trackId] = (topicCountMap[trackId] ?? 0) + 1;
 
             final dynamic rawActs = t['activities'];
             final List<dynamic> acts = rawActs is List ? rawActs : <dynamic>[];
-            activityCountMap[trackId] =
-                (activityCountMap[trackId] ?? 0) + acts.length;
-
             for (final dynamic a in acts) {
               if (a is Map && a['act_id'] != null) {
-                moduleActIdsMap
-                    .putIfAbsent(trackId, () => <String>[])
-                    .add(a['act_id'].toString());
+                final String actId = a['act_id'].toString();
+                final String cat = a['act_category'] as String? ?? '';
+                if (cat == 'challenge') {
+                  final List<String> list =
+                      modChallengeIds.putIfAbsent(trackId, () => <String>[]);
+                  if (!list.contains(actId)) list.add(actId);
+                } else {
+                  final List<String> list =
+                      modPracticeIds.putIfAbsent(trackId, () => <String>[]);
+                  if (!list.contains(actId)) list.add(actId);
+                }
               }
+            }
+          }
+
+          for (final Map<String, dynamic> c in challengesData) {
+            final String trackId = c['track_id'] as String? ?? '';
+            final String? actId = c['act_id']?.toString();
+            if (trackId.isNotEmpty && actId != null && actId.isNotEmpty) {
+              final List<String> list =
+                  modChallengeIds.putIfAbsent(trackId, () => <String>[]);
+              if (!list.contains(actId)) list.add(actId);
             }
           }
         } catch (_) {
@@ -2221,11 +2299,25 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
 
         if (modData != null) {
           final String mId = modData['mod_id'] as String? ?? '';
+          final bool isUnlocked = challengeUnlocked.contains(mId);
+          final bool isBaseline = baselineModIds.contains(mId);
+          final int exercisesCount =
+              (modPracticeIds[mId] ?? const <String>[]).length;
+          final int challengesCount =
+              (modChallengeIds[mId] ?? const <String>[]).length;
+          final bool challengesLocked = !isUnlocked;
+          final int activitiesCount =
+              exercisesCount + (challengesLocked ? 0 : challengesCount);
+
           modulesMap.putIfAbsent(rId, () => <RoomModuleSummary>[]).add(
                 RoomModuleSummary.fromJson(<String, dynamic>{
                   ...modData,
                   'topicsCount': topicCountMap[mId] ?? 0,
-                  'activitiesCount': activityCountMap[mId] ?? 0,
+                  'exercisesCount': exercisesCount,
+                  'challengesCount': challengesCount,
+                  'activitiesCount': activitiesCount,
+                  'challengesLocked': challengesLocked,
+                  'isBaseline': isBaseline,
                   'displayOrder': r['display_order'] ?? 0,
                 }),
               );
@@ -2346,7 +2438,27 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         }
       }
 
-      // 7. Fetch user's completed submissions for progress calculation
+      // 7. Fetch user's practice progress and submissions for progress calculation
+      final Map<String, int> practiceProgressMap = <String, int>{};
+      if (attachedModIds.isNotEmpty) {
+        try {
+          final List<Map<String, dynamic>> progressRows = await _supabase
+              .from('user_practice_progress')
+              .select('track_id, upp_completion')
+              .eq('user_id', userId)
+              .inFilter('track_id', attachedModIds);
+          for (final Map<String, dynamic> pr in progressRows) {
+            final String tid = pr['track_id'] as String? ?? '';
+            if (tid.isNotEmpty) {
+              practiceProgressMap[tid] =
+                  (pr['upp_completion'] as num?)?.toInt() ?? 0;
+            }
+          }
+        } catch (_) {
+          // Non-blocking
+        }
+      }
+
       final Set<String> passedActivityIds = <String>{};
       try {
         final List<Map<String, dynamic>> subs = await _supabase
@@ -2370,6 +2482,33 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         // Non-blocking
       }
 
+      // Baseline modules allow one attempt per challenge, so any submission counts as done.
+      if (baselineModIds.isNotEmpty) {
+        final List<String> baselineActIds = <String>[];
+        for (final String mid in baselineModIds) {
+          baselineActIds.addAll(modPracticeIds[mid] ?? const <String>[]);
+          baselineActIds.addAll(modChallengeIds[mid] ?? const <String>[]);
+        }
+        if (baselineActIds.isNotEmpty) {
+          try {
+            final List<Map<String, dynamic>> baselineSubs = await _supabase
+                .from('submissions')
+                .select('item_id')
+                .eq('user_id', userId)
+                .inFilter('item_id', baselineActIds.toSet().toList());
+
+            for (final Map<String, dynamic> s in baselineSubs) {
+              final String? itemId = s['item_id'] as String?;
+              if (itemId != null && itemId.isNotEmpty) {
+                passedActivityIds.add(itemId);
+              }
+            }
+          } catch (_) {
+            // Non-blocking
+          }
+        }
+      }
+
       // 8. Build final RoomModel list
       return allRooms.map((Map<String, dynamic> room) {
         final String rId = room['id'] as String? ?? '';
@@ -2381,17 +2520,30 @@ Ensure your code compiles cleanly and satisfies the validation test suite.
         final String status = membership?['status'] as String? ??
             (mId == userId ? 'active' : 'active');
 
-        // Calculate completed activities count in this room
+        // Calculate completed activities count in this room (matching web parity)
         final List<RoomModuleSummary> roomMods =
             modulesMap[rId] ?? const <RoomModuleSummary>[];
         int completedActivitiesCount = 0;
         for (final RoomModuleSummary mod in roomMods) {
-          final List<String> actIds = moduleActIdsMap[mod.id] ?? <String>[];
-          for (final String actId in actIds) {
-            if (passedActivityIds.contains(actId)) {
-              completedActivitiesCount++;
-            }
-          }
+          final List<String> practices =
+              modPracticeIds[mod.id] ?? const <String>[];
+          final List<String> challenges =
+              modChallengeIds[mod.id] ?? const <String>[];
+          final int passedPractices = practices
+              .where((String id) => passedActivityIds.contains(id))
+              .length;
+          final int passedChallenges = mod.challengesLocked
+              ? 0
+              : challenges
+                  .where((String id) => passedActivityIds.contains(id))
+                  .length;
+          final int upp = practiceProgressMap[mod.id] ?? 0;
+          final int fromProgress = practices.isNotEmpty
+              ? ((upp / 100.0) * practices.length).round()
+              : 0;
+          final int completedPractices =
+              passedPractices > fromProgress ? passedPractices : fromProgress;
+          completedActivitiesCount += completedPractices + passedChallenges;
         }
 
         return RoomModel(

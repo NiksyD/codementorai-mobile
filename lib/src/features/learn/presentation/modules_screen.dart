@@ -212,16 +212,27 @@ class _ModulesScreenState extends State<ModulesScreen> {
     }
   }
 
-  // Filter and Priority Sort: 1. Completed (100%), 2. Enrolled, 3. Explore
+  // In progress = started and not finished. Free modules like the baseline are never "unlocked", so progress
+  // counts on its own, not only ownership.
+  bool _isInProgress(PathwayModel p) =>
+      (p.isPurchased || p.isEnrolled || p.completion > 0) && p.completion < 100;
+
+  bool get _hasCompletedBaseline => _modules.any(
+    (PathwayModel p) => p.isBaseline && p.completion >= 100,
+  );
+
+  // Filter and Priority Sort matching Web 1:1:
+  // Baseline modules (one per language) are pinned first until the learner finishes any one of them.
+  // After that the others drop back into their normal place, still listed for a second language.
   List<PathwayModel> get _processedModules {
+    final bool hasCompletedBaseline = _hasCompletedBaseline;
+
     final List<PathwayModel> filtered = _modules.where((PathwayModel p) {
-      // Category filter
-      if (_selectedCategory == 'in-progress' &&
-          (!p.isEnrolled || p.completion >= 100)) {
+      // Category filter matching Web 1:1
+      if (_selectedCategory == 'in-progress' && !_isInProgress(p)) {
         return false;
       }
-      if (_selectedCategory == 'completed' &&
-          (!p.isEnrolled || p.completion < 100)) {
+      if (_selectedCategory == 'completed' && p.completion < 100) {
         return false;
       }
       if (_selectedCategory == 'bookmarked' && !p.isBookmarked) {
@@ -239,6 +250,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
         final String title = p.title.toLowerCase();
         final String desc = p.description.toLowerCase();
+        final String coach = (p.coachName ?? '').toLowerCase();
         final String id = p.id.toLowerCase();
         final List<String> stack = p.stack
             .map((String s) => s.toLowerCase())
@@ -258,6 +270,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
             return title.contains(term) ||
                 desc.contains(term) ||
+                coach.contains(term) ||
                 id.contains(term) ||
                 stack.any((String s) => s.contains(term));
           });
@@ -267,16 +280,22 @@ class _ModulesScreenState extends State<ModulesScreen> {
       return true;
     }).toList();
 
-    // Priority Sort: 1. Completed (100%), 2. Enrolled, 3. Explore
+    // Priority Sort:
+    // Pinned baseline (-1) -> Completed (0) -> Enrolled/In-Progress (1) -> Unenrolled/Explore (2)
+    int sortRank(PathwayModel p) {
+      if (p.isBaseline && p.completion < 100 && !hasCompletedBaseline) {
+        return -1;
+      }
+      final bool isCompleted = p.isEnrolled && p.completion >= 100;
+      if (isCompleted) return 0;
+      if (p.isEnrolled || p.completion > 0) return 1;
+      return 2;
+    }
+
     return filtered..sort((PathwayModel a, PathwayModel b) {
-      final int aCompleted = (a.isEnrolled && a.completion >= 100) ? 1 : 0;
-      final int bCompleted = (b.isEnrolled && b.completion >= 100) ? 1 : 0;
-      if (aCompleted != bCompleted) return bCompleted - aCompleted;
-
-      final int aEnrolled = a.isEnrolled ? 1 : 0;
-      final int bEnrolled = b.isEnrolled ? 1 : 0;
-      if (aEnrolled != bEnrolled) return bEnrolled - aEnrolled;
-
+      final int rankA = sortRank(a);
+      final int rankB = sortRank(b);
+      if (rankA != rankB) return rankA.compareTo(rankB);
       return 0;
     });
   }
@@ -284,15 +303,11 @@ class _ModulesScreenState extends State<ModulesScreen> {
   int _getCategoryCount(String categoryId) {
     switch (categoryId) {
       case 'in-progress':
-        return _modules
-            .where((PathwayModel p) => p.isEnrolled && p.completion < 100)
-            .length;
+        return _modules.where(_isInProgress).length;
       case 'bookmarked':
         return _modules.where((PathwayModel p) => p.isBookmarked).length;
       case 'completed':
-        return _modules
-            .where((PathwayModel p) => p.isEnrolled && p.completion >= 100)
-            .length;
+        return _modules.where((PathwayModel p) => p.completion >= 100).length;
       case 'all':
       default:
         return _modules.length;
@@ -486,65 +501,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                             });
                           },
                         ),
-                      const SizedBox(height: 10.0),
-
-                      // Summary Counter Header (Matching Web 1:1)
-                      if (_selectedTab == ExploreTab.modules &&
-                          !_isLoading &&
-                          displayModules.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text.rich(
-                            TextSpan(
-                              children: <InlineSpan>[
-                                TextSpan(
-                                  text: '${displayModules.length}',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 12.0,
-                                    fontWeight: FontWeight.w600,
-                                    color: textPrimary,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text:
-                                      ' module${displayModules.length == 1 ? '' : 's'}',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.0,
-                                    color: textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      else if (_selectedTab == ExploreTab.assessments &&
-                          !_isAssessmentsLoading &&
-                          _filteredAssessments.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text.rich(
-                            TextSpan(
-                              children: <InlineSpan>[
-                                TextSpan(
-                                  text: '${_filteredAssessments.length}',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 12.0,
-                                    fontWeight: FontWeight.w600,
-                                    color: textPrimary,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text:
-                                      ' assessment${_filteredAssessments.length == 1 ? '' : 's'}',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.0,
-                                    color: textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 8.0),
                     ],
                   ),
                 ),
@@ -584,6 +541,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           isDark: isDark,
                           textPrimary: textPrimary,
                           textSecondary: textSecondary,
+                          hasCompletedBaseline: _hasCompletedBaseline,
                         );
                       }, childCount: displayModules.length),
                     ),
@@ -645,16 +603,20 @@ class _ModulesScreenState extends State<ModulesScreen> {
     required bool isDark,
     required Color textPrimary,
     required Color textSecondary,
+    bool hasCompletedBaseline = false,
   }) {
     final bool isEnrolled = module.isEnrolled;
-    final bool isCompleted = isEnrolled && module.completion >= 100;
+    final bool isCompleted = module.completion >= 100;
+    final bool isBaseline = module.isBaseline;
+    final bool isPinnedBaseline =
+        isBaseline && !isCompleted && !hasCompletedBaseline;
 
     // CTA Label strictly following AGENTS.md rule 1.2
-    final String ctaLabel = !isEnrolled
-        ? 'Start Learning'
-        : isCompleted
+    final String ctaLabel = isCompleted
         ? 'Review'
-        : 'Continue Learning';
+        : module.completion > 0
+        ? 'Continue Learning'
+        : 'Start Learning';
 
     // Strict 0% Handling per AGENTS.md rule 2.3
     final double progressValue = module.completion <= 0
@@ -727,22 +689,56 @@ class _ModulesScreenState extends State<ModulesScreen> {
       ),
     );
 
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightBorder;
+
     return Container(
+      margin: isPinnedBaseline
+          ? const EdgeInsets.only(bottom: 8.0, top: 4.0)
+          : EdgeInsets.zero,
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            width: 1.0,
-          ),
-        ),
+        color: isPinnedBaseline
+            ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.04)
+            : Colors.transparent,
+        borderRadius: isPinnedBaseline
+            ? BorderRadius.circular(12.0)
+            : BorderRadius.zero,
+        border: isPinnedBaseline
+            ? Border.all(
+                color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.2),
+                width: 1.0,
+              )
+            : Border(
+                bottom: BorderSide(color: borderColor, width: 1.0),
+              ),
       ),
-      child: InkWell(
-        onTap: handleCardAction,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
+      child: ClipRRect(
+        borderRadius: isPinnedBaseline
+            ? BorderRadius.circular(12.0)
+            : BorderRadius.zero,
+        child: Stack(
+          children: <Widget>[
+            if (isPinnedBaseline)
+              const Positioned(
+                left: 0.0,
+                top: 0.0,
+                bottom: 0.0,
+                width: 3.5,
+                child: ColoredBox(color: AppColors.primary),
+              ),
+            InkWell(
+              onTap: handleCardAction,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  isPinnedBaseline ? 16.0 : 0.0,
+                  16.0,
+                  isPinnedBaseline ? 16.0 : 0.0,
+                  16.0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -753,9 +749,13 @@ class _ModulesScreenState extends State<ModulesScreen> {
                         : <String>[module.language],
                     maxVisible: 3,
                     size: 24.0,
-                    borderColor: isDark
-                        ? AppColors.darkBackground
-                        : AppColors.lightBackground,
+                    borderColor: isPinnedBaseline
+                        ? (isDark
+                            ? AppColors.darkSurface
+                            : AppColors.lightSurface)
+                        : (isDark
+                            ? AppColors.darkBackground
+                            : AppColors.lightBackground),
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -784,23 +784,72 @@ class _ModulesScreenState extends State<ModulesScreen> {
                   ),
                 ],
               ),
-              Text(
-                module.title,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 17.0,
-                  fontWeight: FontWeight.w700,
-                  color: textPrimary,
-                  letterSpacing: -0.2,
-                  height: 1.25,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 12.0),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      module.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 17.0,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                        letterSpacing: -0.2,
+                        height: 1.25,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isBaseline) ...<Widget>[
+                    const SizedBox(width: 8.0),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0,
+                        vertical: 3.0,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999.0),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                          width: 1.0,
+                        ),
+                        color: AppColors.primary.withValues(
+                          alpha: isDark ? 0.12 : 0.06,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(
+                            Icons.track_changes_rounded,
+                            size: 12.0,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 4.0),
+                          Text(
+                            'Baseline',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 6.0),
               Text(
                 module.description.isNotEmpty
                     ? module.description
-                    : 'Master core programming concepts and hands-on challenges.',
+                    : (isBaseline
+                        ? 'Diagnostic pretest challenges to calibrate your skill baseline.'
+                        : 'Master core programming concepts and hands-on challenges.'),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13.0,
                   color: textSecondary,
@@ -814,7 +863,9 @@ class _ModulesScreenState extends State<ModulesScreen> {
                 children: <Widget>[
                   Flexible(
                     child: Text(
-                      module.coachName ?? 'AI Mentor',
+                      isBaseline
+                          ? 'by ${module.coachName ?? 'CodeMentor AI'}'
+                          : 'by ${module.coachName ?? 'AI Mentor'}',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12.0,
                         fontWeight: FontWeight.w500,
@@ -831,22 +882,40 @@ class _ModulesScreenState extends State<ModulesScreen> {
                       color: textSecondary,
                     ),
                   ),
-                  Icon(Icons.star_rounded, size: 14.0, color: textSecondary),
-                  const SizedBox(width: 3.0),
-                  Text(
-                    module.rating.toStringAsFixed(1),
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12.0,
-                      color: textSecondary,
+                  if (isBaseline) ...<Widget>[
+                    Text(
+                      'Free',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '  ·  ',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.0,
-                      color: textSecondary,
+                    Text(
+                      '  ·  ',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        color: textSecondary,
+                      ),
                     ),
-                  ),
+                  ] else ...<Widget>[
+                    Icon(Icons.star_rounded, size: 14.0, color: textSecondary),
+                    const SizedBox(width: 3.0),
+                    Text(
+                      module.rating.toStringAsFixed(1),
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 12.0,
+                        color: textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '  ·  ',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.0,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
                   Text.rich(
                     TextSpan(
                       children: <InlineSpan>[
@@ -858,7 +927,13 @@ class _ModulesScreenState extends State<ModulesScreen> {
                           ),
                         ),
                         TextSpan(
-                          text: module.totalModules == 1 ? ' topic' : ' topics',
+                          text: isBaseline
+                              ? (module.totalModules == 1
+                                  ? ' problem'
+                                  : ' problems')
+                              : (module.totalModules == 1
+                                  ? ' topic'
+                                  : ' topics'),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12.0,
                             color: textSecondary,
@@ -873,7 +948,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                  if (isEnrolled) ...<Widget>[
+                  if (isEnrolled || module.completion > 0) ...<Widget>[
                     Expanded(
                       child: Row(
                         children: <Widget>[
@@ -923,7 +998,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
           ),
         ),
       ),
-    );
+    ],
+  ),
+),
+);
   }
 
   Widget _buildCompactModuleActionButton({
@@ -1530,7 +1608,8 @@ class _ModulesScreenState extends State<ModulesScreen> {
                   const SizedBox(width: 16.0),
                   _buildMicroSpec(
                     icon: Icons.code_rounded,
-                    label: '${assessment.challengeCount} Tasks',
+                    label:
+                        '${assessment.challengeCount} ${assessment.challengeCount == 1 ? 'Problem' : 'Problems'}',
                     textSecondary: textSecondary,
                   ),
                 ],
@@ -1540,7 +1619,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      assessment.mentorName,
+                      'by ${assessment.mentorName}',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12.0,
                         fontWeight: FontWeight.w500,

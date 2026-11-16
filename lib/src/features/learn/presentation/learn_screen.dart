@@ -582,6 +582,19 @@ class _LearnScreenState extends State<LearnScreen> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
+        if (pathway.coachName != null && pathway.coachName!.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 4.0),
+          Text(
+            'by ${pathway.coachName}',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.0,
+              fontWeight: FontWeight.w500,
+              color: textSecondary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
         const SizedBox(height: 6.0),
         Text(
           pathway.description.isNotEmpty

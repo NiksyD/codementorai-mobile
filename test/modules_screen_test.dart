@@ -13,12 +13,15 @@ import 'package:codementorai_mobile/src/features/learn/domain/submission_history
 import 'package:codementorai_mobile/src/features/learn/presentation/modules_screen.dart';
 
 class FakeAssessmentRepository implements AssessmentRepository {
+  FakeAssessmentRepository([this.assessments = const <AssessmentModel>[]]);
+  final List<AssessmentModel> assessments;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 
   @override
   Future<List<AssessmentModel>> getPublishedAssessments(String userId) async =>
-      const <AssessmentModel>[];
+      assessments;
 }
 
 class FakePathwayRepository implements PathwayRepository {
@@ -313,5 +316,111 @@ void main() {
       expect(find.text('Python Essentials'), findsOneWidget);
       expect(find.text('Java Multithreading & Memory Model'), findsOneWidget);
     });
+
+    testWidgets(
+      'Explore screen does not render redundant count headers and uses Problems for assessments',
+      (WidgetTester tester) async {
+        final FakePathwayRepository repository =
+            FakePathwayRepository(testModules);
+        final List<AssessmentModel> sampleAssessments = <AssessmentModel>[
+          const AssessmentModel(
+            id: 'asm-1',
+            title: 'Algorithms Sprint',
+            description: 'Timed algorithm sprint.',
+            stack: <String>['python'],
+            difficulty: 'Intermediate',
+            durationMins: 60,
+            maxAttempts: 3,
+            status: 'published',
+            challengeCount: 3,
+            mentorName: 'Sarah Connor',
+            isUnlocked: true,
+          ),
+        ];
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ModulesScreen(
+              pathwayRepository: repository,
+              assessmentRepository:
+                  FakeAssessmentRepository(sampleAssessments),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify redundant "3 modules" is NOT rendered
+        expect(find.text('3 modules'), findsNothing);
+
+        // Switch to Assessments tab
+        await tester.tap(find.text('Assessments'));
+        await tester.pumpAndSettle();
+
+        // Verify redundant "1 assessment" is NOT rendered
+        expect(find.text('1 assessment'), findsNothing);
+
+        // Verify assessment card displays "3 Problems" and NOT "3 Tasks"
+        expect(find.text('3 Problems'), findsOneWidget);
+        expect(find.text('3 Tasks'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Redesigns Baseline pretest card with Baseline badge, Free tag, and pinned priority',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final List<PathwayModel> modulesWithBaseline = <PathwayModel>[
+          ...testModules,
+          const PathwayModel(
+            id: 'python-baseline',
+            title: 'Python Diagnostic Baseline',
+            description: 'Evaluate your baseline knowledge of Python.',
+            language: 'python',
+            stack: <String>['python'],
+            status: 'Not Started',
+            completion: 0,
+            totalModules: 5,
+            currentModule: 'Basic Control Flow',
+            isEnrolled: false,
+            isBookmarked: false,
+            coachName: 'CodeMentor AI',
+            kind: 'system_pretest',
+          ),
+        ];
+
+        final FakePathwayRepository repository =
+            FakePathwayRepository(modulesWithBaseline);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ModulesScreen(
+              pathwayRepository: repository,
+              assessmentRepository: FakeAssessmentRepository(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Verify "Baseline" badge is rendered next to the title
+        expect(find.text('Baseline'), findsOneWidget);
+        expect(find.byIcon(Icons.track_changes_rounded), findsOneWidget);
+
+        // 2. Verify "Free" tag and "5 problems" rendered instead of star rating
+        expect(find.text('Free'), findsOneWidget);
+        expect(find.textContaining('5 problems'), findsOneWidget);
+
+        // 3. Verify Baseline module title is present
+        expect(find.text('Python Diagnostic Baseline'), findsOneWidget);
+
+        // 4. Verify Pinned Baseline has start learning CTA
+        expect(find.text('Start Learning'), findsAtLeastNWidgets(1));
+      },
+    );
   });
 }

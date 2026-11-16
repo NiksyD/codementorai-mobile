@@ -268,18 +268,22 @@ public class RefactoredSolution {
       // App Bar Title
       expect(find.text('Submission review'), findsOneWidget);
 
-      // Header: one status line (status, language, tests, time)
-      expect(find.textContaining('Passed ·'), findsOneWidget);
-      expect(find.textContaining('All tests passed'), findsOneWidget);
+      // Header: metadata line (language and time) matching web
+      expect(find.textContaining('Java ·'), findsOneWidget);
+      expect(find.textContaining('Passed ·'), findsNothing);
+      expect(find.textContaining('All tests passed'), findsNothing);
       expect(
         find.text('Modern Switch Expressions and Short-Circuit Evaluation'),
         findsWidgets,
       );
-      expect(find.text('Score'), findsOneWidget);
+      // Score in header row matching web
       expect(find.textContaining('/ 100', findRichText: true), findsOneWidget);
-      expect(find.text('Result'), findsOneWidget);
-      expect(find.text('Target time'), findsOneWidget);
-      expect(find.text('Target space'), findsOneWidget);
+      expect(find.textContaining('96', findRichText: true), findsWidgets);
+
+      // Redundant telemetry stats removed to match web
+      expect(find.text('Result'), findsNothing);
+      expect(find.text('Target time'), findsNothing);
+      expect(find.text('Target space'), findsNothing);
 
       // 4 ACF Tabs
       expect(find.text('Correctness'), findsOneWidget);
