@@ -42,9 +42,9 @@ flutter pub get
 ```
 
 ### 3. Environment Variables
-Copy `.env.example` to create your local `.env` file:
+Copy `.env.example` to create your local config file (`assets/config/app.env`):
 ```bash
-cp .env.example .env
+cp .env.example assets/config/app.env
 ```
 
 ---

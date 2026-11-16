@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/common_widgets/app_toast.dart';
+import 'src/common_widgets/startup_error_app.dart';
 import 'src/constants/app_theme.dart';
 import 'src/features/auth/data/password_reset_storage.dart';
 import 'src/features/profile/data/supabase_profile_repository.dart';
@@ -11,17 +12,48 @@ import 'src/theme/theme_mode_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables from .env file
-  await dotenv.load(fileName: '.env');
+  // Anything that goes wrong before the first screen must be shown, never left
+  // as a launch screen that hangs: the learner could not tell what happened.
+  String? startupError;
 
-  // Initialize Supabase client
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    publishableKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
-    authOptions: const FlutterAuthClientOptions(
-      authFlowType: AuthFlowType.pkce,
-    ),
-  );
+  try {
+    // Load environment variables from the bundled config file. It is a normal
+    // file name on purpose: hidden dot-files can be dropped when the APK is packaged.
+    await dotenv.load(fileName: 'assets/config/app.env');
+  } catch (_) {
+    // Later code reads dotenv.env, which throws until something is loaded.
+    dotenv.loadFromString(envString: '');
+    startupError =
+        'This build is missing its configuration. Please install the latest version of the app.';
+  }
+
+  final String supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final String supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  if (startupError == null && (supabaseUrl.isEmpty || supabaseKey.isEmpty)) {
+    startupError =
+        'This build is missing its configuration. Please install the latest version of the app.';
+  }
+
+  if (startupError == null) {
+    try {
+      // Initialize Supabase client
+      await Supabase.initialize(
+        url: supabaseUrl,
+        publishableKey: supabaseKey,
+        authOptions: const FlutterAuthClientOptions(
+          authFlowType: AuthFlowType.pkce,
+        ),
+      );
+    } catch (_) {
+      startupError =
+          'The app could not connect to its service. Check your connection and open it again.';
+    }
+  }
+
+  if (startupError != null) {
+    runApp(StartupErrorApp(message: startupError));
+    return;
+  }
 
   runApp(const CodeMentorApp());
 }
