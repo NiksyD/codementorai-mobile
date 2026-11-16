@@ -408,7 +408,7 @@ class _JoinRoomSheetState extends State<JoinRoomSheet> {
         ),
         const SizedBox(height: 2.0),
         Text(
-          'Section $section · $mentor',
+          section.trim().isNotEmpty ? '$section · $mentor' : mentor,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13.0,
             color: textSecondary,

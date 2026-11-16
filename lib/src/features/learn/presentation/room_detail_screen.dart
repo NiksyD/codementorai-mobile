@@ -240,14 +240,16 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             height: 1.25,
           ),
         ),
-        const SizedBox(height: 4.0),
-        Text(
-          'Section ${room.section}',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13.0,
-            color: textSecondary,
+        if (room.section.trim().isNotEmpty) ...<Widget>[
+          const SizedBox(height: 4.0),
+          Text(
+            room.section,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.0,
+              color: textSecondary,
+            ),
           ),
-        ),
+        ],
         if (room.description.trim().isNotEmpty) ...<Widget>[
           const SizedBox(height: 10.0),
           Text(
@@ -341,7 +343,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         tabs: <FilterTabItem>[
           FilterTabItem(
             id: 'modules',
-            label: 'Learning Modules',
+            label: 'Modules',
             count: _room!.curriculumModules.length,
           ),
           FilterTabItem(
